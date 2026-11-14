@@ -2,6 +2,7 @@ import { RULES } from './rules';
 import { bus, EV, UI_EV } from './events';
 import type { GameState, ItemId, Plot, PowerSlot } from './types';
 import { cropById, getData, type StormEvent, type WeatherSol } from '../data/loaders';
+import { getActiveFindsForSol } from '../rover/findsManager';
 
 // The single owner of GameState. Scenes read `store.state` and call commands; only the store
 // advances time, the rover route and the radio queue (PLAN.md sections 5–6).
@@ -419,7 +420,7 @@ class Store {
 
   private collectRoverFind(x: number, y: number) {
     const r = this.state.rover;
-    for (const f of getData().terrain.finds) {
+    for (const f of [...getData().terrain.finds, ...getActiveFindsForSol(getData().terrain, this.state.stormWeekId, this.state.sol)]) {
       if (f.x !== x || f.y !== y || r.collectedFindIds.includes(f.id)) continue;
       r.collectedFindIds.push(f.id);
       r.cargo[f.item] += f.amount;
