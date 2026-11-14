@@ -7,6 +7,7 @@ import { settings } from '../core/settings';
 import { loadAstronaut, PET_TRICKS, type PetKind } from '../farm/look';
 import { cropById } from '../data/loaders';
 import { cropStage } from '../farm/art';
+import { drawEarthWindow, earthPhase } from '../farm/earthPhase';
 import { adaptWorldLines, CHAT, EGGS, REACT, type Line } from '../story/script';
 import { TOOLS } from '../ui/UIScene';
 import { advanceHopClock, beginHop, moveSwept, type HopClock } from '../core/movement';
@@ -56,6 +57,11 @@ export class FarmScene extends Phaser.Scene {
   private chatIndex: Record<string, number> = {};
   private eggTree?: Phaser.GameObjects.Image;
   private panelSprite?: Phaser.GameObjects.Image;
+  /** Moon only: grey dust tracked in through the airlock (more patches at dust level 2). */
+  private dustPatches: Phaser.GameObjects.Image[] = [];
+  /** Moon only: the Earth window, redrawn in today's Earth phase. */
+  private earthSprite?: Phaser.GameObjects.Image;
+  private earthDrawnFor = 0;
   private exercising = false;
   private counters: Record<string, number> = {};
   private unsub: (() => void)[] = [];
@@ -169,7 +175,7 @@ export class FarmScene extends Phaser.Scene {
   private buildThings() {
     // Things on the top wall.
     this.place('door', 12, 1, 'door');
-    this.place('earth', 5, 1, 'earth-window');
+    this.earthSprite = this.place('earth', 5, 1, 'earth-window');
     // Machines along the top.
     this.place('radio', 3, 2, 'm-radio');
     this.place('console', 15, 2, 'm-console');
@@ -182,6 +188,7 @@ export class FarmScene extends Phaser.Scene {
     this.place('pot', 10, 2, 'm-plant').setTint(0x8a7a6a);
     this.place('moxie', 21, 2, 'm-moxie');
     this.panelSprite = this.place('panel', 21, 7, 'm-panel');
+    if (store.worldId === 'moon') this.buildDustPatches();
     this.place('treadmill', 14, 12, 'm-treadmill');
     if (store.worldId === 'moon') this.place('suit', 11, 2, 'm-suit');
     // Bottom of the dome.
@@ -189,6 +196,22 @@ export class FarmScene extends Phaser.Scene {
     // One bed each for you, Rosa, Theo and Priya (Bolt recharges instead).
     for (const x of [18, 19, 20, 21]) this.place('bed', x, 12, 'm-bed');
     this.eggTree = this.add.image(10 * T, 2 * T - 12, 'egg-tree').setOrigin(0).setDepth(3).setVisible(false);
+  }
+
+  private buildDustPatches() {
+    if (!this.textures.exists('dust-patch')) {
+      const g = this.make.graphics({ x: 0, y: 0 }, false);
+      g.fillStyle(0x6b6f76, 0.85);
+      for (const [x, y, r] of [[8, 9, 6], [15, 7, 5], [21, 10, 5], [12, 12, 4], [26, 8, 3]]) g.fillCircle(x, y, r);
+      g.fillStyle(0x8b8f96, 0.9);
+      for (const [x, y] of [[6, 7], [17, 5], [23, 11], [11, 13]]) g.fillRect(x, y, 2, 2);
+      g.generateTexture('dust-patch', 30, 18);
+      g.destroy();
+    }
+    // In front of the airlock door (12,1) and along the path inside.
+    const spots: [number, number][] = [[12, 2], [13, 3], [12, 4], [11, 3]];
+    this.dustPatches = spots.map(([x, y], i) => this.add.image(x * T + T / 2 + (i % 2 ? 4 : -3), y * T + T / 2 + 6, 'dust-patch')
+      .setDepth(1.5).setFlipX(i % 2 === 1).setVisible(false));
   }
 
   private buildCrew() {
@@ -277,9 +300,16 @@ export class FarmScene extends Phaser.Scene {
     this.bolt.setVisible(s.rover.status === 'home' || s.rover.status === 'repairing');
     const tree = store.meta.storySeen.find((x) => x.startsWith('mystery-planted@'));
     this.eggTree?.setVisible(!!tree && s.sol > Number(tree.split('@')[1]));
-    const panelDusty = store.panelsNeedCleaning();
-    this.panelSprite?.setTexture(panelDusty ? 'm-panel-dusty' : 'm-panel')
-      .setTint(panelDusty && store.worldId === 'moon' ? 0xc6c6c6 : 0xffffff);
+    // Mars wind blows dust onto the panel. The Moon has no wind: its dust comes in on boots and
+    // wheels, so it shows on the floor by the airlock instead.
+    const panelDusty = store.worldId === 'mars' && store.panelsNeedCleaning();
+    this.panelSprite?.setTexture(panelDusty ? 'm-panel-dusty' : 'm-panel');
+    this.dustPatches.forEach((d, i) => d.setVisible(i < s.dustLevel * 2));
+    if (store.worldId === 'moon' && this.earthDrawnFor !== s.sol) {
+      this.earthDrawnFor = s.sol;
+      drawEarthWindow(this, 'earth-window-moon', earthPhase(s.sol, store.rules.missionSols));
+      this.earthSprite?.setTexture('earth-window-moon');
+    }
     const [fx, fy] = this.facingTile();
     this.cursor.setPosition(fx * T + T / 2, fy * T + T / 2).setVisible(!store.paused);
   }
@@ -525,11 +555,11 @@ export class FarmScene extends Phaser.Scene {
             : '{fact:moxie-oxygen} Our MOXIE is a game version: each spare power cell makes a little air.' }]);
         });
       case 'panel':
+        if (store.worldId === 'moon') return this.hint('Solar panel: clean. The Moon has no wind, so dust never blows onto it. Dust comes in on boots and wheels: clean it at the airlock door.');
         if (!store.panelsNeedCleaning()) return this.hint(`Solar panel: clean. It makes our ${store.rules.cellsPerSol} power cells every morning.`);
         return this.report(store.cleanPanels(), () => {
           sfx('clear');
           this.puff(x, y, 0xb5793f);
-          if (store.worldId === 'moon') this.hint('Lunar dust brushed away. Power returns to the panel tomorrow morning.');
         });
       case 'treadmill':
         return this.useTreadmill(x, y);
@@ -539,6 +569,7 @@ export class FarmScene extends Phaser.Scene {
         if (store.radiationAlertToday()) return this.hint('Radiation alert today! Astronauts stay inside, so the suit stays on its rack.');
         return bus.emit('ui:open', 'moonwalk');
       case 'earth':
+        if (store.worldId === 'moon') return this.lookAtEarth();
         this.counters.earth = (this.counters.earth || 0) + 1;
         if (this.counters.earth >= 3) return this.egg('egg-earth', EGGS.earth);
         return this.hint('A painted picture of Earth. It looks very far away.');
@@ -653,6 +684,17 @@ export class FarmScene extends Phaser.Scene {
           : '{fact:iss-exercise} On Mars there is some gravity, but we still train every day.' }]);
       });
     });
+  }
+
+  /** The Moon's Earth window: today's Earth phase, which is the opposite of the Moon's. */
+  private lookAtEarth() {
+    const p = earthPhase(store.state.sol, store.rules.missionSols);
+    const glow = p.lit >= 0.94 ? ' A full Earth is so bright that its earthshine lights up the lunar night.' : '';
+    this.hint(`Earth today: ${p.name}, ${Math.round(p.lit * 100)}% lit. Back home, people see a ${p.moonName} Moon tonight: the opposite phase.${glow}`);
+    this.firstTime('earth-phases-intro', [
+      { who: 'rosa', text: 'Look out the window: Earth has phases too! They are opposite to the Moon\'s. When people on Earth see a new Moon, we see a full Earth.' },
+      { who: 'bolt', text: 'REAL FACT (NASA Science, Moon Phases): Earth phases occur opposite to Moon phases. In this game a whole month fits into 10 days, so check the window every day.' },
+    ]);
   }
 
   private firstTime(tag: string, lines: Line[]) {

@@ -101,7 +101,7 @@ export function addMoonwalk(
     choices.add(text(scene, x + 32, ry + 142,
       `Brought back +${info.regolith} regolith · suit used ${RULES.moonwalkAirCost} air (game rules). Science ticked on today's schedule.`, 16, C.ok, { wordWrap: { width: w - 300 } }));
     choices.add(text(scene, x + 32, ry + 186,
-      'Moon dust clung to your suit, just like on Apollo: 1 fewer power cell tomorrow unless you clean the airlock.', 16, C.warn, { wordWrap: { width: w - 300 } }));
+      'Moon dust clung to your suit and came in through the airlock, just like on Apollo. Its filters will use 1 power cell tomorrow unless you clean it.', 16, C.warn, { wordWrap: { width: w - 300 } }));
     choices.add(button(scene, x + w - 140, y + h - 46, 'Back inside »', close, 230, 52, 0xffd166));
     onFinished();
   };

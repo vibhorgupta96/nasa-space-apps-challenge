@@ -326,7 +326,7 @@ export class UIScene extends Phaser.Scene {
     h.weather.setText(store.worldId === 'moon'
       ? `${store.isDaylight() ? 'Sunlit' : 'Dark'} side · simulated ${Math.round(w.minC)}° to ${Math.round(w.maxC)}°C\nGravity ${store.world.gravityMs2} m/s² · hop motion is simulated`
       : `Mars low ${Math.round(w.minC)}°C · high ${Math.round(w.maxC)}°C (InSight)\nGravity ${store.world.gravityMs2} m/s²`);
-    h.dust.setVisible(store.worldId === 'moon').setText(`Lunar dust ${s.dustLevel}/2 · tomorrow ${store.nextDayCells()} power cells`);
+    h.dust.setVisible(store.worldId === 'moon').setText(`Airlock dust ${s.dustLevel}/2 · tomorrow ${store.nextDayCells()} power cells`);
     h.hop.setVisible(store.world.hopEnabled && this.scene.isActive('Farm'));
 
     h.bars.clear();
@@ -472,7 +472,7 @@ export class UIScene extends Phaser.Scene {
       : `Real Mars weather · NASA InSight, Mars sol ${wx.marsSol} (Earth date ${wx.earthDate})\nLow ${wx.minC}°C, high ${wx.maxC}°C${wx.windAvg !== null ? `, wind ${wx.windAvg} m/s` : ''}. ${weatherNote(s.sol)}`;
     c.add(text(this, x + 40, y + 84, weatherCopy, 17, C.teal, { wordWrap: { width: w - 80 } }));
     const dustBudget = store.worldId === 'moon' && s.dustLevel > 0
-      ? ` Dust level ${s.dustLevel} reduces tomorrow's budget to ${store.nextDayCells()} unless you clean the airlock.` : '';
+      ? ` Dust in the airlock (${s.dustLevel}/2): its filters will use power, so tomorrow has ${store.nextDayCells()} cells unless you clean it at the airlock door.` : '';
     c.add(text(this, x + 40, y + 140, `Split today's ${s.cellsToday} power cells. Unallocated cells can make oxygen later today.${dustBudget}`, 17, C.dim, { wordWrap: { width: w - 80 } }));
 
     const rows = this.add.container(0, 0);
@@ -667,7 +667,7 @@ export class UIScene extends Phaser.Scene {
         correct = res.correct;
         const gift = `${trick!.amount} ${trick!.item === 'seed' ? `seed${trick!.amount === 1 ? '' : 's'}` : trick!.item}`;
         reward = res.cleaned ? quizWorld === 'moon'
-          ? `Reward: your ${petName} brushed lunar dust away. Power returns tomorrow.`
+          ? `Reward: your ${petName} swept the dust out of the airlock. Power returns tomorrow.`
           : `Reward: your ${petName} swept the dust off the solar panel! +1 spare cell today.`
           : quizWorld === 'moon'
             ? `Reward: your ${petName} brought ${gift} from the habitat's collected supplies.`

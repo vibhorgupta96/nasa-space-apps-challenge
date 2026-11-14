@@ -141,6 +141,17 @@
         "role": "Person A Moonwalk for Moon missions (suit rack, EVA-suit sprite, three tasks with NASA facts) written by Claude in Claude Code at Muskan's request; facts checked against the linked NASA pages",
         "humanEdits": "pending team review",
         "disclosure": "docs/AI_USAGE.md"
+      },
+      {
+        "files": [
+          "src/farm/earthPhase.ts",
+          "src/scenes/FarmScene.ts",
+          "src/story/script.ts"
+        ],
+        "media": "code, pixel drawing and text",
+        "role": "Person A Moon extras (airlock dust visuals, Earth phases window, Artemis II radio letter) written by Claude in Claude Code at Muskan's request; Earth-phase and Artemis II facts checked against NASA pages",
+        "humanEdits": "pending team review",
+        "disclosure": "docs/AI_USAGE.md"
       }
     ],
     "generatedImagesVideoAudio": [

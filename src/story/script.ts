@@ -107,6 +107,8 @@ export const RADIO_LETTERS: Record<number, string> = {
 export const MOON_RADIO_LETTERS: Record<number, string> = {
   1: 'Welcome to the Moon greenhouse! Our short radio delay is simulated in this game, so ask your questions early.',
   3: 'Your families say hello. Theo’s mum says to stay cozy through the simulated dark stretch. Mums are like that.',
+  // Real, dated news (https://www.nasa.gov/centers-and-facilities/johnson/artemis-ii-mission-milestones-an-image-and-video-recap/).
+  5: 'REAL NEWS from NASA: on 1 April 2026, Artemis II launched four astronauts (Reid Wiseman, Victor Glover, Christina Koch and Jeremy Hansen) on a trip around the Moon. They splashed down safely on 10 April 2026: the first people to fly around the Moon since Apollo 17 in 1972. Source: nasa.gov, Artemis II mission recap.',
   6: 'Your message travelled a short simulated distance in this game. It did not stop for snacks.',
   8: 'The next team is on schedule. They packed extra seeds and one rubber duck. Nobody will say why.',
 };
