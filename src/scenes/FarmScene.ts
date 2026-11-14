@@ -512,7 +512,7 @@ export class FarmScene extends Phaser.Scene {
       case 'tank':
         return this.hint(`Water tank: ${s.inventory.water} water. Plants need water when planted and while growing.`);
       case 'shelter':
-        return this.hint(`Storm shelter. Today: ${s.split.shelter} cell(s) + ${s.shield} shield layer(s) of protection.`);
+        return this.hint(`${store.worldId === 'moon' ? 'Radiation' : 'Storm'} shelter. Today: ${s.split.shelter} cell(s) + ${s.shield} shield layer(s) of protection.`);
       case 'bed':
         return this.useBed();
       case 'moxie':

@@ -483,9 +483,13 @@ export class UIScene extends Phaser.Scene {
       heater: () => store.worldId === 'moon'
         ? `Thermal control needs ${store.thermalRequired()} cell${store.thermalRequired() === 1 ? '' : 's'} for ${store.isDaylight() ? 'daylight cooling' : 'night heating'}; without it, plants pause.`
         : (cold ? `Tonight is colder than ${RULES.heaterNeededBelowC}°C. Without 1 heater cell, plants won't grow.` : 'Warm enough tonight. The heater is optional.'),
-      shelter: () => warned.length
-        ? `⚠️ STORM TODAY! Strength ${warned[0].event.scenario.strength} (simulated). Shelter cells + ${s.shield} shield layer(s) must reach it.`
-        : 'No storm warning for today. Check the storm board (TAB).',
+      shelter: () => store.worldId === 'moon'
+        ? (warned.length
+          ? `⚠️ RADIATION TODAY! Strength ${warned[0].event.scenario.strength} (simulated). Shelter cells + ${s.shield} shield layer(s) must reach it.`
+          : 'No radiation alert for today. Check the lunar environment board (TAB).')
+        : (warned.length
+          ? `⚠️ STORM TODAY! Strength ${warned[0].event.scenario.strength} (simulated). Shelter cells + ${s.shield} shield layer(s) must reach it.`
+          : 'No storm warning for today. Check the storm board (TAB).'),
       rover: () => (s.rover.status === 'home' && s.sol >= s.rover.availableSol ? 'Cells here become Bolt\'s battery for one drive today.' : roverCan.ok ? '' : `Rover can't drive today: ${s.rover.status === 'out' ? 'Bolt is still out.' : 'in repair.'}`),
     };
     let selected = 0;
@@ -507,11 +511,12 @@ export class UIScene extends Phaser.Scene {
       SLOTS.forEach((slot, i) => {
         const ry = rowTop + i * 76;
         const baseInfo = SLOT_INFO[slot];
-        const info = slot === 'heater' && store.worldId === 'moon' ? { ...baseInfo, label: 'Thermal control' } : baseInfo;
+        const moonLabel = slot === 'heater' ? 'Thermal control' : slot === 'shelter' ? 'Radiation shelter' : null;
+        const info = store.worldId === 'moon' && moonLabel ? { ...baseInfo, label: moonLabel } : baseInfo;
         rows.add(this.add.rectangle(x + 40, ry, w - 80, 66, 0x2a3247).setOrigin(0, 0).setStrokeStyle(3, C.gold, i === selected ? 1 : 0));
         rows.add(this.add.image(x + 74, ry + 33, info.icon).setScale(3));
-        rows.add(text(this, x + 108, ry + 8, info.label, 22, C.text, { fontStyle: 'bold' }));
-        rows.add(text(this, x + 108, ry + 38, hints[slot](), 15, slot === 'shelter' && warned.length ? C.warn : C.dim, { wordWrap: { width: 470 } }));
+        rows.add(text(this, x + 108, ry + 6, info.label, 22, C.text, { fontStyle: 'bold' }));
+        rows.add(text(this, x + 108, ry + 32, hints[slot](), 14, slot === 'shelter' && warned.length ? C.warn : C.dim, { wordWrap: { width: 460 } }));
         const minus = button(this, x + w - 160, ry + 33, '–', () => {
           selected = i;
           adjust(slot, -1);
@@ -532,7 +537,7 @@ export class UIScene extends Phaser.Scene {
       rows.add(text(this, x + 40, y + h - 34, 'Keys: ↑↓ pick a row · Left/Right remove/add · Enter starts the day', 14, C.dim));
       addPowerCells(this, rows, {
         rowX: x + 40, rowW: w - 80, rowY: (i) => rowTop + i * 76, rowH: 66,
-        cellX: x + 600, trayX: x + 56, trayY: y + h - 88, tint: (sl) => SLOT_INFO[sl].color,
+        cellX: x + 590, cellMaxX: x + w - 205, trayX: x + 56, trayY: y + h - 88, tint: (sl) => SLOT_INFO[sl].color,
       }, () => {
         confirmUnused = false;
         render();

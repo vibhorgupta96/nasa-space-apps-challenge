@@ -9,6 +9,8 @@ export interface PowerLayout {
   rowY: (i: number) => number;
   rowH: number;
   cellX: number;
+  /** The last x a placed cell may sit at; cells pack closer together to fit before it. */
+  cellMaxX: number;
   trayX: number;
   trayY: number;
   tint: (slot: PowerSlot) => number;
@@ -60,7 +62,9 @@ export function addPowerCells(
   };
 
   SLOTS.forEach((slot, i) => {
-    for (let k = 0; k < s.split[slot]; k++) cell(L.cellX + k * 26, L.rowY(i) + L.rowH / 2, slot);
+    const n = s.split[slot];
+    const step = n > 1 ? Math.min(26, (L.cellMaxX - L.cellX) / (n - 1)) : 26;
+    for (let k = 0; k < n; k++) cell(L.cellX + k * step, L.rowY(i) + L.rowH / 2, slot);
   });
   const left = s.cellsToday - store.splitTotal();
   for (let k = 0; k < left; k++) cell(L.trayX + k * 30, L.trayY, null);

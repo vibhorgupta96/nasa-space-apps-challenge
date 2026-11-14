@@ -55,6 +55,8 @@ export function button(scene: Phaser.Scene, x: number, y: number, label: string,
   };
   draw(false);
   const t = text(scene, 0, 0, label, 22, '#0f1420', { fontStyle: 'bold' }).setOrigin(0.5);
+  // Shrink a label that is wider than its button (e.g. "Alien visitor") so it stays inside.
+  if (t.width > w - 16) t.setScale((w - 16) / t.width);
   const zone = scene.add.zone(0, 0, w, h).setInteractive({ useHandCursor: true });
   zone.on('pointerover', () => draw(true));
   zone.on('pointerout', () => draw(false));

@@ -166,8 +166,8 @@ export function startAudio(g: Phaser.Game) {
       (g.sound.get(key) as Phaser.Sound.WebAudioSound | null)?.setVolume(MUSIC_VOLUME * st.musicVolume);
     }
   });
-  if (g.sound.locked) g.sound.once(Phaser.Sound.Events.UNLOCKED, music);
-  else music();
+  g.sound.on(Phaser.Sound.Events.UNLOCKED, music);
+  music();
 
   bus.on(EV.STORM_WARNING, () => {
     sfx('storm-warning');
