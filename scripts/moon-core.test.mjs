@@ -54,11 +54,11 @@ test('route planner battery and ETA match rover steps on Mars and Moon', () => {
       ?? neighbors.find(([nx, ny]) => terrain.cost[ny]?.[nx] !== undefined);
     assert.ok(next, `${world} terrain needs a traversable neighbor`);
     const route = [terrain.dome, next, terrain.dome];
-    const plan = evaluateRoute(route, terrain, 1, s.rules.roverCostPerTile);
+    const plan = evaluateRoute(route, terrain, 1, s.rules.roverCostPerTile, s.rules.roverRockCostExtra);
     assert.equal(plan.returnsHome, true);
     assert.equal(plan.canAfford, true);
 
-    const firstTile = evaluateRoute(route.slice(0, 2), terrain, 1, s.rules.roverCostPerTile).totalBatteryCost;
+    const firstTile = evaluateRoute(route.slice(0, 2), terrain, 1, s.rules.roverCostPerTile, s.rules.roverRockCostExtra).totalBatteryCost;
     const etaMs = (route.length - 1) * s.rules.roverMsPerTile;
     const shelter = s.storms().filter(st => st.event.scenario.gameSol === 1)
       .reduce((max, st) => Math.max(max, st.event.scenario.strength), 0);
@@ -441,4 +441,33 @@ test('a pending pre-quiz is only adopted by the selected world', () => {
   assert.equal(s.meta.quiz.pre, null);
   s.recordQuiz('pre', 3, 'moon'); s.startCampaign('moon'); assert.equal(s.meta.quiz.pre, 3);
   s.recordQuiz('post', 5, 'mars'); assert.equal(s.meta.quiz.post, null);
+});
+
+// Use an isolated data fixture to force travel onto rock and check the real shared clock.
+test('lunar rock traction costs match the preview, survive reload and freeze while paused', () => {
+  const s = fresh('moon');
+  const terrain = s.data.terrain;
+  const [x, y] = terrain.dome;
+  const old = terrain.cost[y][x + 1];
+  terrain.cost[y][x + 1] = 3;
+  try {
+    const route = [[x, y], [x + 1, y], [x, y]];
+    const plan = evaluateRoute(route, terrain, 1, s.rules.roverCostPerTile, s.rules.roverRockCostExtra);
+    assert.equal(s.tileCost(x + 1, y), 0.4);
+    assert.equal(plan.totalBatteryCost, Math.round((0.4 + s.tileCost(x, y)) * 10) / 10);
+    const shelter = s.storms().filter(st => st.event.scenario.gameSol === 1)
+      .reduce((max, st) => Math.max(max, st.event.scenario.strength), 0);
+    split(s, {rover: 1, shelter});
+    check(s.launchRover(route));
+    tickTo(s, 2500);
+    const t = reload(s);
+    t.pause('test');
+    t.tick(1000);
+    assert.equal(t.state.missionElapsedMs, 2500);
+    t.resume('test');
+    tickTo(t, 5000);
+    assert.equal(t.state.rover.batteryCells, 0.6);
+    tickTo(t, 10000);
+    assert.equal(t.state.rover.status, 'home');
+  } finally { terrain.cost[y][x + 1] = old; }
 });

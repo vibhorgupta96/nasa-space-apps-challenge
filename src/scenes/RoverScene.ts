@@ -22,6 +22,7 @@ export class RoverScene extends Phaser.Scene {
   private trailGfx!: Phaser.GameObjects.Graphics;
   private costGfx!: Phaser.GameObjects.Graphics;
   private rover!: Phaser.GameObjects.Image;
+  private roverShadow!: Phaser.GameObjects.Ellipse;
   private findIcons = new Map<string, Phaser.GameObjects.Container>();
   private info!: Phaser.GameObjects.Text;
   private sendBtn!: Phaser.GameObjects.Container;
@@ -57,6 +58,7 @@ export class RoverScene extends Phaser.Scene {
     const [dx, dy] = t.dome;
     this.add.image(dx * cell + cell / 2, dy * cell + cell / 2, 'dome-top').setDepth(5);
     this.refreshFinds();
+    this.roverShadow = this.add.ellipse(0, 0, 24, 10, 0x17151f, 0.4).setDepth(5);
     this.rover = this.add.image(0, 0, 'rover-top').setDepth(6);
 
     const cam = this.cameras.main;
@@ -189,7 +191,7 @@ export class RoverScene extends Phaser.Scene {
       if (d > (dist.get(key(x, y)) ?? Infinity)) continue;
       for (const [nx, ny] of [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]]) {
         if (nx < 0 || ny < 0 || nx >= t.width || ny >= t.height) continue;
-        const nd = d + t.cost[ny][nx];
+        const nd = d + store.tileCost(nx, ny);
         if (nd < (dist.get(key(nx, ny)) ?? Infinity)) {
           dist.set(key(nx, ny), nd);
           prev.set(key(nx, ny), key(x, y));
@@ -269,7 +271,7 @@ export class RoverScene extends Phaser.Scene {
     ui.add(button(this, 1190, 658, 'Inside', () => this.leave(), 110, 44, C.frame));
     const terrain = store.data.terrain;
     const creditText = store.worldId === 'moon'
-      ? `Illustrated Moon terrain · ${terrain.site.name} · 1 square ≈ ${terrain.kmPerCell} km · C: toggle rough ground`
+      ? `Illustrated Moon terrain · ${terrain.site.name} · 1 square ≈ ${terrain.kmPerCell} km · 5s/tile · battery 0.1 / 0.2 / 0.4 · C: rough ground`
       : `NASA Mars Trek · Viking colour mosaic · ${terrain.site.name} · 1 square ≈ ${terrain.kmPerCell} km · C: toggle rough ground`;
     const credit = text(this, 1252, 600, creditText, 14, C.dim, { backgroundColor: '#141927cc', padding: { x: 8, y: 4 } }).setOrigin(1, 1);
     ui.add(credit);
@@ -307,6 +309,8 @@ export class RoverScene extends Phaser.Scene {
       bounce = pose.bounce;
     }
     this.rover.setPosition(visualX * cell + cell / 2, visualY * cell + cell / 2 - bounce);
+    this.roverShadow.setPosition(visualX * cell + cell / 2, visualY * cell + cell / 2 + 5)
+      .setScale(1 - bounce * 0.04).setVisible(store.worldId === 'moon' && r.status !== 'repairing');
     this.rover.setVisible(r.status !== 'repairing');
     if (r.status === 'out' && r.route[r.nextRouteIndex]) {
       const a = r.route[r.nextRouteIndex - 1];
@@ -340,7 +344,7 @@ export class RoverScene extends Phaser.Scene {
       const done = r.route.slice(0, r.nextRouteIndex);
       done.forEach((p, i) => {
         const ch = MORSE_JPL[i % MORSE_JPL.length];
-        tg.fillStyle(0x3a1a10, 0.7);
+        tg.fillStyle(store.worldId === 'moon' ? 0x34313e : 0x3a1a10, 0.7);
         if (ch === '.') tg.fillCircle(p[0] * cell + cell / 2, p[1] * cell + cell / 2, 3);
         else tg.fillRect(p[0] * cell + cell / 2 - 7, p[1] * cell + cell / 2 - 2, 14, 4);
       });
@@ -354,7 +358,7 @@ export class RoverScene extends Phaser.Scene {
       .join('');
     if (planning) {
       const can = store.roverCanLaunch();
-      const cost = evaluateRoute(this.route, t, s.split.rover, store.rules.roverCostPerTile).totalBatteryCost;
+      const cost = evaluateRoute(this.route, t, s.split.rover, store.rules.roverCostPerTile, store.rules.roverRockCostExtra).totalBatteryCost;
       const tiles = this.route.length - 1;
       const home = this.route.length > 1 && this.route[this.route.length - 1][0] === t.dome[0] && this.route[this.route.length - 1][1] === t.dome[1];
       this.info.setText(

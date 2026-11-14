@@ -1,3 +1,4 @@
+import { drivingTileCost } from '../rover/routePlanner';
 import { RULES } from './rules';
 import { bus, EV, UI_EV } from './events';
 import type { Campaign, GameState, ItemId, MissionResult, Plot, PowerSlot, TrainingSnapshot, WorldId } from './types';
@@ -542,7 +543,7 @@ export class Store {
   }
 
   tileCost(x: number, y: number) {
-    return this.data.terrain.cost[y][x] * this.rules.roverCostPerTile;
+    return drivingTileCost(this.data.terrain.cost[y][x], this.rules.roverCostPerTile, this.rules.roverRockCostExtra);
   }
 
   // ---------- commands ----------
