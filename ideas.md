@@ -10,6 +10,8 @@ Lunar play could make sunlight and deep shadow change power and heating choices.
 
 **Smallest useful version:** one lunar site, two light/shadow zones, one rover trip, and a debrief that separates sourced facts from simulated outcomes. **Effort: L.**
 
+**Music ready:** the lunar theme is `public/audio/moon-theme.mp3`, an upbeat 61-second AI-generated loop supplied by Muskan. It isn't used in the game yet; play it instead of "Mars Morning" when the player picks the Moon.
+
 ## 2. Drive a crewed rover
 
 At an expedition, choose whether to send Bolt on the existing autonomous route or ride out in a crewed rover yourself. Add simple top-down steering, braking, and reversing on the current map; share battery, storm, cargo, and return rules with Bolt’s trips.

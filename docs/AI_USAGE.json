@@ -141,6 +141,16 @@
         "role": "background music loop",
         "humanEdits": "none; chosen and supplied by Muskan",
         "disclosure": "docs/AI_USAGE.md, docs/ASSETS.md"
+      },
+      {
+        "files": [
+          "public/audio/moon-theme.mp3"
+        ],
+        "tool": "AI music generator (confirm, e.g. Suno)",
+        "media": "audio",
+        "role": "lunar theme loop for the planned Moon mode (not used in the game yet)",
+        "humanEdits": "none; chosen and supplied by Muskan",
+        "disclosure": "docs/AI_USAGE.md, docs/ASSETS.md"
       }
     ]
   }
