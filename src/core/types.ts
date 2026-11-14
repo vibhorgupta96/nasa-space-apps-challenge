@@ -74,6 +74,8 @@ export interface RoverState {
   route: [number, number][];
   nextRouteIndex: number;
   routeStartedAtMs: number | null; // remaining tile time derives from this and missionElapsedMs
+  /** 'drive': the player steers Bolt one square at a time instead of planning the whole route. */
+  mode?: 'plan' | 'drive';
   cargo: Record<ItemId, number>;
   collectedFindIds: string[]; // prevents repeat collection after save/reload
   availableSol: number; // next sol when a disabled rover may launch

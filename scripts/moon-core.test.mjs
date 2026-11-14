@@ -471,3 +471,55 @@ test('lunar rock traction costs match the preview, survive reload and freeze whi
     assert.equal(t.state.rover.status, 'home');
   } finally { terrain.cost[y][x + 1] = old; }
 });
+
+test('drive mode: steer Bolt square by square, queue one ahead, park on the dome', () => {
+  for (const world of ['mars', 'moon']) {
+    const s = fresh(world); split(s, { rover: 1, shelter: 1 });
+    const leg = s.rules.roverDriveMsPerTile;
+    assert.equal(s.driveStep(1, 0).ok, false);
+    check(s.driveRover());
+    const r = s.state.rover;
+    assert.equal(r.status, 'out'); assert.equal(r.mode, 'drive'); assert.equal(s.roverWaiting(), true);
+    assert.equal(s.launchRover([[19,14],[20,14],[19,14]]).ok, false, 'one trip per sol');
+    // Waiting at the dome: time passes, nothing moves.
+    tickTo(s, s.state.missionElapsedMs + 5000);
+    assert.deepEqual([s.roverPosition().x, s.roverPosition().y], [19, 14]);
+    check(s.driveStep(1, 0));
+    check(s.driveStep(1, 0)); // one square queued while moving
+    assert.equal(s.driveStep(0, 1).ok, false, 'only one square can be queued');
+    assert.equal(s.driveStep(1, 1).ok, false, 'no diagonal moves');
+    tickTo(s, s.state.missionElapsedMs + 2 * leg);
+    assert.equal(s.roverWaiting(), true);
+    assert.deepEqual(r.route.at(-1), [21, 14]);
+    const spent = Math.round((1 - s.tileCost(20, 14) - s.tileCost(21, 14)) * 10) / 10;
+    assert.equal(r.batteryCells, spent);
+    // A save made while Bolt waits outside restores.
+    const back = reload(s);
+    assert.equal(back.roverWaiting(), true);
+    assert.deepEqual(back.state.rover.route, r.route);
+    // The clock restarts for a step after a pause, and driving onto the dome ends the trip.
+    tickTo(s, s.state.missionElapsedMs + 7000);
+    check(s.driveStep(-1, 0));
+    tickTo(s, s.state.missionElapsedMs + leg - 50);
+    assert.equal(s.state.rover.status, 'out');
+    check(s.driveStep(-1, 0)); // queued: the dome
+    tickTo(s, s.state.missionElapsedMs + 100); // now heading into the dome
+    check(s.driveStep(-1, 0)); // queued past the dome: dropped when Bolt parks
+    tickTo(s, s.state.missionElapsedMs + 3 * leg);
+    assert.equal(s.state.rover.status, 'home');
+    assert.equal(s.state.rover.mode, undefined);
+    assert.equal(s.today.roverHome, true);
+  }
+});
+
+test('drive mode: a flat battery strands Bolt like a planned trip', () => {
+  const s = fresh('mars'); split(s, { rover: 1, shelter: 1 });
+  check(s.driveRover());
+  const r = s.state.rover;
+  for (let i = 0; i < 40 && r.status === 'out'; i++) {
+    const dir = r.route.at(-1)[0] < 39 ? [1, 0] : [0, 1];
+    s.driveStep(dir[0], dir[1]);
+    tickTo(s, s.state.missionElapsedMs + s.rules.roverDriveMsPerTile);
+  }
+  assert.equal(r.status, 'stranded');
+});

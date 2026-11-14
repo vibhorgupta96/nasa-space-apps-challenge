@@ -31,7 +31,7 @@ See [docs/DATA_PIPELINE.md](docs/DATA_PIPELINE.md) for source details, [docs/REF
 - **Move:** arrows or WASD. **Act:** SPACE, or click a nearby square.
 - **Tools:** 1–5 seeds · 6 watering can · 7 hand (harvest, or clear a wilted plant).
 - **Each morning:** split power cells between grow lights, thermal control, storm shelter and rover battery. Mars has 6 cells; Moon has 8 in light and 6 in darkness, less any dust.
-- **Rover:** go through the airlock (the door at the top). Click the map to plan a route, press 🏠 Return, then Send Bolt.
+- **Rover:** go through the airlock (the door at the top). Click the map to plan a route, press 🏠 Return, then Send Bolt. Or press 🎮 Drive it and steer Bolt yourself with the arrow keys, WASD or the on-screen arrows; drive back onto the dome (or press 🏠 Drive home) to unload.
 - **Kitchen:** harvests go to the pantry; cook recipes for the current world or eat crops raw.
 - **Shortcuts:** TAB storm board · H help · P photo album · ESC closes panels.
 - **Moon:** hold SHIFT for a short low-gravity hop. Clean rover dust at the airlock to restore tomorrow’s power budget. Moon crops are greenhouse experiments; the lunar terrain and discoveries are illustrated game simulations.
