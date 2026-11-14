@@ -4,6 +4,9 @@ import { RULES } from '../core/rules';
 import { getData } from '../data/loaders';
 import { C, button, fmtMs, text } from '../ui/theme';
 import { ITEM_ICON } from '../ui/icons';
+import { getActiveFindsForSol } from '../rover/findsManager';
+import { getActiveStormWarnings } from '../rover/stormMonitor';
+import { evaluateRoute } from '../rover/routePlanner';
 
 // Rover map: real Mars Trek imagery around InSight's landing site. Plan a route like a real
 // rover driver (the whole drive is decided before Bolt leaves), then watch it play out.
@@ -25,6 +28,7 @@ export class RoverScene extends Phaser.Scene {
   private hover!: Phaser.GameObjects.Rectangle;
   private showCost = true;
   private lastAngle = 0;
+  private findsKey = '';
 
   constructor() {
     super('Rover');
@@ -46,14 +50,7 @@ export class RoverScene extends Phaser.Scene {
 
     const [dx, dy] = t.dome;
     this.add.image(dx * cell + cell / 2, dy * cell + cell / 2, 'dome-top').setDepth(5);
-    for (const f of t.finds) {
-      const c = this.add.container(f.x * cell + cell / 2, f.y * cell + cell / 2).setDepth(4);
-      const glow = this.add.image(0, 0, 'find-glow').setAlpha(0.8);
-      this.tweens.add({ targets: glow, alpha: 0.2, scale: 1.2, yoyo: true, repeat: -1, duration: 900 });
-      const icon = f.egg ? this.add.image(0, 0, 'propeller').setScale(2) : this.add.image(0, 0, ITEM_ICON[f.item]).setScale(1.6);
-      c.add([glow, icon]);
-      this.findIcons.set(f.id, c);
-    }
+    this.refreshFinds();
     this.rover = this.add.image(0, 0, 'rover-top').setDepth(6);
 
     const cam = this.cameras.main;
@@ -86,6 +83,22 @@ export class RoverScene extends Phaser.Scene {
       this.cameras.main.fadeIn(250);
       this.resetRoute();
     });
+  }
+
+  private refreshFinds() {
+    for (const icon of this.findIcons.values()) icon.destroy();
+    this.findIcons.clear();
+    const t = getData().terrain;
+    const cell = t.cell;
+    this.findsKey = `${store.state.stormWeekId}:${store.state.sol}`;
+    for (const f of [...t.finds, ...getActiveFindsForSol(t, store.state.stormWeekId, store.state.sol)]) {
+      const c = this.add.container(f.x * cell + cell / 2, f.y * cell + cell / 2).setDepth(4);
+      const glow = this.add.image(0, 0, 'find-glow').setAlpha(0.8);
+      this.tweens.add({ targets: glow, alpha: 0.2, scale: 1.2, yoyo: true, repeat: -1, duration: 900 });
+      const icon = f.egg ? this.add.image(0, 0, 'propeller').setScale(2) : this.add.image(0, 0, ITEM_ICON[f.item]).setScale(1.6);
+      c.add([glow, icon]);
+      this.findIcons.set(f.id, c);
+    }
   }
 
   private cellAt(p: Phaser.Input.Pointer): Cell {
@@ -172,12 +185,6 @@ export class RoverScene extends Phaser.Scene {
     this.extendTo(getData().terrain.dome);
   }
 
-  private routeCost(route = this.route) {
-    let c = 0;
-    for (let i = 1; i < route.length; i++) c += store.tileCost(route[i][0], route[i][1]);
-    return Math.round(c * 10) / 10;
-  }
-
   private send() {
     const r = store.launchRover(this.route);
     if (!r.ok) {
@@ -224,6 +231,7 @@ export class RoverScene extends Phaser.Scene {
     const t = getData().terrain;
     const cell = t.cell;
     const r = s.rover;
+    if (this.findsKey !== `${s.stormWeekId}:${s.sol}`) this.refreshFinds();
 
     for (const [id, c] of this.findIcons) c.setVisible(!r.collectedFindIds.includes(id));
 
@@ -271,11 +279,11 @@ export class RoverScene extends Phaser.Scene {
     // Info text.
     this.planUi.setVisible(planning);
     const dayLeft = store.dayEndMs() - s.missionElapsedMs;
-    const storm = store.pendingStorms()[0];
+    const storm = getActiveStormWarnings(s, getData().storms.weeks)[0];
     const stormLine = storm ? `\n⚠ Storm hits in ${fmtMs(storm.hitAtMs - s.missionElapsedMs)} of daytime. Be home before it!` : '';
     if (planning) {
       const can = store.roverCanLaunch();
-      const cost = this.routeCost();
+      const cost = evaluateRoute(this.route, t, s.split.rover).totalBatteryCost;
       const tiles = this.route.length - 1;
       const home = this.route.length > 1 && this.route[this.route.length - 1][0] === t.dome[0] && this.route[this.route.length - 1][1] === t.dome[1];
       this.info.setText(
