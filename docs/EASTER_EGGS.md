@@ -2,7 +2,7 @@
 
 The game counts these as "Secrets found: x/6".
 
-1. **The bed:** press SPACE on a bed. Mars does not let you skip the day.
+1. **The bed:** press SPACE on a bed before starting the day. (Once the day has started, a bed sleeps until night instead.)
 2. **Earth window:** use the Earth picture on the top wall 3 times.
 3. **Gerald:** the houseplant by the airlock. Use it 3 times.
 4. **Bolt 42:** talk to Bolt 42 times.

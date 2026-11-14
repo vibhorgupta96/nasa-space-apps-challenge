@@ -38,12 +38,16 @@ export class TitleScene extends Phaser.Scene {
       this.add.existing(button(this, W / 2, y, 'Continue mission', () => startMission(this, false), 320, 56, 0xffd166));
       y += 72;
     }
-    this.add.existing(button(this, W / 2, y, store.hasSave() ? 'New mission' : 'Start mission', () => startMission(this, true), 320, 56, C.frame));
+    this.add.existing(button(this, W / 2, y, store.hasSave() ? 'New mission' : 'Start mission', () => this.scene.start('Customize', { fresh: true }), 320, 56, C.frame));
     y += 72;
+    if (store.hasSave()) {
+      this.add.existing(button(this, W / 2, y, 'Change your look', () => this.scene.start('Customize', { fresh: false }), 320, 56, 0x8e6bbf));
+      y += 72;
+    }
     this.add.existing(button(this, W / 2, y, 'NASA data we used', () => showCredits(this), 320, 56, 0x9aa3b0));
 
     text(this, 16, H - 16, 'NASA Space Apps 2026 · Junior Astronaut Mission Trainer · Fan-made, not affiliated with NASA', 15, C.dim).setOrigin(0, 1);
     const eggs = store.meta.eggs.length;
-    if (eggs) text(this, W - 16, H - 16, `★ Secrets found: ${eggs}`, 16, C.goldText).setOrigin(1, 1);
+    if (eggs) text(this, W - 16, H - 16, `⭐ Secrets found: ${eggs}`, 16, C.goldText).setOrigin(1, 1);
   }
 }

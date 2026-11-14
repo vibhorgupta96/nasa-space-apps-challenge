@@ -125,8 +125,10 @@ Versions and SPDX license identifiers for Phaser, Vite, and TypeScript are taken
 - Phaser 3.80.1 — MIT per lockfile: <https://github.com/phaserjs/phaser/blob/v3.80.1/LICENSE>
 - Vite 5.4.10 — MIT per lockfile: <https://github.com/vitejs/vite/blob/v5.4.10/LICENSE>
 - TypeScript 5.6.3 — Apache-2.0 per lockfile: <https://github.com/microsoft/TypeScript/blob/v5.6.3/LICENSE.txt>
-- Pixelify Sans font metadata: <https://fonts.google.com/specimen/Pixelify+Sans>
+- DotGothic16 font metadata (SIL OFL 1.1): <https://fonts.google.com/specimen/DotGothic16>
 - NASA media usage guidance: <https://www.nasa.gov/nasa-brand-center/images-and-media/>
 - GitHub Pages custom workflows: <https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages>
 - OpenAI Codex: <https://openai.com/codex/>
 - Anthropic Claude: <https://www.anthropic.com/claude>
+- Kenney sound packs (CC0 1.0): <https://kenney.nl/assets/interface-sounds>, <https://kenney.nl/assets/sci-fi-sounds>, <https://kenney.nl/assets/rpg-audio>; licence: <https://creativecommons.org/publicdomain/zero/1.0/>
+- Suno (AI music generator, background music): <https://suno.com/>

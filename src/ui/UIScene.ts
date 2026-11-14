@@ -313,7 +313,7 @@ export class UIScene extends Phaser.Scene {
       const left = pending[0].hitAtMs - s.missionElapsedMs;
       h.alert.setText(pending.map((st) => {
         const need = Math.max(0, st.event.scenario.strength - s.shield);
-        return `⚠ STORM in ${fmtMs(st.hitAtMs - s.missionElapsedMs)} (sol ${st.event.scenario.gameSol}) · shelter needs ${need}`;
+        return `⚠️ STORM in ${fmtMs(st.hitAtMs - s.missionElapsedMs)} (sol ${st.event.scenario.gameSol}) · shelter needs ${need}`;
       }).join('\n'));
       h.alert.setVisible(true).setAlpha(left < 30000 ? 0.6 + 0.4 * Math.abs(Math.sin(this.time.now / 200)) : 1);
     } else h.alert.setVisible(false);
@@ -433,7 +433,7 @@ export class UIScene extends Phaser.Scene {
       growLights: () => `Each cell lights up to ${RULES.growLightsPlotsPerCell} watered plants so they grow and make air. Planted: ${s.plots.filter((p) => p.cropId).length}.`,
       heater: () => (cold ? `Tonight is colder than ${RULES.heaterNeededBelowC}°C. Without 1 heater cell, plants won't grow.` : 'Warm enough tonight. The heater is optional.'),
       shelter: () => warned.length
-        ? `⚠ STORM TODAY! Strength ${warned[0].event.scenario.strength} (simulated). Shelter cells + ${s.shield} shield layer(s) must reach it.`
+        ? `⚠️ STORM TODAY! Strength ${warned[0].event.scenario.strength} (simulated). Shelter cells + ${s.shield} shield layer(s) must reach it.`
         : 'No storm warning for today. Check the storm board (TAB).',
       rover: () => (s.rover.status === 'home' && s.sol >= s.rover.availableSol ? 'Cells here become Bolt\'s battery for one drive today.' : roverCan.ok ? '' : `Rover can't drive today: ${s.rover.status === 'out' ? 'Bolt is still out.' : 'in repair.'}`),
     };
@@ -477,7 +477,7 @@ export class UIScene extends Phaser.Scene {
         ? `${left} cell${left > 1 ? 's' : ''} unused! Start again to waste ${left > 1 ? 'them' : 'it'}.`
         : left > 0 ? `${left} cell${left > 1 ? 's' : ''} left · drag ⚡ into a row` : 'All cells placed!';
       rows.add(text(this, x + 40, y + h - 66, status, 22, confirmUnused ? C.warn : left > 0 ? C.goldText : C.ok));
-      rows.add(text(this, x + 40, y + h - 34, 'Keys: ↑↓ pick a row · ←→ remove/add · Enter starts the day', 14, C.dim));
+      rows.add(text(this, x + 40, y + h - 34, 'Keys: ↑↓ pick a row · Left/Right remove/add · Enter starts the day', 14, C.dim));
       addPowerCells(this, rows, {
         rowX: x + 40, rowW: w - 80, rowY: (i) => y + 190 + i * 76, rowH: 66,
         cellX: x + 600, trayX: x + 380, trayY: y + h - 52, tint: (sl) => SLOT_INFO[sl].color,
@@ -497,7 +497,7 @@ export class UIScene extends Phaser.Scene {
       store.startDay();
       this.close();
     };
-    c.add(button(this, x + w - 150, y + h - 50, 'Start the day ▶', startDay, 240, 54, 0xffd166));
+    c.add(button(this, x + w - 150, y + h - 50, 'Start the day »', startDay, 240, 54, 0xffd166));
     this.advance = startDay;
     this.modalKey = (k) => {
       const key = k.length === 1 ? k.toLowerCase() : k;
@@ -521,14 +521,14 @@ export class UIScene extends Phaser.Scene {
     c.add(panel(this, x, y, w, h, C.panelDark));
     c.add(text(this, W / 2, y + 26, `Night falls on sol ${r.sol}`, 32, C.goldText, { fontStyle: 'bold' }).setOrigin(0.5, 0));
     const lines = [
-      `🫁 Air: ${Math.round(r.air[0])} → ${Math.round(r.air[1])}    🥕 Food: ${Math.round(r.food[0])} → ${Math.round(r.food[1])}`,
+      `🫁 Air: ${Math.round(r.air[0])} -> ${Math.round(r.air[1])}    🥕 Food: ${Math.round(r.food[0])} -> ${Math.round(r.food[1])}`,
       r.blackout ? '⚡ The storm knocked out the grow lights today. Nothing grew.' :
-        !r.warm ? `❄ Too cold (${r.minC}°C) and no heater: the plants took a sol off.` :
+        !r.warm ? `❄️ Too cold (${r.minC}°C) and no heater: the plants took a sol off.` :
         `🌱 ${r.litPlots} plant${r.litPlots === 1 ? '' : 's'} got light; ${r.grownPlots} grew a step.`,
     ];
     if (r.roverRecovered) lines.push('🚙 The crew towed the rover home. It needs a sol of repairs.');
     if (r.roverCalledHome) lines.push('🚙 Bolt was still driving, so the crew called the rover home with its cargo.');
-    if (r.outcome === 'rescue') lines.push('⚠ Supplies ran out. Time to call for help.');
+    if (r.outcome === 'rescue') lines.push('⚠️ Supplies ran out. Time to call for help.');
     if (r.outcome === 'debrief') lines.push('🚀 That was the final sol!');
     c.add(text(this, x + 40, y + 90, lines.join('\n'), 21, C.text, { lineSpacing: 10, wordWrap: { width: w - 80 } }));
     if (r.card) {
@@ -537,11 +537,11 @@ export class UIScene extends Phaser.Scene {
       c.add(this.add.image(x + 100, cy + 100, 'portrait-bolt-happy').setScale(1.5));
       c.add(text(this, x + 160, cy + 16, 'Bolt\'s science card · real NASA fact', 18, C.goldText, { fontStyle: 'bold' }));
       c.add(text(this, x + 160, cy + 48, r.card.text, 19, C.text, { wordWrap: { width: w - 240 }, lineSpacing: 4 }));
-      const src = text(this, x + 160, cy + 172, `Source: ${r.card.source.replace(/^https?:\/\//, '').slice(0, 70)} ↗`, 15, C.teal).setInteractive({ useHandCursor: true });
+      const src = text(this, x + 160, cy + 172, `Source: ${r.card.source.replace(/^https?:\/\//, '').slice(0, 70)} »`, 15, C.teal).setInteractive({ useHandCursor: true });
       src.on('pointerdown', () => window.open(r.card!.source, '_blank', 'noopener'));
       c.add(src);
     }
-    const label = r.outcome === 'next' ? 'Sleep until morning ▶' : 'Continue ▶';
+    const label = r.outcome === 'next' ? 'Sleep until morning »' : 'Continue »';
     c.add(button(this, W / 2, y + h - 48, label, () => this.close(), 300, 54, 0xffd166));
     this.advance = () => this.close();
     return c;
@@ -563,7 +563,7 @@ export class UIScene extends Phaser.Scene {
     const x = 140, y = 50, w = W - 280, h = 620;
     c.add(this.add.rectangle(0, 0, W, H, 0x000000, 0.5).setOrigin(0).setInteractive().on('pointerdown', () => this.close()));
     c.add(panel(this, x, y, w, h));
-    c.add(text(this, x + 32, y + 22, '☀ Space Weather Board', 30, C.goldText, { fontStyle: 'bold' }));
+    c.add(text(this, x + 32, y + 22, '☀️ Space Weather Board', 30, C.goldText, { fontStyle: 'bold' }));
     c.add(text(this, x + 32, y + 62, `Scenario: ${week.label} · real events from ${week.realWindow[0]} to ${week.realWindow[1]}, replayed over ${RULES.missionSols} sols.`, 17, C.dim, { wordWrap: { width: w - 64 } }));
     let yy = y + 104;
     for (const st of store.storms()) {
@@ -572,7 +572,7 @@ export class UIScene extends Phaser.Scene {
       const hit = s.processedStormHits.includes(e.id);
       c.add(this.add.rectangle(x + 32, yy, w - 64, 128, 0x2a3247).setOrigin(0));
       if (!warned && !hit) {
-        c.add(text(this, x + 52, yy + 20, '❔ No forecast yet', 22, C.dim));
+        c.add(text(this, x + 52, yy + 20, '❓ No forecast yet', 22, C.dim));
         c.add(text(this, x + 52, yy + 56, 'Mission Control will radio a warning when its forecasters spot something.', 17, C.dim));
       } else {
         for (let i = 0; i < e.scenario.strength; i++) c.add(this.add.image(x + 64 + i * 34, yy + 30, 'icon-sun').setScale(2));
@@ -584,7 +584,7 @@ export class UIScene extends Phaser.Scene {
         const kind = e.type === 'CME' ? 'Coronal mass ejection (CME)' : e.type === 'SEP' ? 'Solar energetic particles (SEP)' : e.type === 'GST' ? 'Geomagnetic storm at Earth (GST)' : e.type;
         const arrival = e.marsArrival ? ` · ${e.marsArrival.model || 'model'} ${e.marsArrival.status} Mars arrival ${e.marsArrival.time}` : '';
         c.add(text(this, x + 52, yy + 58, `Real record: ${kind}, ${real}${e.speedKmS ? `, ${e.speedKmS} km/s` : ''}\nObserved by/target: ${e.observedTarget === 'unknown' ? 'target not listed' : e.observedTarget}${arrival}`, 16, C.teal, { wordWrap: { width: w - 120 } }));
-        const link = text(this, x + w - 52, yy + 100, 'NASA DONKI record ↗', 15, C.goldText).setOrigin(1, 0).setInteractive({ useHandCursor: true });
+        const link = text(this, x + w - 52, yy + 100, 'NASA DONKI record »', 15, C.goldText).setOrigin(1, 0).setInteractive({ useHandCursor: true });
         link.on('pointerdown', () => window.open(e.link, '_blank', 'noopener'));
         c.add(link);
       }
@@ -593,7 +593,7 @@ export class UIScene extends Phaser.Scene {
     c.add(text(this, x + 32, y + h - 76,
       'Strength, timing and effects on our outpost are a game scenario. The dates and records are real NASA DONKI data.\nTimeline compressed. 1 radio minute = 1 second of game time. Shelter cells + shield layers ≥ strength keeps everyone safe.',
       15, C.sim, { wordWrap: { width: w - 64 }, lineSpacing: 4 }));
-    c.add(text(this, x + w - 24, y + 20, '✕ TAB', 18, C.dim).setOrigin(1, 0));
+    c.add(text(this, x + w - 24, y + 20, 'Close: TAB', 18, C.dim).setOrigin(1, 0));
     return c;
   }
 
@@ -630,13 +630,13 @@ export class UIScene extends Phaser.Scene {
       });
       pageLabel = text(this, W / 2, y + h - 100, `Screen ${page + 1} of ${pages.length}`, 17, C.dim).setOrigin(0.5, 0.5);
       if (page > 0) {
-        previous = button(this, x + 145, y + h - 48, '◀ Back', () => {
+        previous = button(this, x + 145, y + h - 48, '« Back', () => {
           page -= 1;
           render();
         }, 180, 48, C.frame);
         c.add(previous);
       }
-      next = button(this, x + w - 145, y + h - 48, page === pages.length - 1 ? 'Got it' : 'Next ▶', () => {
+      next = button(this, x + w - 145, y + h - 48, page === pages.length - 1 ? 'Got it' : 'Next »', () => {
         if (page === pages.length - 1) this.close();
         else {
           page += 1;
@@ -701,7 +701,7 @@ export class UIScene extends Phaser.Scene {
       this.load.start();
     }
     c.add(text(this, W / 2, y + 446, p.title, 20, C.text, { align: 'center', wordWrap: { width: w - 80 } }).setOrigin(0.5, 0));
-    const credit = text(this, W / 2, y + 486, `Credit: ${p.credit} · NASA Image and Video Library ↗`, 15, C.teal).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
+    const credit = text(this, W / 2, y + 486, `Credit: ${p.credit} · NASA Image and Video Library »`, 15, C.teal).setOrigin(0.5, 0).setInteractive({ useHandCursor: true });
     credit.on('pointerdown', () => window.open(p.page || `https://images.nasa.gov/details/${p.nasaId}`, '_blank', 'noopener'));
     c.add(credit);
     c.add(button(this, W / 2, y + h - 36, 'Add to album', () => this.close(), 220, 46, 0xffd166));

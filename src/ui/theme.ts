@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
 
 // Visual language for every UI panel: deep "night sky" panels, a teal frame and warm text.
-export const FONT = '"Pixelify Sans", "Trebuchet MS", sans-serif';
+// Pixelify Sans was dropped: its C, E and B read as O, Ɛ and G at game sizes ("OOntinue").
+export const FONT = '"DotGothic16", "Trebuchet MS", sans-serif';
 export const W = 1280;
 export const H = 720;
 

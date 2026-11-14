@@ -9,7 +9,7 @@ const K = '#2b1d2a';
 
 // ---------- characters ----------
 
-const DOWN = [
+const DOWN_SHORT = [
   '................',
   '.....KKKKKK.....',
   '....KHHHHHHK....',
@@ -27,8 +27,8 @@ const DOWN = [
   '....KPPKKPPK....',
   '....KBBKKBBK....',
 ];
-const UP = DOWN.map((r, i) => (i >= 4 && i <= 7 ? ['...KHHHHHHHHK...', '...KHHHHHHHHK...', '...KHHHHHHHHK...', '....KHHHHHHK....'][i - 4] : r));
-const SIDE = [
+const UP_SHORT = DOWN_SHORT.map((r, i) => (i >= 4 && i <= 7 ? ['...KHHHHHHHHK...', '...KHHHHHHHHK...', '...KHHHHHHHHK...', '....KHHHHHHK....'][i - 4] : r));
+const SIDE_SHORT = [
   '................',
   '.....KKKKKK.....',
   '....KHHHHHHK....',
@@ -48,10 +48,35 @@ const SIDE = [
 ];
 const stepLegs = (rows: string[], a: string, b: string) => [...rows.slice(0, 14), a, b];
 
+// Hairstyles: replacement rows (by row number) on top of the short-hair grids above.
+export type HairStyle = 'short' | 'long' | 'puffs';
+const HAIR: Record<HairStyle, { down: Record<number, string>; up: Record<number, string>; side: Record<number, string> }> = {
+  short: { down: {}, up: {}, side: {} },
+  long: {
+    down: {
+      5: '..KHSSESSESSHK..',
+      6: '..KHSSSSSSSSHK..',
+      7: '..KHKSSMMSSKHK..',
+      8: '..KHHKKSSKKHHK..',
+      9: '..KHKCCCCCCKHK..',
+    },
+    up: { 8: '...KHHHHHHHHK...', 9: '...KHHHHHHHHK...' },
+    side: { 8: '...KHHKSSKK.....', 9: '...KHHCCCCK.....' },
+  },
+  puffs: {
+    down: { 1: '..KK.KKKKKK.KK..', 2: '.KHHKHHHHHHKHHK.', 3: '..KKHHHHHHHHKK..' },
+    up: { 1: '..KK.KKKKKK.KK..', 2: '.KHHKHHHHHHKHHK.', 3: '..KKHHHHHHHHKK..' },
+    side: { 1: '..KK.KKKKKK.....', 2: '.KHHKHHHHHHK....', 3: '..KKHHHHHHHSK...' },
+  },
+};
+const withHair = (rows: string[], edits: Record<number, string>) => rows.map((r, i) => edits[i] ?? r);
+
 export interface Look {
   hair: string;
   skin: string;
   suit: string;
+  pants?: string;
+  hairStyle?: HairStyle;
 }
 
 export const LOOKS: Record<string, Look> = {
@@ -63,11 +88,15 @@ export const LOOKS: Record<string, Look> = {
 
 function lookPalette(l: Look): Palette {
   const darker = Phaser.Display.Color.HexStringToColor(l.skin).darken(18).rgba;
-  return { K, H: l.hair, S: l.skin, E: K, M: darker, C: l.suit, W: '#f4efe6', P: '#3b3a4f', B: '#5a3b2e' };
+  return { K, H: l.hair, S: l.skin, E: K, M: darker, C: l.suit, W: '#f4efe6', P: l.pants ?? '#3b3a4f', B: '#5a3b2e' };
 }
 
 export function makeCharacter(scene: Phaser.Scene, name: string, look: Look) {
   const pal = lookPalette(look);
+  const hair = HAIR[look.hairStyle ?? 'short'];
+  const DOWN = withHair(DOWN_SHORT, hair.down);
+  const UP = withHair(UP_SHORT, hair.up);
+  const SIDE = withHair(SIDE_SHORT, hair.side);
   const walkDown = stepLegs(DOWN, '...KPPK..KPPK...', '...KBBK..KBBK...');
   const walkUp = stepLegs(UP, '...KPPK..KPPK...', '...KBBK..KBBK...');
   const walkSide = stepLegs(SIDE, '....KPPKKPPK....', '...KBBK..KBBK...');
@@ -338,4 +367,85 @@ export function makeFX(scene: Phaser.Scene) {
     c.fillRect(2, 0, 2, 6);
     c.fillRect(0, 2, 6, 2);
   });
+}
+
+// ---------- pets (16×16, facing right; two walking frames) ----------
+
+const PETS: Record<'cat' | 'dog' | 'alien', { rows: string[]; step: [string, string]; pal: Palette }> = {
+  cat: {
+    rows: [
+      '................',
+      '................',
+      '................',
+      '................',
+      '................',
+      '..........K...K.',
+      '.........KFK.KFK',
+      '.........KFFKFFK',
+      '.K.......KFFFFFK',
+      'KFK......KFEFFEK',
+      '.KFK.....KFFNFFK',
+      '..KFKKKKKKFFFFK.',
+      '..KFFDFFDFFFFK..',
+      '...KFFFFFFFFFK..',
+      '...KFK.KFK.KFK..',
+      '...KK..KK..KK...',
+    ],
+    step: ['..KFK..KFKKFK...', '..KK...KK.KK....'],
+    pal: { K, F: '#f0a050', D: '#c07030', E: K, N: '#f08fc0' },
+  },
+  dog: {
+    rows: [
+      '................',
+      '................',
+      '................',
+      '................',
+      '................',
+      '................',
+      '................',
+      '........KKKKK...',
+      '.......KDFFFFK..',
+      '.......KDFEFFFKK',
+      '.KK....KDFFFFFFK',
+      '..KF...KKFFFFTK.',
+      '..KFKKKKFFFFFK..',
+      '...KFFFFFFFFFK..',
+      '...KFFFFFFFFK...',
+      '...KFK.KFKKFK...',
+    ],
+    step: ['...KFFFFFFFFK...', '..KFK..KFK.KFK..'],
+    pal: { K, F: '#c99a5e', D: '#8a5a35', E: K, T: '#f08fc0' },
+  },
+  alien: {
+    rows: [
+      '................',
+      '................',
+      '....KYK..KYK....',
+      '.....K....K.....',
+      '.....K....K.....',
+      '....KKKKKKKK....',
+      '...KGGGGGGGGK...',
+      '..KGGWWGGWWGGK..',
+      '..KGGWKGGWKGGK..',
+      '..KGGGGGGGGGGK..',
+      '..KGGKGGGGKGGK..',
+      '..KGGGKKKKGGGK..',
+      '...KGGGGGGGGK...',
+      '....KGGGGGGK....',
+      '....KGK..KGK....',
+      '....KK....KK....',
+    ],
+    step: ['...KGK....KGK...', '...KK......KK...'],
+    pal: { K, G: '#8fe07a', W: '#f4efe6', Y: '#ffd166' },
+  },
+};
+
+export function makePets(scene: Phaser.Scene) {
+  for (const [kind, p] of Object.entries(PETS)) {
+    pixelTexture(scene, `pet-${kind}-0`, p.rows, p.pal);
+    pixelTexture(scene, `pet-${kind}-1`, [...p.rows.slice(0, 14), ...p.step], p.pal);
+    if (!scene.anims.exists(`pet-${kind}-walk`)) {
+      scene.anims.create({ key: `pet-${kind}-walk`, frames: [{ key: `pet-${kind}-1` }, { key: `pet-${kind}-0` }], frameRate: 8, repeat: -1 });
+    }
+  }
 }

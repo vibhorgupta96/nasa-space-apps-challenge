@@ -354,6 +354,27 @@ export class Store {
     return OK;
   }
 
+  /** The pet's once-a-sol trick adds a small gift to the home inventory. */
+  petTrick(item: ItemId, amount: number): Result {
+    const s = this.state;
+    if (s.phase !== 'day') return fail('Start the day first!');
+    const tag = `pet-trick@${s.sol}`;
+    if (this.meta.storySeen.includes(tag)) return fail('already');
+    this.meta.storySeen.push(tag);
+    s.inventory[item] += amount;
+    this.save();
+    return OK;
+  }
+
+  /** Sleep through the rest of the day: everything still due today happens in order, then the sol ends. */
+  sleepNow(): Result {
+    if (this.state.phase !== 'day') return fail('Start the day first!');
+    if (this.paused) return fail('Finish what you are doing first.');
+    this.advanceTo(this.dayEndMs());
+    this.endDay();
+    return OK;
+  }
+
   private dayCommand(): Result {
     if (this.state.phase !== 'day') return fail('Start the day first!');
     this.advanceTo(this.state.missionElapsedMs); // resolve anything due right now (storm hits first)

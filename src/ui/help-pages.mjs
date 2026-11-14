@@ -20,7 +20,7 @@ export function createHelpPages(cellsPerSol, heaterNeededBelowC) {
     {
       title: '3 · Watch storms and plan rover trips',
       lines: [
-        'Press TAB for the storm board. Strength and effects at the dome are game simulations.',
+        'Press TAB for the storm board (M mutes sound). Strength and effects at the dome are game simulations.',
         'Shelter cells plus shield layers must reach the storm’s simulated strength.',
         'Use the top airlock to plan a route that returns to the dome. Bring ice home to make water.',
       ],

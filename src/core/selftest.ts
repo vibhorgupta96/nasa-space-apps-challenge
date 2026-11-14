@@ -239,6 +239,29 @@ export async function runSelfTest() {
       return `air ${t.state.air}, food ${t.state.food}, water left ${t.state.inventory.water}`;
     });
 
+    check('Farm: sleeping ends the sol after resolving the rest of the day', () => {
+      const t = fresh();
+      expect(!t.sleepNow().ok, 'slept before the day started');
+      start(t, { heater: 1, growLights: 1 });
+      expect(t.sleepNow().ok, 'could not sleep during the day');
+      expect(t.state.sol === 2 && t.state.phase === 'planning', `sol ${t.state.sol}, ${t.state.phase}`);
+      expect(t.lastNight?.sol === 1, 'no night report for sol 1');
+      return 'sol 1 → night report → sol 2 morning';
+    });
+
+    check('Farm: the pet helps once per sol', () => {
+      const t = fresh();
+      start(t, { heater: 1, growLights: 1 });
+      const ice = t.state.inventory.ice;
+      expect(t.petTrick('ice', 1).ok, 'first trick refused');
+      expect(!t.petTrick('ice', 1).ok, 'second trick allowed on the same sol');
+      expect(t.state.inventory.ice === ice + 1, `ice ${ice} → ${t.state.inventory.ice}`);
+      t.sleepNow();
+      start(t, { heater: 1, growLights: 1 });
+      expect(t.petTrick('ice', 1).ok, 'trick refused on the next sol');
+      return '+1 ice on sol 1, again on sol 2';
+    });
+
     check('Farm: unsafe storm wilts a plot, which can be cleared and replanted', () => {
       const t = fresh();
       const storm = t.storms()[0];

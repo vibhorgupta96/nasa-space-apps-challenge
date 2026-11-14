@@ -227,13 +227,13 @@ export class RoverScene extends Phaser.Scene {
     this.info = text(this, 36, 622, '', 18, C.text, { lineSpacing: 6, wordWrap: { width: 640 } });
     ui.add(this.info);
     this.planUi = this.add.container(0, 0);
-    this.planUi.add(button(this, 760, 658, '↩ Undo', () => this.undo(), 110, 44, 0x9aa3b0));
+    this.planUi.add(button(this, 760, 658, '« Undo', () => this.undo(), 110, 44, 0x9aa3b0));
     this.planUi.add(button(this, 884, 658, '🏠 Return', () => this.returnHome(), 130, 44, 0x9aa3b0));
-    this.sendBtn = button(this, 1034, 658, 'Send Bolt ▶', () => this.send(), 150, 50, 0xffd166);
+    this.sendBtn = button(this, 1034, 658, 'Send Bolt »', () => this.send(), 150, 50, 0xffd166);
     this.planUi.add(this.sendBtn);
     ui.add(this.planUi);
     ui.add(button(this, 1190, 658, 'Inside', () => this.leave(), 110, 44, C.frame));
-    const credit = text(this, 1252, 600, `NASA Mars Trek · Viking colour mosaic · ${getData().terrain.site.name} · 1 square ≈ ${getData().terrain.kmPerCell} km · C: toggle rough ground`, 14, C.dim, { backgroundColor: '#141927cc', padding: { x: 8, y: 4 } }).setOrigin(1, 1);
+    const credit = text(this, 1252, 600, `NASA Mars Trek · Viking colour mosaic · ${getData().terrain.site.name} · 1 square is about ${getData().terrain.kmPerCell} km · C: toggle rough ground`, 14, C.dim, { backgroundColor: '#141927cc', padding: { x: 8, y: 4 } }).setOrigin(1, 1);
     ui.add(credit);
     // Input hit-tests use each object's own scroll factor, not the container's, so pin every
     // descendant to the screen. Without this the buttons only work when the map isn't scrolled.
@@ -304,7 +304,7 @@ export class RoverScene extends Phaser.Scene {
     this.planUi.setVisible(planning);
     const dayLeft = store.dayEndMs() - s.missionElapsedMs;
     const stormLine = getActiveStormWarnings(s, getData().storms.weeks)
-      .map((st) => `\n⚠ Sol ${st.event.scenario.gameSol} storm hits in ${fmtMs(st.hitAtMs - s.missionElapsedMs)} of daytime. Be home before it!`)
+      .map((st) => `\n⚠️ Sol ${st.event.scenario.gameSol} storm hits in ${fmtMs(st.hitAtMs - s.missionElapsedMs)} of daytime. Be home before it!`)
       .join('');
     if (planning) {
       const can = store.roverCanLaunch();
@@ -315,7 +315,7 @@ export class RoverScene extends Phaser.Scene {
         (can.ok ? `Plan a drive: click the map to add stops, then 🏠 Return.  Battery: ${s.split.rover} cell(s)\n` : `${can.reason}\n`) +
           `Route: ${tiles} squares · needs ${cost.toFixed(1)} cells · takes ${fmtMs(tiles * RULES.roverMsPerTile)} (day left ${fmtMs(dayLeft)})` +
           (tiles && !home ? ' · must end at the dome' : '') +
-          (cost > s.split.rover + 1e-9 ? ' · ⚠ not enough battery!' : '') +
+          (cost > s.split.rover + 1e-9 ? ' · ⚠️ not enough battery!' : '') +
           stormLine,
       );
       this.info.setColor(can.ok ? C.text : C.warn);

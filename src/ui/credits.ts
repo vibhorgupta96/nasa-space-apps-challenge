@@ -38,7 +38,7 @@ export function showCredits(scene: Phaser.Scene) {
       }).setInteractive({ useHandCursor: true });
       title.on('pointerdown', () => window.open(url, '_blank', 'noopener'));
       rows!.add(title);
-      rows!.add(text(scene, W - 108, y, 'Open ↗', 15, C.goldText).setOrigin(1, 0));
+      rows!.add(text(scene, W - 108, y, 'Open »', 15, C.goldText).setOrigin(1, 0));
     });
     pageLabel?.destroy();
     pageLabel = text(scene, W / 2, 515, `Sources ${links.length ? start + 1 : 0}–${start + visible.length} of ${links.length}`, 16, C.dim).setOrigin(0.5, 0);
@@ -46,11 +46,11 @@ export function showCredits(scene: Phaser.Scene) {
   };
 
   renderPage();
-  c.add(button(scene, 170, 525, '◀ Previous', () => {
+  c.add(button(scene, 170, 525, '« Previous', () => {
     page = (page + pageCount - 1) % pageCount;
     renderPage();
   }, 170, 42, C.frame));
-  c.add(button(scene, W - 170, 525, 'Next ▶', () => {
+  c.add(button(scene, W - 170, 525, 'Next »', () => {
     page = (page + 1) % pageCount;
     renderPage();
   }, 170, 42, C.frame));
@@ -60,7 +60,7 @@ export function showCredits(scene: Phaser.Scene) {
   c.add(text(scene, 100, 570,
     `NASA facts link to their sources. Storm effects and game balance are simulations.${mockNote}\n` +
       'AI use: Claude and OpenAI Codex helped with code and source summaries; team review is pending. See docs/AI_USAGE.md.\n' +
-      'Built with Phaser 3 (MIT), Vite (MIT), and TypeScript (Apache 2.0). Pixelify Sans font: SIL Open Font License.',
+      'Built with Phaser 3 (MIT), Vite (MIT), and TypeScript (Apache 2.0). DotGothic16 font: SIL Open Font License.',
     14, C.dim, { wordWrap: { width: W - 200 }, lineSpacing: 3 }));
   c.add(button(scene, W / 2, H - 43, 'Close', () => c.destroy(), 180, 42, 0xffd166));
   return c;
