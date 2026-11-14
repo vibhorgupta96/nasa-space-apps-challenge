@@ -1,11 +1,14 @@
 import { RULES } from './rules';
 import { bus, EV, UI_EV } from './events';
-import type { Campaign, GameState, ItemId, MissionResult, Plot, PowerSlot, WorldId } from './types';
+import type { Campaign, GameState, ItemId, MissionResult, Plot, PowerSlot, TrainingSnapshot, WorldId } from './types';
 import { worldProfile, worldRules } from './worlds';
 import { cropById, getData, type StormEvent, type WeatherSol } from '../data/loaders';
 import { selectScienceCard } from '../data/science';
 import { getActiveFindsForSol } from '../rover/findsManager';
 import { recipeById } from '../farm/recipes';
+import {
+  BADGES, DUST_SOLS, lessonFor, requestsForWorld, type BadgeId, type CrewRequest, type Lesson, type ScheduleId,
+} from './training';
 
 // The single owner of GameState. Scenes read `store.state` and call commands; only the store
 // advances time, the rover route and the radio queue (PLAN.md sections 5–6).
@@ -34,6 +37,9 @@ export interface NightReport {
   roverCalledHome: boolean;
   /** Raw pantry crops the crew ate at night because food was low. */
   snacked: number;
+  /** Today's mission-journal line, written from what the player did. */
+  journal: string;
+  schedule: Record<ScheduleId, boolean>;
   outcome: 'next' | 'rescue' | 'debrief';
   card: { text: string; source: string } | null;
 }
@@ -51,6 +57,22 @@ export interface Meta {
   stormsTaken: number;
   trips: number;
   mealsCooked: number;
+  // Junior Astronaut training (src/core/training.ts).
+  badges: string[];
+  /** Sol → whether that sol's lesson question was answered correctly (first answer only). */
+  lessons: Record<number, boolean>;
+  journal: string[];
+  /** Optional 5-question quiz before (title) and after (debrief) the mission: correct answers. */
+  quiz: { pre: number | null; post: number | null };
+  dusty: boolean;
+  exercisedSols: number[];
+  crewTalked: string[];
+  requestsDone: number[];
+  airGoodSols: number;
+  fullPowerSols: number;
+  moxieRuns: number;
+  /** Sols whose Wiz Card (the lesson's fact card) the pet quiz has won. */
+  wizCards: number[];
 }
 
 interface Today {
@@ -61,7 +83,19 @@ interface Today {
   storm: StormEvent | null;
   stormSafe: boolean;
   sample: boolean;
+  cooked: string[];
+  moxie: number;
+  cleaned: boolean;
+  exercised: boolean;
+  slept: boolean;
+  request: boolean;
+  roverHome: boolean;
 }
+
+const emptyToday = (): Today => ({
+  harvested: [], planted: false, watered: false, roverTrip: false, storm: null, stormSafe: true, sample: false,
+  cooked: [], moxie: 0, cleaned: false, exercised: false, slept: false, request: false, roverHome: false,
+});
 
 interface SavedScienceContext {
   sol: number;
@@ -71,6 +105,15 @@ interface SavedScienceContext {
   watered: boolean;
   roverTrip: boolean;
   stormId: string | null;
+  cooked?: string[];
+  moxie?: number;
+  cleaned?: boolean;
+  exercised?: boolean;
+  slept?: boolean;
+  request?: boolean;
+  roverHome?: boolean;
+  sample?: boolean;
+  stormSafe?: boolean;
 }
 
 const SAVE_KEY = 'sol-sprouts-save-v1';
@@ -94,7 +137,29 @@ function freshMeta(): Meta {
   return {
     radioCounter: 0, weekCursor: 0, storySeen: [], eggs: [], boltTalks: 0, photosEarned: [],
     harvests: {}, stormsSurvived: 0, stormsTaken: 0, trips: 0, mealsCooked: 0,
+    badges: [], lessons: {}, journal: [], quiz: { pre: null, post: null }, dusty: false, exercisedSols: [],
+    crewTalked: [], requestsDone: [], airGoodSols: 0, fullPowerSols: 0, moxieRuns: 0, wizCards: [],
   };
+}
+
+function trainingSnapshot(meta: Meta): TrainingSnapshot {
+  return {
+    badges: [...meta.badges], lessons: { ...meta.lessons }, wizCards: [...meta.wizCards],
+    quiz: { ...meta.quiz }, journal: [...meta.journal],
+  };
+}
+
+function validTraining(value: unknown): value is TrainingSnapshot {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const t = value as TrainingSnapshot;
+  const validDay = (n: unknown) => Number.isInteger(n) && (n as number) >= 1 && (n as number) <= RULES.missionSols;
+  const validScore = (n: unknown) => n === null || Number.isInteger(n) && (n as number) >= 0 && (n as number) <= 5;
+  return Array.isArray(t.badges) && t.badges.every(id => typeof id === 'string' && Object.prototype.hasOwnProperty.call(BADGES, id))
+    && !!t.lessons && typeof t.lessons === 'object' && !Array.isArray(t.lessons)
+    && Object.entries(t.lessons).every(([day, correct]) => /^\d+$/.test(day) && validDay(Number(day)) && typeof correct === 'boolean')
+    && Array.isArray(t.wizCards) && t.wizCards.every(validDay)
+    && !!t.quiz && typeof t.quiz === 'object' && !Array.isArray(t.quiz) && validScore(t.quiz.pre) && validScore(t.quiz.post)
+    && Array.isArray(t.journal) && t.journal.every(line => typeof line === 'string');
 }
 
 export class Store {
@@ -105,7 +170,9 @@ export class Store {
   pausedBy = new Set<string>();
   hidden = false;
   lastNight: NightReport | null = null;
-  private today: Today = { harvested: [], planted: false, watered: false, roverTrip: false, storm: null, stormSafe: true, sample: false };
+  private today: Today = emptyToday();
+  /** A quiz taken on the title screen before the mission starts; newGame() adopts it. */
+  private preQuiz: { worldId: WorldId; score: number } | null = null;
 
   private lastAutosaveMs = 0;
 
@@ -126,6 +193,7 @@ export class Store {
   get world() { return worldProfile(this.worldId); }
   get rules() { return worldRules(this.worldId); }
   get data() { return getData(this.worldId); }
+  get oxygenSystemLabel() { return this.worldId === 'moon' ? 'Water oxygen maker' : 'MOXIE'; }
   get canTravel() { return !!this.campaign && this.state.phase === 'debrief' && this.campaign.currentIndex === 0 && this.campaign.completed.length === 1; }
   get campaignComplete() { return !!this.campaign && this.state.phase === 'debrief' && this.campaign.currentIndex === 1 && this.campaign.completed.length === 2; }
 
@@ -159,6 +227,8 @@ export class Store {
     const keepPhotos = preserveDiscoveries ? [...this.meta.photosEarned] : [];
     const cursor = this.meta.weekCursor;
     this.meta = { ...freshMeta(), weekCursor: cursor + 1, eggs: keepEggs, photosEarned: keepPhotos };
+    this.meta.quiz.pre = this.preQuiz?.worldId === worldId ? this.preQuiz.score : null;
+    this.preQuiz = null;
     const week = weeks[cursor % weeks.length];
     const inventory = zeroItems();
     inventory.seed = RULES.initialSeeds;
@@ -217,6 +287,11 @@ export class Store {
       harvested: [...this.today.harvested], planted: this.today.planted,
       watered: this.today.watered, roverTrip: this.today.roverTrip,
       stormId: this.today.storm?.id ?? null,
+      cooked: [...this.today.cooked], moxie: this.today.moxie,
+      cleaned: this.today.cleaned, exercised: this.today.exercised,
+      slept: this.today.slept, request: this.today.request,
+      roverHome: this.today.roverHome, sample: this.today.sample,
+      stormSafe: this.today.stormSafe,
     };
     return JSON.stringify({ v: 2, state: this.state, meta: this.meta, campaign: this.campaign, scienceContext });
   }
@@ -260,8 +335,15 @@ export class Store {
       const r = state.rover;
       if (!r || !['home','out','stranded','repairing'].includes(r.status) || !Number.isFinite(r.batteryCells) || !Array.isArray(r.route) || !Array.isArray(r.collectedFindIds) || !r.cargo || ITEMS.some(k => !Number.isFinite(r.cargo[k]) || r.cargo[k] < 0) || !Number.isInteger(r.nextRouteIndex) || r.nextRouteIndex < 0 || r.nextRouteIndex > r.route.length || r.route.some((xy: unknown) => !Array.isArray(xy) || xy.length !== 2 || !xy.every(Number.isInteger) || xy[0] < 0 || xy[0] >= data.terrain.width || xy[1] < 0 || xy[1] >= data.terrain.height) || !Number.isInteger(r.lastLaunchSol) || !Number.isInteger(r.availableSol) || !(r.routeStartedAtMs === null || Number.isFinite(r.routeStartedAtMs)) || !(r.expeditionId === null || typeof r.expeditionId === 'string') || r.collectedFindIds.some((id: unknown) => typeof id !== 'string') || (r.status === 'out' && (!r.expeditionId || r.routeStartedAtMs === null || r.nextRouteIndex < 1 || r.nextRouteIndex >= r.route.length))) return null;
       const rawMeta = parsed.meta && typeof parsed.meta === 'object' ? parsed.meta : {};
-      const meta: Meta = { ...freshMeta(), ...rawMeta };
+      if (rawMeta.quiz !== undefined && (!rawMeta.quiz || typeof rawMeta.quiz !== 'object' || Array.isArray(rawMeta.quiz))) return null;
+      const defaults = freshMeta();
+      const meta: Meta = { ...defaults, ...rawMeta, quiz: { ...defaults.quiz, ...(rawMeta.quiz || {}) } };
       if (!Number.isInteger(meta.weekCursor) || meta.weekCursor < 0 || !Array.isArray(meta.eggs) || !Array.isArray(meta.photosEarned) || !Array.isArray(meta.storySeen) || [meta.eggs, meta.photosEarned, meta.storySeen].some(list => list.some(item => typeof item !== 'string')) || ![meta.radioCounter,meta.boltTalks,meta.stormsSurvived,meta.stormsTaken,meta.trips,meta.mealsCooked].every(n => Number.isInteger(n) && n >= 0) || !meta.harvests || typeof meta.harvests !== 'object' || Object.values(meta.harvests).some(n => !Number.isInteger(n) || n < 0)) return null;
+      if (!validTraining(meta) || typeof meta.dusty !== 'boolean'
+        || !Array.isArray(meta.exercisedSols) || !meta.exercisedSols.every(n => Number.isInteger(n) && n >= 1 && n <= RULES.missionSols)
+        || !Array.isArray(meta.requestsDone) || !meta.requestsDone.every(n => Number.isInteger(n) && n >= 1 && n <= RULES.missionSols)
+        || !Array.isArray(meta.crewTalked) || !meta.crewTalked.every(n => typeof n === 'string')
+        || ![meta.airGoodSols, meta.fullPowerSols, meta.moxieRuns].every(n => Number.isInteger(n) && n >= 0)) return null;
       let campaign: Campaign;
       if (parsed.v === 1) {
         campaign = { order: ['mars','moon'], currentIndex: 0, completed: [] };
@@ -270,9 +352,13 @@ export class Store {
         campaign = parsed.campaign;
         if (!campaign || !Array.isArray(campaign.order) || campaign.order.length !== 2 || !['mars','moon'].includes(campaign.order[0]) || !['mars','moon'].includes(campaign.order[1]) || campaign.order[0] === campaign.order[1] || ![0,1].includes(campaign.currentIndex) || campaign.order[campaign.currentIndex] !== world || !Array.isArray(campaign.completed)) return null;
         // Version 2 campaigns created before the kitchen have no meal count.
-        for (const result of campaign.completed) if (result && result.mealsCooked === undefined) result.mealsCooked = 0;
+        for (const result of campaign.completed) {
+          if (result && result.mealsCooked === undefined) result.mealsCooked = 0;
+          if (result && result.training === undefined) result.training = trainingSnapshot(freshMeta());
+          if (result && !validTraining(result.training)) return null;
+        }
         const expected = campaign.currentIndex + (state.phase === 'debrief' ? 1 : 0);
-        if (campaign.completed.length !== expected || campaign.completed.some((m: MissionResult, i: number) => !m || m.worldId !== campaign.order[i] || !m.harvests || typeof m.harvests !== 'object' || ![m.air,m.food,m.stormsSurvived,m.stormsTaken,m.trips,m.mealsCooked].every(Number.isFinite))) return null;
+        if (campaign.completed.length !== expected || campaign.completed.some((m: MissionResult, i: number) => !m || m.worldId !== campaign.order[i] || !(m.stormWeekId === undefined || typeof m.stormWeekId === 'string') || !m.harvests || typeof m.harvests !== 'object' || ![m.air,m.food,m.stormsSurvived,m.stormsTaken,m.trips,m.mealsCooked].every(Number.isFinite))) return null;
       }
       return {state, meta, campaign, scienceContext: parsed.scienceContext};
     } catch { return null; }
@@ -294,8 +380,9 @@ export class Store {
   }
 
   private summarizeMission(state: GameState, meta: Meta): MissionResult {
-    return { worldId: state.worldId, harvests: { ...meta.harvests }, stormsSurvived: meta.stormsSurvived,
-      stormsTaken: meta.stormsTaken, trips: meta.trips, mealsCooked: meta.mealsCooked, air: state.air, food: state.food };
+    return { worldId: state.worldId, stormWeekId: state.stormWeekId, harvests: { ...meta.harvests }, stormsSurvived: meta.stormsSurvived,
+      stormsTaken: meta.stormsTaken, trips: meta.trips, mealsCooked: meta.mealsCooked, air: state.air, food: state.food,
+      training: trainingSnapshot(meta) };
   }
 
   loadMetaOnly() {
@@ -386,19 +473,27 @@ export class Store {
   needsHeater(sol = this.state.sol) { return this.thermalRequired(sol) > 0; }
 
   nextDayCells() {
-    if (this.worldId === 'mars') return RULES.cellsPerSol;
+    if (this.worldId === 'mars') return RULES.cellsPerSol - (this.meta.dusty || DUST_SOLS.includes(this.state.sol + 1) ? RULES.dustCellsLost : 0);
     return Math.max(0, (this.isDaylight(this.state.sol + 1) ? 8 : 6) - this.state.dustLevel);
   }
 
   cleanDust(): Result {
+    if (this.paused) return fail('Finish what you are doing first.');
     const g = this.dayCommand();
     if (!g.ok) return g;
+    return this.clearLunarDust();
+  }
+
+  /** Apply a lunar cleaning reward after its caller has checked the interaction phase. */
+  private clearLunarDust(): Result {
     if (this.worldId !== 'moon') return fail('There is no lunar dust to clean here.');
     if (this.state.dustCleanedSol === this.state.sol) return fail('The airlock was already cleaned today.');
     if (!this.state.dustLevel) return fail('The airlock is already clean.');
     this.state.dustLevel = 0;
     this.state.dustCleanedSol = this.state.sol;
+    this.today.cleaned = true;
     this.log('Cleaned lunar dust. Tomorrow’s power budget is restored.');
+    this.award('panel-cleaner');
     this.save();
     return OK;
   }
@@ -464,6 +559,8 @@ export class Store {
     if (s.phase !== 'planning') return fail('The day has already started.');
     s.phase = 'day';
     this.log(`${this.world.dayLabel} ${s.sol} begins.`);
+    const req = requestsForWorld(this.worldId)[s.sol];
+    if (req && !this.meta.requestsDone.includes(s.sol)) this.log(`📋 ${req.who[0].toUpperCase()}${req.who.slice(1)} has a request today. Go and talk to them!`);
     this.save();
     bus.emit(UI_EV.PHASE_CHANGED, { phase: s.phase });
     return OK;
@@ -486,6 +583,7 @@ export class Store {
     if (this.state.phase !== 'day') return fail('Start the day first!');
     if (this.paused) return fail('Finish what you are doing first.');
     this.advanceTo(this.dayEndMs());
+    this.today.slept = true;
     this.endDay();
     return OK;
   }
@@ -544,6 +642,7 @@ export class Store {
     this.today.harvested.push(crop.id);
     this.meta.harvests[crop.id] = (this.meta.harvests[crop.id] || 0) + 1;
     this.log(`Harvested ${crop.name}. It's in the kitchen pantry.`);
+    if (Object.values(this.meta.harvests).reduce((a, b) => a + b, 0) >= 3) this.award('botanist');
     return OK;
   }
 
@@ -560,7 +659,9 @@ export class Store {
     s.food = clamp(s.food + r.food);
     s.inventory.seed += r.seeds;
     this.meta.mealsCooked = (this.meta.mealsCooked || 0) + 1;
+    this.today.cooked.push(r.name);
     this.log(r.food > 0 ? `Cooked ${r.name}: +${r.food} food!` : `${r.name}: +${r.seeds} seeds.`);
+    if (r.food > 0) this.award('chef');
     this.save();
     return OK;
   }
@@ -686,7 +787,9 @@ export class Store {
     Object.assign(r, { status: 'home', expeditionId: null, route: [], nextRouteIndex: 0, routeStartedAtMs: null, cargo: zeroItems() });
     if (this.worldId === 'moon') this.state.dustLevel = Math.min(2, this.state.dustLevel + 1);
     if (delivered.sample > 0) this.awardPhotos(delivered.sample);
+    this.today.roverHome = true;
     this.log('Bolt is home and unloads the cargo.');
+    this.award('rover-pilot');
     bus.emit(EV.ROVER_RETURN, { expeditionId, deliveredItems: delivered });
     return OK;
   }
@@ -719,6 +822,311 @@ export class Store {
       arrivesAtMs: s.missionElapsedMs + delayMinutes * RULES.radioMsPerMinute,
       delayMinutes,
     });
+  }
+
+  // ---------- Junior Astronaut training ----------
+
+  /** Spare cells (left out of the morning plan, or freed by cleaning a panel) can run MOXIE for air. */
+  spareCells() {
+    return this.state.cellsToday - this.splitTotal();
+  }
+
+  /** MOXIE cells used today (they no longer count in cellsToday). */
+  get moxieToday() {
+    return this.today.moxie;
+  }
+
+  runOxygenMaker(): Result {
+    if (this.paused) return fail('Finish what you are doing first.');
+    const g = this.dayCommand();
+    if (!g.ok) return g;
+    const s = this.state;
+    if (this.spareCells() < 1) return fail(`${this.oxygenSystemLabel} needs a spare power cell. Leave one out of the morning plan.`);
+    if (s.air >= RULES.resourceMax) return fail('The air tanks are full. Save the cell for later!');
+    if (this.worldId === 'moon' && s.inventory.water < 1) return fail('The water oxygen maker needs 1 water.');
+    s.cellsToday -= 1;
+    if (this.worldId === 'moon') s.inventory.water -= 1;
+    s.air = clamp(s.air + RULES.moxieAirPerCell);
+    this.today.moxie += 1;
+    this.meta.moxieRuns += 1;
+    this.log(this.worldId === 'moon'
+      ? `The water oxygen maker used water and power: +${RULES.moxieAirPerCell} air.`
+      : `MOXIE turned carbon dioxide into oxygen: +${RULES.moxieAirPerCell} air.`);
+    this.award('oxygen-maker');
+    this.save();
+    return OK;
+  }
+
+  /** Compatibility alias for the existing Mars machine and callers. */
+  runMoxie(): Result { return this.runOxygenMaker(); }
+
+  private dustSettles() {
+    this.meta.dusty = true;
+    this.log('Dust settled on a solar panel overnight: 1 fewer power cell until someone cleans it.');
+    if (!this.meta.storySeen.includes('dust-intro')) {
+      this.meta.storySeen.push('dust-intro');
+      const fact = getData().trivia.trivia.find((t) => t.id === 'insight-dust');
+      bus.emit('ui:say', [
+        { who: 'priya', text: 'Bad news: Mars dust covered one of our solar panels, so we get one fewer power cell. Brush it off at the solar panel station by the east wall. Your pet can help too!' },
+        ...(fact ? [{ who: 'bolt', text: `REAL FACT: ${fact.fact}`, mood: 'worried' }] : []),
+      ]);
+    }
+  }
+
+  /** Brush the dust off. The freed cell is a spare for today (MOXIE can use it). */
+  cleanPanels(byPet = false): Result {
+    if (this.paused) return fail('Finish what you are doing first.');
+    const g = this.dayCommand();
+    if (!g.ok) return g;
+    return this.clearPanelDust(byPet);
+  }
+
+  /** The pet can earn this reward while its own quiz modal pauses the simulation. */
+  private clearPanelDust(byPet: boolean): Result {
+    if (this.worldId === 'moon') return this.clearLunarDust();
+    if (!this.meta.dusty) return fail('The solar panels are clean and shiny.');
+    this.meta.dusty = false;
+    this.state.cellsToday += RULES.dustCellsLost;
+    this.today.cleaned = true;
+    this.log(byPet ? 'Your pet swept the dust off the panel! +1 spare power cell today.' : 'You brushed the dust off the solar panel. +1 spare power cell today.');
+    this.award('panel-cleaner');
+    this.save();
+    return OK;
+  }
+
+  panelsNeedCleaning() { return this.worldId === 'moon' ? this.state.dustLevel > 0 : this.meta.dusty; }
+
+  /** True once the pet has had its turn (quiz or trick) today. */
+  petUsedToday() {
+    return this.meta.storySeen.includes(`pet-trick@${this.state.sol}`);
+  }
+
+  /**
+   * The pet brings today's lesson question once a sol. A right answer wins the sol's Wiz Card and
+   * the pet's reward (it sweeps a dusty panel first, otherwise it brings its usual gift).
+   */
+  petQuiz(choice: number, gift: { item: ItemId; amount: number }, expectedWorld: WorldId = this.worldId, expectedSol = this.state.sol): { ok: boolean; correct: boolean; reason?: string; cleaned?: boolean } {
+    const s = this.state;
+    if (expectedWorld !== this.worldId || expectedSol !== s.sol) return { ok: false, correct: false, reason: 'This question belongs to a different mission or day.' };
+    if (s.phase !== 'day') return { ok: false, correct: false, reason: 'Start the day first!' };
+    if (this.hidden || [...this.pausedBy].some(reason => reason !== 'modal')) return { ok: false, correct: false, reason: 'Finish what you are doing first.' };
+    if (!Number.isInteger(choice) || choice < 0 || choice > 2 || !ITEMS.includes(gift.item) || !Number.isInteger(gift.amount) || gift.amount < 0) return { ok: false, correct: false, reason: 'Invalid answer or reward.' };
+    if (this.petUsedToday()) return { ok: false, correct: false, reason: 'already' };
+    if (s.sol in this.meta.lessons) return { ok: false, correct: false, reason: 'already' };
+    const lesson = lessonFor(s.sol, this.worldId);
+    if (!lesson) return { ok: false, correct: false, reason: 'No question today.' };
+    this.meta.storySeen.push(`pet-trick@${s.sol}`);
+    const answer = this.answerLesson(s.sol, choice, expectedWorld);
+    if (!answer.ok) return { ok: false, correct: false, reason: 'This question is no longer available.' };
+    const { correct } = answer;
+    let cleaned = false;
+    if (correct) {
+      if (!this.meta.wizCards.includes(s.sol)) this.meta.wizCards.push(s.sol);
+      if (this.panelsNeedCleaning()) cleaned = this.clearPanelDust(true).ok;
+      if (!cleaned) s.inventory[gift.item] += gift.amount;
+    }
+    this.save();
+    return { ok: true, correct, cleaned };
+  }
+
+  /** The pet's once-a-sol help is spent on the panel when it is dusty. */
+  petCleanPanels(): Result {
+    const s = this.state;
+    if (s.phase !== 'day') return fail('Start the day first!');
+    const tag = `pet-trick@${s.sol}`;
+    if (this.meta.storySeen.includes(tag)) return fail('already');
+    const r = this.cleanPanels(true);
+    if (r.ok) {
+      this.meta.storySeen.push(tag);
+      this.save();
+    }
+    return r;
+  }
+
+  exercise(): Result {
+    const g = this.dayCommand();
+    if (!g.ok) return g;
+    const sol = this.state.sol;
+    if (this.meta.exercisedSols.includes(sol)) return fail('You already exercised today. Astronauts plan it once a day.');
+    this.meta.exercisedSols.push(sol);
+    this.today.exercised = true;
+    if (this.meta.exercisedSols.length >= RULES.badgeSols) this.award('fit-astronaut');
+    this.save();
+    return OK;
+  }
+
+  /** Record a chat with a crew member (for the Team Player badge). */
+  talkedTo(who: string) {
+    if (!this.meta.crewTalked.includes(who)) this.meta.crewTalked.push(who);
+    if (['rosa', 'theo', 'priya', 'bolt'].every((n) => this.meta.crewTalked.includes(n))) this.award('team-player');
+  }
+
+  /** Today's crew request, if there is one and it isn't done yet. */
+  openRequest(): CrewRequest | null {
+    const s = this.state;
+    const req = requestsForWorld(this.worldId)[s.sol];
+    return req && s.phase === 'day' && !this.meta.requestsDone.includes(s.sol) ? req : null;
+  }
+
+  requestHave(req: CrewRequest) {
+    const s = this.state;
+    return 'crop' in req.need ? s.pantry[req.need.crop] || 0 : s.inventory[req.need.item];
+  }
+
+  fulfilRequest(): Result {
+    const g = this.dayCommand();
+    if (!g.ok) return g;
+    const s = this.state;
+    const req = this.openRequest();
+    if (!req) return fail('No request today.');
+    if (this.requestHave(req) < req.amount) return fail('not-enough');
+    if ('crop' in req.need) s.pantry[req.need.crop] -= req.amount;
+    else s.inventory[req.need.item] -= req.amount;
+    s.inventory.seed += RULES.requestRewardSeeds;
+    this.meta.requestsDone.push(s.sol);
+    this.today.request = true;
+    this.log(`Request done! +${RULES.requestRewardSeeds} seeds.`);
+    if (this.meta.requestsDone.length >= RULES.badgeSols) this.award('crew-helper');
+    this.save();
+    return OK;
+  }
+
+  lesson(sol = this.state.sol): Lesson | null {
+    return lessonFor(sol, this.worldId);
+  }
+
+  /** The "See it" card for a sol's lesson: a sourced fact or live mission data. */
+  lessonCard(sol = this.state.sol, worldId: WorldId = this.worldId, stormWeekId?: string): { text: string; source: string } | null {
+    const l = lessonFor(sol, worldId);
+    if (!l) return null;
+    const d = getData(worldId);
+    if (l.see === 'weather') {
+      const w = d.weather.sols[(sol - 1) % d.weather.sols.length];
+      if (!w) return null;
+      if (worldId === 'moon') return {
+        text: `Moon surface temperatures can be very hot in sunlight and very cold in darkness. Today's ${w.minC}°C to ${w.maxC}°C is a simulated game scenario.`,
+        source: 'https://science.nasa.gov/moon/weather-on-the-moon/',
+      };
+      return {
+        text: `NASA's InSight lander measured a low of ${Math.round(w.minC)}°C at its landing site on Mars sol ${w.marsSol}. A home freezer is about -18°C.`,
+        source: [d.weather.source].flat().find((u) => !u.includes('api.')) ?? 'https://mars.nasa.gov/insight/weather/',
+      };
+    }
+    if (l.see === 'delay') {
+      if (worldId === 'moon') return {
+        text: `Radio signals need time to cross the Earth–Moon distance. The delay used for this game is simulated.`,
+        source: 'https://science.nasa.gov/moon/facts/',
+      };
+      return {
+        text: `Today Mars is about ${Math.round(d.delay.distanceKm / 1e6)} million km from Earth, so a radio message takes about ${Math.round(d.delay.oneWayMinutes)} minutes to arrive (NASA JPL Horizons).`,
+        source: 'https://ssd.jpl.nasa.gov/horizons/',
+      };
+    }
+    if (l.see === 'storm') {
+      if (worldId === 'moon') return {
+        text: 'Solar radiation can be a hazard on the Moon. This game’s lunar radiation timing and effects are simulated.',
+        source: 'https://science.nasa.gov/moon/weather-on-the-moon/',
+      };
+      const scenarioId = stormWeekId ?? (worldId === this.worldId ? this.state?.stormWeekId : undefined);
+      const e = d.storms.weeks.find(week => week.id === scenarioId)?.events[0];
+      if (!e) return { text: 'NASA’s DONKI database records solar events. This game simulates their timing and effects at the outpost.', source: 'https://kauai.ccmc.gsfc.nasa.gov/DONKI/' };
+      return {
+        text: `NASA's DONKI database records solar storms. This mission's first storm is based on a real one recorded on ${new Date(e.realTime).toUTCString().slice(5, 16)}.`,
+        source: e.link,
+      };
+    }
+    const [kind, id] = l.see.split(':');
+    if (kind === 'trivia') {
+      const t = d.trivia.trivia.find((x) => x.id === id);
+      return t ? { text: t.fact, source: t.source } : null;
+    }
+    const f = d.science.facts.find((x) => x.id === id);
+    return f ? { text: f.text, source: f.source } : null;
+  }
+
+  /** Answer a sol's "Say it" question. Only the first answer counts towards the score. */
+  answerLesson(sol: number, choice: number, expectedWorld: WorldId = this.worldId): { ok: boolean; correct: boolean } {
+    const s = this.state;
+    if (!s || expectedWorld !== this.worldId || this.hidden || [...this.pausedBy].some(reason => reason !== 'modal') || !Number.isInteger(choice) || choice < 0 || choice > 2 || sol in this.meta.lessons) return { ok: false, correct: false };
+    const activeDay = s.phase === 'day' && sol === s.sol;
+    const justEnded = this.lastNight?.sol === sol && ((s.phase === 'planning' && sol === s.sol - 1) || ((s.phase === 'debrief' || s.phase === 'rescue') && sol === s.sol));
+    if (!activeDay && !justEnded) return { ok: false, correct: false };
+    const l = lessonFor(sol, this.worldId);
+    if (!l) return { ok: false, correct: false };
+    const correct = choice === l.answer;
+    this.meta.lessons[sol] = correct;
+    if (Object.values(this.meta.lessons).filter(Boolean).length >= RULES.scholarLessons) this.award('scholar');
+    this.syncTrainingSnapshot();
+    this.save();
+    return { ok: true, correct };
+  }
+
+  lessonsCorrect() {
+    return Object.values(this.meta.lessons).filter(Boolean).length;
+  }
+
+  /** Record the optional quiz score. A pre-mission quiz is kept for the next newGame(). */
+  recordQuiz(kind: 'pre' | 'post', correct: number, worldId: WorldId = this.worldId) {
+    if (!Number.isInteger(correct) || correct < 0 || correct > 5 || (worldId !== 'mars' && worldId !== 'moon')) return;
+    if (kind === 'pre') {
+      this.preQuiz = { worldId, score: correct };
+    } else {
+      if (!this.state || worldId !== this.worldId || (this.state.phase !== 'debrief' && this.state.phase !== 'rescue')) return;
+      this.meta.quiz.post = correct;
+      this.syncTrainingSnapshot();
+    }
+    this.save();
+  }
+
+  /** Shelter strength against the next storm, for a radiation meter: protection vs. what it needs. */
+  shelterProtection(): { protection: number; needed: number | null } {
+    const s = this.state;
+    const next = this.pendingStorms()[0];
+    return { protection: s.split.shelter + s.shield, needed: next ? next.event.scenario.strength : null };
+  }
+
+  scheduleToday(): Record<ScheduleId, boolean> {
+    const t = this.today;
+    return {
+      farm: t.planted || t.watered || t.harvested.length > 0,
+      exercise: t.exercised,
+      science: t.roverTrip || t.moxie > 0,
+      sleep: t.slept,
+    };
+  }
+
+  /** One kid-readable journal line built from today's choices. */
+  private journalLine(sol: number): string {
+    const t = this.today;
+    const bits: string[] = [];
+    if (t.storm) bits.push(t.stormSafe ? 'A solar storm came from the Sun, but our shelter held and everyone was safe.' : 'A solar storm got through our shelter, so we hid and a plant wilted.');
+    if (t.harvested.length) bits.push(`I harvested ${t.harvested.length} crop${t.harvested.length > 1 ? 's' : ''}.`);
+    if (t.cooked.length) bits.push(`I cooked ${t.cooked[0]}.`);
+    else if (t.planted) bits.push('I planted seeds.');
+    else if (t.watered) bits.push('I watered the plants.');
+    if (t.roverHome) bits.push('Bolt drove out and came home safely.');
+    else if (t.roverTrip) bits.push('Bolt went exploring.');
+    if (t.moxie) bits.push(`${this.oxygenSystemLabel} made us some oxygen.`);
+    if (t.cleaned) bits.push(this.worldId === 'moon' ? 'We cleaned lunar dust at the airlock.' : 'We cleaned dust off a solar panel.');
+    if (t.exercised) bits.push('I exercised to keep strong.');
+    const request = requestsForWorld(this.worldId)[sol];
+    if (t.request) bits.push(`I helped ${request ? request.who[0].toUpperCase() + request.who.slice(1) : 'the crew'}.`);
+    if (!bits.length) bits.push(`A quiet ${this.world.dayLabel.toLowerCase()} in the dome.`);
+    return `${this.world.dayLabel} ${sol}: ${bits.slice(0, 3).join(' ')}`;
+  }
+
+  private award(id: BadgeId) {
+    if (this.meta.badges.includes(id)) return;
+    this.meta.badges.push(id);
+    this.syncTrainingSnapshot();
+    const b = BADGES[id];
+    this.log(`🏅 Badge earned: ${b.icon} ${b.name}!`);
+    bus.emit(UI_EV.BADGE, { id });
+  }
+
+  private syncTrainingSnapshot() {
+    const completed = this.campaign?.completed.find(result => result.worldId === this.worldId);
+    if (completed) completed.training = trainingSnapshot(this.meta);
   }
 
   // ---------- the clock ----------
@@ -791,6 +1199,7 @@ export class Store {
     if (safe) {
       this.meta.stormsSurvived += 1;
       this.log('The storm hit, but the shelter held. Everyone is safe!');
+      this.award('radiation-safe');
     } else {
       this.meta.stormsTaken += 1;
       s.air = clamp(s.air - RULES.stormAirLoss);
@@ -825,6 +1234,7 @@ export class Store {
     if (idx < 0) return;
     const [m] = s.radioQueue.splice(idx, 1);
     bus.emit(EV.RADIO_MESSAGE, { ...m });
+    this.award('comms-officer');
   }
 
   private endDay() {
@@ -862,6 +1272,13 @@ export class Store {
     }
     bus.emit(EV.SOL_END, { sol });
 
+    // Training: badges that are judged at night, today's schedule and the journal line.
+    if (s.air >= RULES.lifeSupportAir && ++this.meta.airGoodSols >= RULES.badgeSols) this.award('life-support');
+    if (s.cellsToday - this.splitTotal() === 0 && ++this.meta.fullPowerSols >= RULES.badgeSols) this.award('power-planner');
+    const schedule = this.scheduleToday();
+    const journal = this.journalLine(sol);
+    this.meta.journal.push(journal);
+
     let outcome: NightReport['outcome'] = 'next';
     if (s.air <= RULES.rescueAt || s.food <= RULES.rescueAt) outcome = 'rescue';
     else if (sol >= RULES.missionSols) outcome = 'debrief';
@@ -877,13 +1294,17 @@ export class Store {
     const card = this.pickScienceCard();
     this.lastNight = {
       sol, air: [air0, s.air], food: [food0, s.food], warm, minC: this.weather(sol).minC, litPlots: lit, grownPlots: grown,
-      blackout, roverRecovered, roverCalledHome, snacked, outcome, card,
+      blackout, roverRecovered, roverCalledHome, snacked, journal, schedule, outcome, card,
     };
 
     if (outcome === 'next') {
       s.cellsToday = this.nextDayCells();
       s.sol += 1;
       s.phase = 'planning';
+      if (s.worldId === 'mars') {
+        if (DUST_SOLS.includes(s.sol) && !this.meta.dusty) this.dustSettles();
+        s.cellsToday = RULES.cellsPerSol - (this.meta.dusty ? RULES.dustCellsLost : 0);
+      }
       s.split = { growLights: 0, heater: 0, shelter: 0, rover: 0 };
       s.stormBlackoutSol = null;
       for (const p of s.plots) p.wateredToday = false;
@@ -920,7 +1341,7 @@ export class Store {
   }
 
   private resetToday() {
-    this.today = { harvested: [], planted: false, watered: false, roverTrip: false, storm: null, stormSafe: true, sample: false };
+    this.today = emptyToday();
   }
 
   private restoreScienceContext(saved: unknown, state: GameState) {
@@ -930,6 +1351,10 @@ export class Store {
     if (!Array.isArray(context.harvested) || typeof context.planted !== 'boolean'
       || typeof context.watered !== 'boolean' || typeof context.roverTrip !== 'boolean'
       || !(context.stormId === null || typeof context.stormId === 'string')) return;
+    if (context.cooked !== undefined && (!Array.isArray(context.cooked) || !context.cooked.every(item => typeof item === 'string'))) return;
+    if (context.moxie !== undefined && (!Number.isInteger(context.moxie) || context.moxie < 0 || context.moxie > 8)) return;
+    if ([context.cleaned, context.exercised, context.slept, context.request, context.roverHome, context.sample, context.stormSafe]
+      .some(value => value !== undefined && typeof value !== 'boolean')) return;
 
     let data;
     try {
@@ -945,13 +1370,21 @@ export class Store {
     if (context.stormId !== null && !storm) return;
 
     this.today = {
+      ...emptyToday(),
       harvested: [...context.harvested],
       planted: context.planted,
       watered: context.watered,
       roverTrip: context.roverTrip,
       storm,
-      stormSafe: true,
-      sample: false,
+      cooked: context.cooked ? [...context.cooked] : [],
+      moxie: context.moxie ?? 0,
+      cleaned: context.cleaned ?? false,
+      exercised: context.exercised ?? false,
+      slept: context.slept ?? false,
+      request: context.request ?? false,
+      roverHome: context.roverHome ?? false,
+      sample: context.sample ?? false,
+      stormSafe: context.stormSafe ?? true,
     };
   }
 

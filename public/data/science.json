@@ -4,7 +4,10 @@
     "https://science.nasa.gov/resource/curiositys-three-frame-mosaic-of-clouds/",
     "https://www.giss.nasa.gov/tools/mars24/help/notes.html",
     "https://science.nasa.gov/biological-physical/investigations/apex-9/",
-    "https://www.nasa.gov/exploration-research-and-technology/growing-plants-in-space/"
+    "https://www.nasa.gov/exploration-research-and-technology/growing-plants-in-space/",
+    "https://science.nasa.gov/mission/mars-2020-perseverance/science-instruments/",
+    "https://www.jpl.nasa.gov/news/nasa-phoenix-mars-lander-confirms-frozen-water/",
+    "https://www.nasa.gov/blogs/spacestation/2025/04/01/exercise-research-main-focus-aboard-station-on-tuesday/"
   ],
   "fetched": "2026-11-14",
   "mock": false,
@@ -50,6 +53,24 @@
       "activity": "dialogue",
       "text": "NASA's Veggie garden has grown zinnia flowers aboard the International Space Station.",
       "source": "https://www.nasa.gov/exploration-research-and-technology/growing-plants-in-space/"
+    },
+    {
+      "id": "moxie-oxygen",
+      "activity": "dialogue",
+      "text": "NASA's MOXIE experiment rode on the Perseverance rover and made oxygen from the carbon dioxide in Mars' air: 122 grams in all, about what a small dog breathes in 10 hours.",
+      "source": "https://science.nasa.gov/mission/mars-2020-perseverance/science-instruments/"
+    },
+    {
+      "id": "phoenix-ice",
+      "activity": "dialogue",
+      "text": "In 2008, NASA's Phoenix lander dug into Mars' soil and confirmed there is frozen water ice just under the surface.",
+      "source": "https://www.jpl.nasa.gov/news/nasa-phoenix-mars-lander-confirms-frozen-water/"
+    },
+    {
+      "id": "iss-exercise",
+      "activity": "dialogue",
+      "text": "Astronauts on the Space Station exercise every day, because living without gravity makes muscles and bones weaker.",
+      "source": "https://www.nasa.gov/blogs/spacestation/2025/04/01/exercise-research-main-focus-aboard-station-on-tuesday/"
     }
   ]
 }

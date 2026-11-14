@@ -5,8 +5,18 @@ export type Phase = 'planning' | 'day' | 'rescue' | 'debrief';
 export type PlotCondition = 'healthy' | 'wilted';
 export type WorldId = 'mars' | 'moon';
 
+export interface TrainingSnapshot {
+  badges: string[];
+  lessons: Record<number, boolean>;
+  wizCards: number[];
+  quiz: { pre: number | null; post: number | null };
+  journal: string[];
+}
+
 export interface MissionResult {
   worldId: WorldId;
+  /** The scenario used on that world, for its archived lesson cards. */
+  stormWeekId?: string;
   harvests: Record<string, number>;
   stormsSurvived: number;
   stormsTaken: number;
@@ -14,6 +24,8 @@ export interface MissionResult {
   mealsCooked: number;
   air: number;
   food: number;
+  /** Training earned on that world, retained after travelling to the next mission. */
+  training?: TrainingSnapshot;
 }
 
 export interface Campaign {

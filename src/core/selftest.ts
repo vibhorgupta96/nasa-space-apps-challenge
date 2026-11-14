@@ -77,7 +77,7 @@ export async function runSelfTest() {
         const t = fresh();
         while (t.state.sol < coldSol!) skipSol(t, { heater: 1, shelter: shelterFor(t, t.state.sol) });
         const shelter = shelterFor(t, coldSol!);
-        start(t, { heater, shelter, growLights: RULES.cellsPerSol - shelter - heater });
+        start(t, { heater, shelter, growLights: t.state.cellsToday - shelter - heater }); // a dusty panel can cost a cell
         expect(t.plant(0, 'red-romaine').ok, 'plant failed');
         finishDay(t);
         return t;
@@ -283,6 +283,62 @@ export async function runSelfTest() {
       finishDay(t);
       expect(t.lastNight?.snacked === 1 && t.state.pantry.radish === 0, `snacked ${t.lastNight?.snacked}`);
       return `salad +45, raw romaine +18, 3 zinnia seeds, night snack ${t.lastNight?.snacked}`;
+    });
+
+    check('Training: MOXIE uses spare cells; dust costs a cell until cleaned', () => {
+      const t = fresh();
+      start(t, { heater: 1, growLights: 4 });
+      t.state.air = 50;
+      expect(t.runMoxie().ok && t.state.air === 50 + RULES.moxieAirPerCell, `MOXIE air ${t.state.air}`);
+      expect(t.state.cellsToday === RULES.cellsPerSol - 1 && t.moxieToday === 1, `cells ${t.state.cellsToday}`);
+      expect(!t.runMoxie().ok, 'MOXIE ran without a spare cell');
+      expect(t.meta.badges.includes('oxygen-maker'), 'no Oxygen Maker badge');
+      finishDay(t);
+      skipSol(t); // sol 2
+      expect(t.state.sol === 3 && t.meta.dusty && t.state.cellsToday === RULES.cellsPerSol - RULES.dustCellsLost, `sol ${t.state.sol} dusty ${t.meta.dusty} cells ${t.state.cellsToday}`);
+      start(t, { heater: 1, growLights: 4 });
+      expect(t.spareCells() === 0 && t.cleanPanels().ok && t.spareCells() === 1, 'cleaning did not free a spare cell');
+      expect(!t.meta.dusty && !t.cleanPanels().ok && !t.petCleanPanels().ok, 'cleaned a clean panel');
+      return `+${RULES.moxieAirPerCell} air per spare cell; sol 3 dust → ${RULES.cellsPerSol - 1} cells → cleaned`;
+    });
+
+    check('Pet quiz: once a sol; right answers win a Wiz Card and the reward', () => {
+      const t = fresh();
+      expect(!t.petQuiz(0, { item: 'ice', amount: 1 }).ok, 'quiz before the day started');
+      start(t, { heater: 1, growLights: 1 });
+      const ice = t.state.inventory.ice;
+      const right = t.petQuiz(0, { item: 'ice', amount: 1 }); // sol 1: answer 0 is right
+      expect(right.ok && right.correct && t.state.inventory.ice === ice + 1 && t.meta.wizCards.includes(1), 'right answer gave no card or reward');
+      expect(t.petQuiz(0, { item: 'ice', amount: 1 }).reason === 'already', 'second quiz on the same sol');
+      expect(t.meta.lessons[1] === true, 'pet quiz did not count as the sol lesson');
+      t.sleepNow();
+      start(t, { heater: 1 });
+      const wrong = t.petQuiz(0, { item: 'ice', amount: 1 }); // sol 2: answer 1 is right
+      expect(wrong.ok && !wrong.correct && t.state.inventory.ice === ice + 1 && t.meta.wizCards.length === 1, 'wrong answer was rewarded');
+      return 'sol 1 right → Wiz Card + 1 ice; sol 2 wrong → no reward';
+    });
+
+    check('Training: lessons, schedule, journal, requests and badges', () => {
+      const t = fresh();
+      expect(t.lessonCard(1)?.source.startsWith('http') === true, 'sol 1 lesson has no source');
+      for (let sol = 1; sol <= RULES.missionSols; sol++) expect(!!t.lessonCard(sol)?.text, `no See-it card for sol ${sol}`);
+      start(t, { heater: 1, growLights: 1 });
+      expect(t.plant(0, 'mizuna').ok && t.exercise().ok && !t.exercise().ok, 'exercise once per sol failed');
+      t.talkedTo('rosa'); t.talkedTo('theo'); t.talkedTo('priya'); t.talkedTo('bolt');
+      expect(t.meta.badges.includes('team-player'), 'no Team Player badge');
+      t.sleepNow();
+      const n = t.lastNight!;
+      expect(n.schedule.farm && n.schedule.exercise && !n.schedule.science && n.schedule.sleep, `schedule ${JSON.stringify(n.schedule)}`);
+      expect(n.journal.startsWith('Sol 1:') && /planted/.test(n.journal) && /exercised/.test(n.journal), `journal "${n.journal}"`);
+      expect(t.answerLesson(1, 0).correct && !t.answerLesson(1, 1).correct && t.meta.lessons[1] === true, 'first answer did not stick');
+      expect(!t.answerLesson(2, 0).correct && t.lessonsCorrect() === 1, 'wrong answer counted');
+      // Sol 2: Priya asks for 3 water.
+      start(t, { heater: 1 });
+      const req = t.openRequest();
+      expect(req?.who === 'priya', `request ${req?.who}`);
+      const seeds = t.state.inventory.seed;
+      expect(t.fulfilRequest().ok && t.state.inventory.seed === seeds + RULES.requestRewardSeeds && !t.openRequest(), 'request not finished');
+      return `journal "${n.journal}", request done, ${t.meta.badges.length} badges`;
     });
 
     check('Farm: unsafe storm wilts a plot, which can be cleared and replanted', () => {

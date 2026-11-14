@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { store, SLOTS, type NightReport } from '../core/store';
 import { bus, EV, UI_EV } from '../core/events';
 import { RULES } from '../core/rules';
-import type { ItemId, PowerSlot } from '../core/types';
+import type { ItemId, PowerSlot, WorldId, MissionResult } from '../core/types';
 import { getAllWorldData, mockFiles } from '../data/loaders';
 import { C, H, W, button, fmtMs, hourLabel, panel, text } from './theme';
 import { SPEAKERS, type Line } from '../story/script';
@@ -10,6 +10,10 @@ import { Director } from '../story/director';
 import { addPowerCells } from '../farm/PowerPanel';
 import { addKitchen, kitchenKey } from '../farm/KitchenPanel';
 import { createHelpPages } from './help-pages.mjs';
+import { settings } from '../core/settings';
+import { sfx } from '../core/audio';
+import { lessonFor, lessonsForWorld, badgeInfoForWorld, scheduleForWorld, type BadgeId } from '../core/training';
+import { loadAstronaut, PET_TRICKS, type PetKind } from '../farm/look';
 
 // The always-on overlay: HUD, hotbar, toasts, and every modal (dialogue, morning plan,
 // night report, storm board, help, photos). Modals pause the simulation while open.
@@ -67,6 +71,11 @@ export class UIScene extends Phaser.Scene {
   private listeners: [string, (...a: never[]) => void][] = [];
   private planningOpen = false;
   private boardOpen = false;
+  private interactionHint!: Phaser.GameObjects.Text;
+  /** The night "Say it" question is waiting for an answer. */
+  private lessonOpen = false;
+  /** The sol whose question is on screen (read by the playtest runner). */
+  lessonSol = 0;
   private tint!: Phaser.GameObjects.Rectangle;
 
   constructor() {
@@ -92,14 +101,21 @@ export class UIScene extends Phaser.Scene {
     kb.on('keydown', (e: KeyboardEvent) => this.onKey(e));
 
     this.on(UI_EV.TOAST, (p: { text: string }) => this.toast(p.text));
+    this.on(UI_EV.BADGE, (p: { id: BadgeId }) => {
+      const badge = badgeInfoForWorld(p.id, store.worldId);
+      this.toast(`🏅 ${badge.icon} ${badge.name}: ${badge.how}`, C.goldText);
+    });
     this.on(EV.RADIO_MESSAGE, (m: { text: string; delayMinutes: number }) => {
       this.toast(`📡 ${m.text}`, C.goldText);
       const minutes = Math.round(m.delayMinutes * 10) / 10;
-      this.say([{ who: 'radio', text: `${m.text}\n\n(📡 arrived after ${minutes} light-minutes; 1 radio minute = 1 game second)` }]);
+      const delayNote = store.worldId === 'moon'
+        ? `arrived after about ${(m.delayMinutes * 60).toFixed(1)} light-seconds; Moon-Earth radio delay is compressed in the game`
+        : `arrived after ${minutes} light-minutes; 1 radio minute = 1 game second`;
+      this.say([{ who: 'radio', text: `${m.text}\n\n(📡 ${delayNote})` }]);
     });
     this.on(EV.STORM_WARNING, (p: { stormId: string }) => this.director.stormWarning(p.stormId));
     this.on(EV.STORM_HIT, (p: { safe: boolean }) => {
-      this.cameras.main.flash(600, 255, 160, 60);
+      if (!settings.reducedMotion) this.cameras.main.flash(600, 255, 160, 60);
       this.director.stormHit(p.safe);
     });
     this.on(EV.ROVER_DAMAGED, (p: { reason: string }) => this.director.roverDamaged(p.reason));
@@ -111,7 +127,11 @@ export class UIScene extends Phaser.Scene {
       if (p.findId === 'egg-heli') this.director.propeller();
       else this.toast(`Bolt found ${p.amount} ${p.item === 'seed' ? 'seeds (supply drop!)' : p.item}.`, C.teal);
     });
-    this.on(UI_EV.NIGHT_REPORT, (r: NightReport) => this.enqueue({ build: () => this.buildNight(r), pause: true }));
+    this.on(UI_EV.NIGHT_REPORT, (r: NightReport) => {
+      this.enqueue({ build: () => this.buildNight(r), pause: true });
+      const quizWorld = store.worldId;
+      if (lessonFor(r.sol, quizWorld) && !(r.sol in store.meta.lessons)) this.enqueue({ build: () => this.buildQuiz(r.sol, 'none', quizWorld), pause: true });
+    });
     this.on(EV.SOL_START, (p: { sol: number }) => this.director.morning(p.sol));
     this.on(UI_EV.PHASE_CHANGED, (p: { phase: string }) => {
       if (p.phase === 'rescue') this.director.ending(false, () => this.enqueue({ build: () => this.toDebrief() }));
@@ -123,6 +143,7 @@ export class UIScene extends Phaser.Scene {
       if (what === 'help') this.openHelp();
       if (what === 'album') this.openAlbum();
       if (what === 'kitchen') this.openKitchen();
+      if (what === 'petquiz') this.openPetQuiz();
     });
 
     this.events.once('shutdown', () => {
@@ -167,6 +188,7 @@ export class UIScene extends Phaser.Scene {
     this.modalKey = null;
     this.planningOpen = false;
     this.boardOpen = false;
+    this.lessonOpen = false;
     store.resume('modal');
     this.showNext();
   }
@@ -189,13 +211,14 @@ export class UIScene extends Phaser.Scene {
       return;
     }
     if (this.current && (k === 'Escape' || (k === 'Tab' && this.boardOpen))) {
-      if (!this.planningOpen) this.close();
+      if (!this.planningOpen && !this.lessonOpen) this.close();
       return;
     }
     if (this.current) return;
     if (k === 'Tab') this.openBoard();
     else if (k === 'h' || k === 'H') this.openHelp();
     else if (k === 'p' || k === 'P') this.openAlbum();
+    else if ((k === 'c' || k === 'C') && this.scene.isActive('Farm')) this.openWizCards();
     else if (/^[1-7]$/.test(k)) this.selectTool(Number(k) - 1);
   }
 
@@ -230,8 +253,8 @@ export class UIScene extends Phaser.Scene {
     });
     const alert = text(this, W - 20, 142, '', 20, C.warn, { fontStyle: 'bold', align: 'right', backgroundColor: '#1d2333cc', padding: { x: 10, y: 6 } }).setOrigin(1, 0);
     const rover = text(this, W - 20, 186, '', 18, C.teal, { align: 'right', backgroundColor: '#1d2333cc', padding: { x: 10, y: 5 } }).setOrigin(1, 0);
-    const hint = text(this, W - 20, H - 18, 'TAB environment board · H help · P photo album', 16, C.dim).setOrigin(1, 1);
-    hint.setAlpha(0.8);
+    this.interactionHint = text(this, W - 20, H - 18, '', 16, C.dim).setOrigin(1, 1);
+    this.interactionHint.setAlpha(0.8);
     const hop = button(this, W - 94, 232, '⇧ Hop', () => bus.emit('ui:hop'), 130, 48, C.frame);
     this.add.existing(hop).setDepth(100);
     const dust = text(this, 32, 184, '', 15, C.warn, { backgroundColor: '#141927cc', padding: { x: 7, y: 3 } });
@@ -287,6 +310,9 @@ export class UIScene extends Phaser.Scene {
     if (!s) return;
     store.tick(delta);
     const h = this.hud;
+    this.interactionHint?.setText(this.scene.isActive('Rover')
+      ? 'TAB environment board · H help · P photo album · C rover map'
+      : 'TAB environment board · H help · P photo album · C Wiz Cards');
     const frac = s.phase === 'planning' ? 0 : store.dayFraction();
     const rules = store.rules;
     h.sol.setText(`${store.world.dayLabel} ${s.sol} / ${rules.missionSols}`);
@@ -315,7 +341,11 @@ export class UIScene extends Phaser.Scene {
     for (const slot of SLOTS) {
       for (let k = 0; k < s.split[slot]; k++) h.cells[ci] && h.cells[ci++].setTint(SLOT_INFO[slot].color).setAlpha(1);
     }
-    for (; ci < h.cells.length; ci++) h.cells[ci].setTint(0x555d70).setAlpha(s.phase === 'planning' ? 0.9 : 0.4);
+    // Then spare cells, cells MOXIE used up, and cells lost to a dusty panel.
+    const spare = s.cellsToday - store.splitTotal();
+    for (let k = 0; k < spare; k++) h.cells[ci] && h.cells[ci++].setTint(0x555d70).setAlpha(s.phase === 'planning' ? 0.9 : 0.4);
+    for (let k = 0; k < store.moxieToday; k++) h.cells[ci] && h.cells[ci++].setTint(0xcfe9f5).setAlpha(0.35);
+    for (; ci < h.cells.length; ci++) h.cells[ci].setTint(0xb5793f).setAlpha(0.7);
 
     for (const id of ['seed', 'water', 'ice', 'regolith', 'sample'] as ItemId[]) h.inv[id].setText(String(s.inventory[id]));
     h.inv.shield.setText(`${s.shield}/${RULES.maxShieldLayers}`);
@@ -428,7 +458,8 @@ export class UIScene extends Phaser.Scene {
   private buildMorning() {
     const c = this.add.container(0, 0);
     const s = store.state;
-    const x = 200, y = 70, w = W - 400, h = 590;
+    const x = 200, y = 50, w = W - 400, h = 620;
+    const rowTop = y + 178;
     c.add(this.add.rectangle(0, 0, W, H, 0x0b1026, 0.55).setOrigin(0).setInteractive());
     c.add(panel(this, x, y, w, h));
     c.add(text(this, W / 2, y + 26, `Good morning! ${store.world.dayLabel} ${s.sol}`, 34, C.goldText, { fontStyle: 'bold' }).setOrigin(0.5, 0));
@@ -440,7 +471,7 @@ export class UIScene extends Phaser.Scene {
     c.add(text(this, x + 40, y + 84, weatherCopy, 17, C.teal, { wordWrap: { width: w - 80 } }));
     const dustBudget = store.worldId === 'moon' && s.dustLevel > 0
       ? ` Dust level ${s.dustLevel} reduces tomorrow's budget to ${store.nextDayCells()} unless you clean the airlock.` : '';
-    c.add(text(this, x + 40, y + 140, `Split today's ${s.cellsToday} power cells. Unused cells are wasted. (Game rules, not NASA numbers.)${dustBudget}`, 17, C.dim, { wordWrap: { width: w - 80 } }));
+    c.add(text(this, x + 40, y + 140, `Split today's ${s.cellsToday} power cells. Unallocated cells can make oxygen later today.${dustBudget}`, 17, C.dim, { wordWrap: { width: w - 80 } }));
 
     const rows = this.add.container(0, 0);
     c.add(rows);
@@ -474,7 +505,7 @@ export class UIScene extends Phaser.Scene {
       rows.removeAll(true);
       const total = store.splitTotal();
       SLOTS.forEach((slot, i) => {
-        const ry = y + 190 + i * 76;
+        const ry = rowTop + i * 76;
         const baseInfo = SLOT_INFO[slot];
         const info = slot === 'heater' && store.worldId === 'moon' ? { ...baseInfo, label: 'Thermal control' } : baseInfo;
         rows.add(this.add.rectangle(x + 40, ry, w - 80, 66, 0x2a3247).setOrigin(0, 0).setStrokeStyle(3, C.gold, i === selected ? 1 : 0));
@@ -495,13 +526,13 @@ export class UIScene extends Phaser.Scene {
       });
       const left = s.cellsToday - total;
       const status = confirmUnused
-        ? `${left} cell${left > 1 ? 's' : ''} unused! Start again to waste ${left > 1 ? 'them' : 'it'}.`
-        : left > 0 ? `${left} cell${left > 1 ? 's' : ''} left · drag ⚡ into a row` : 'All cells placed!';
-      rows.add(text(this, x + 40, y + h - 66, status, 22, confirmUnused ? C.warn : left > 0 ? C.goldText : C.ok));
+        ? `${left} spare cell${left > 1 ? 's' : ''} for oxygen. Press Start again.`
+        : left > 0 ? `${left} cells left · Spare cells can make oxygen.` : 'All cells placed!';
+      rows.add(text(this, x + 40, y + h - 66, status, 17, confirmUnused ? C.warn : left > 0 ? C.goldText : C.ok));
       rows.add(text(this, x + 40, y + h - 34, 'Keys: ↑↓ pick a row · Left/Right remove/add · Enter starts the day', 14, C.dim));
       addPowerCells(this, rows, {
-        rowX: x + 40, rowW: w - 80, rowY: (i) => y + 190 + i * 76, rowH: 66,
-        cellX: x + 600, trayX: x + 380, trayY: y + h - 52, tint: (sl) => SLOT_INFO[sl].color,
+        rowX: x + 40, rowW: w - 80, rowY: (i) => rowTop + i * 76, rowH: 66,
+        cellX: x + 600, trayX: x + 56, trayY: y + h - 88, tint: (sl) => SLOT_INFO[sl].color,
       }, () => {
         confirmUnused = false;
         render();
@@ -537,7 +568,7 @@ export class UIScene extends Phaser.Scene {
 
   private buildNight(r: NightReport) {
     const c = this.add.container(0, 0);
-    const x = 220, y = 80, w = W - 440, h = 560;
+    const x = 220, y = 30, w = W - 440, h = 660;
     c.add(this.add.rectangle(0, 0, W, H, 0x05070f, 0.75).setOrigin(0).setInteractive());
     c.add(panel(this, x, y, w, h, C.panelDark));
     c.add(text(this, W / 2, y + 26, `Night falls on ${store.world.dayLabel.toLowerCase()} ${r.sol}`, 32, C.goldText, { fontStyle: 'bold' }).setOrigin(0.5, 0));
@@ -554,9 +585,13 @@ export class UIScene extends Phaser.Scene {
     if (r.roverCalledHome) lines.push('🚙 Bolt was still driving, so the crew called the rover home with its cargo.');
     if (r.outcome === 'rescue') lines.push('⚠️ Supplies ran out. Time to call for help.');
     if (r.outcome === 'debrief') lines.push('🚀 That was the final sol!');
-    c.add(text(this, x + 40, y + 90, lines.join('\n'), 21, C.text, { lineSpacing: 10, wordWrap: { width: w - 80 } }));
+    lines.push(`Schedule: ${scheduleForWorld(store.worldId).map((st) => `${st.icon} ${r.schedule[st.id] ? '✅' : '⬜'}`).join('  ')}`);
+    const body = text(this, x + 40, y + 80, lines.join('\n'), 20, C.text, { lineSpacing: 8, wordWrap: { width: w - 80 } });
+    c.add(body);
+    const journal = text(this, x + 40, body.y + body.height + 12, `📓 Mission journal\n${r.journal}`, 18, C.goldText, { lineSpacing: 4, wordWrap: { width: w - 80 } });
+    c.add(journal);
     if (r.card) {
-      const cy = y + 250;
+      const cy = Math.max(y + 300, journal.y + journal.height + 16);
       c.add(this.add.rectangle(x + 40, cy, w - 80, 200, 0x2a3247).setOrigin(0).setStrokeStyle(2, C.frame));
       c.add(this.add.image(x + 100, cy + 100, 'portrait-bolt-happy').setScale(1.5));
       c.add(text(this, x + 160, cy + 16, 'Bolt\'s science card · real NASA fact', 18, C.goldText, { fontStyle: 'bold' }));
@@ -569,6 +604,110 @@ export class UIScene extends Phaser.Scene {
     c.add(button(this, W / 2, y + h - 48, label, () => this.close(), 300, 54, 0xffd166));
     this.advance = () => this.close();
     return c;
+  }
+
+  // ---------- sol lesson quiz: from the pet (day) or the crew (night) ----------
+
+  openPetQuiz() {
+    if (this.current) return;
+    const quizWorld = store.worldId;
+    const quizSol = store.state.sol;
+    this.enqueue({ build: () => this.buildQuiz(quizSol, loadAstronaut().pet, quizWorld), pause: true });
+  }
+
+  /**
+   * "Say it": one question about a sol's lesson. You can't fail. At night the crew member who owns
+   * the topic asks it; during the day the pet brings it, and a right answer wins the sol's Wiz Card
+   * (the lesson's sourced fact) plus the pet's reward.
+   */
+  private buildQuiz(sol: number, pet: PetKind = 'none', quizWorld: WorldId = store.worldId) {
+    const l = lessonFor(sol, quizWorld);
+    if (!l) return null;
+    const byPet = pet !== 'none';
+    const trick = byPet ? PET_TRICKS[pet] : null;
+    const sp = SPEAKERS[l.who];
+    const c = this.add.container(0, 0);
+    const x = 220, y = 70, w = W - 440, h = 580;
+    c.add(this.add.rectangle(0, 0, W, H, 0x05070f, 0.7).setOrigin(0).setInteractive());
+    c.add(panel(this, x, y, w, h));
+    c.add(this.add.rectangle(x + 90, y + 90, 120, 120, 0x2a3247).setStrokeStyle(3, C.frameDark));
+    const portrait = byPet ? `pet-${pet}-0` : sp.portrait;
+    if (this.textures.exists(portrait)) c.add(this.add.image(x + 90, y + 96, portrait).setScale(byPet ? 3.2 : 1.7));
+    const petName = byPet && pet === 'alien' && quizWorld === 'moon' ? 'alien visitor' : trick?.name;
+    const period = quizWorld === 'moon' ? 'day' : 'sol';
+    const alreadyCopy = quizWorld === 'moon' ? `Your ${petName} already helped today. Try again tomorrow.` : trick?.already;
+    c.add(text(this, x + 170, y + 30, byPet ? `Your ${petName} brings you a quiz card!` : `${sp.name} asks`, 20, byPet ? C.goldText : sp.color, { fontStyle: 'bold' }));
+    c.add(text(this, x + 170, y + 62, byPet ? `Answer right to win a Wiz Card and a pet reward. One try per ${period}.` : 'Say it! One quick question about today\'s lesson.', 16, C.dim));
+    c.add(text(this, x + 170, y + 96, l.question, 26, C.text, { fontStyle: 'bold', wordWrap: { width: w - 210 } }));
+    const choices = this.add.container(0, 0);
+    c.add(choices);
+    let answered = false;
+    this.lessonOpen = true;
+    this.lessonSol = sol;
+    const answer = (i: number) => {
+      if (answered) return;
+      answered = true;
+      this.lessonOpen = false;
+      let correct: boolean;
+      let reward = '';
+      if (byPet) {
+        const res = store.petQuiz(i, trick!, quizWorld, sol);
+        if (!res.ok) {
+          this.close();
+          if (res.reason) this.toast(res.reason === 'already' ? alreadyCopy! : res.reason, C.warn);
+          return;
+        }
+        correct = res.correct;
+        const gift = `${trick!.amount} ${trick!.item === 'seed' ? `seed${trick!.amount === 1 ? '' : 's'}` : trick!.item}`;
+        reward = res.cleaned ? quizWorld === 'moon'
+          ? `Reward: your ${petName} brushed lunar dust away. Power returns tomorrow.`
+          : `Reward: your ${petName} swept the dust off the solar panel! +1 spare cell today.`
+          : quizWorld === 'moon'
+            ? `Reward: your ${petName} brought ${gift} from the habitat's collected supplies.`
+            : `Reward: ${trick!.line}`;
+      } else correct = store.answerLesson(sol, i, quizWorld).correct;
+      sfx(correct ? 'confirm' : 'click');
+      choices.removeAll(true);
+      if (correct && byPet) this.addWizCard(choices, x + 40, y + 160, w - 80, sol, reward, quizWorld);
+      else {
+        const msg = correct
+          ? `🌟 That's right!\n${l.goal}`
+          : `Good try! The answer is: ${l.choices[l.answer]}.\n${l.goal}${byPet ? `\nYour ${petName} will bring a new card tomorrow.` : ''}`;
+        choices.add(text(this, x + 60, y + 200, msg, 22, correct ? C.ok : C.goldText, { lineSpacing: 8, wordWrap: { width: w - 120 } }));
+      }
+      choices.add(text(this, x + 60, y + h - 110, `Lessons answered right: ${store.lessonsCorrect()} · Wiz Cards: ${store.meta.wizCards.length}`, 18, C.dim));
+      choices.add(button(this, W / 2, y + h - 48, 'Continue »', () => this.close(), 260, 54, 0xffd166));
+      this.advance = () => this.close();
+    };
+    l.choices.forEach((label, i) => {
+      // Answer on the next frame so the button isn't destroyed inside its own click.
+      choices.add(button(this, W / 2, y + 240 + i * 70, `${i + 1}. ${label}`, () => this.time.delayedCall(0, () => answer(i)), w - 120, 58, C.frame));
+    });
+    this.advance = null;
+    this.modalKey = (k) => {
+      const i = Number(k) - 1;
+      if (answered || !(i >= 0 && i < 3)) return false;
+      answer(i);
+      return true;
+    };
+    return c;
+  }
+
+  /** The Wiz Card: the lesson's sourced fact, kept for the mission, plus the pet's reward. */
+  private addWizCard(c: Phaser.GameObjects.Container, cx: number, cy: number, cw: number, sol: number, reward: string, worldId: WorldId = store.worldId) {
+    const l = lessonFor(sol, worldId)!;
+    const card = store.lessonCard(sol, worldId);
+    c.add(this.add.rectangle(cx, cy, cw, 250, 0x2a2440).setOrigin(0).setStrokeStyle(4, C.gold));
+    c.add(text(this, cx + 20, cy + 14, `🃏 Wiz Card · ${worldId === 'moon' ? 'day' : 'sol'} ${sol}`, 22, C.goldText, { fontStyle: 'bold' }));
+    c.add(text(this, cx + cw - 20, cy + 18, '🌟 That\'s right!', 18, C.ok).setOrigin(1, 0));
+    c.add(text(this, cx + 20, cy + 50, l.goal, 20, C.text, { fontStyle: 'bold', wordWrap: { width: cw - 40 } }));
+    if (card) {
+      c.add(text(this, cx + 20, cy + 106, card.text, 16, C.text, { wordWrap: { width: cw - 40 }, lineSpacing: 3 }));
+      const src = text(this, cx + 20, cy + 178, 'Real NASA fact · source »', 15, C.teal).setInteractive({ useHandCursor: true });
+      src.on('pointerdown', () => window.open(card.source, '_blank', 'noopener'));
+      c.add(src);
+    }
+    c.add(text(this, cx + 20, cy + 206, reward, 15, C.ok, { wordWrap: { width: cw - 40 } }));
   }
 
   // ---------- storm board ----------
@@ -721,6 +860,76 @@ export class UIScene extends Phaser.Scene {
         render();
       }
     };
+    return c;
+  }
+
+  openWizCards() {
+    if (this.current) return;
+    this.enqueue({ build: () => this.buildWizCards(), pause: true });
+  }
+
+  /** Read-only collection view: archived facts resolve against their own world and storm week. */
+  private buildWizCards() {
+    const completed = store.campaign?.completed ?? [];
+    const worlds: { id: WorldId; result?: MissionResult; days: number[] }[] = [
+      ...completed.map((result) => ({ id: result.worldId, result, days: result.training?.wizCards ?? [] })),
+      { id: store.worldId, days: store.meta.wizCards },
+    ];
+    const c = this.add.container(0, 0);
+    const x = 100, y = 34, w = W - 200, h = H - 68;
+    c.add(this.add.rectangle(0, 0, W, H, 0x000000, 0.62).setOrigin(0).setInteractive());
+    c.add(panel(this, x, y, w, h));
+    let worldIndex = Math.max(0, worlds.length - 1);
+    let day = 0;
+    const title = text(this, x + 28, y + 18, '🃏 Wiz Card book', 28, C.goldText, { fontStyle: 'bold' });
+    c.add(title);
+    const tabs = this.add.container(0, 0);
+    c.add(tabs);
+    const subhead = this.add.container(0, 0);
+    c.add(subhead);
+    const detail = this.add.container(0, 0);
+    c.add(detail);
+    const render = () => {
+      tabs.removeAll(true);
+      subhead.removeAll(true);
+      detail.removeAll(true);
+      const selected = worlds[worldIndex];
+      const label = selected.id === 'moon' ? 'Moon days' : 'Mars sols';
+      subhead.add(text(this, x + 28, y + 58, `${selected.id === 'moon' ? 'Moon' : 'Mars'} collection · ${selected.days.length}/${lessonsForWorld(selected.id).length} cards`, 17, C.dim));
+      worlds.forEach((world, i) => {
+        const tab = button(this, x + w - 355 + i * 155, y + 35, world.id === 'moon' ? 'Moon' : 'Mars', () => {
+          worldIndex = i;
+          day = 0;
+          render();
+        }, 140, 38, i === worldIndex ? C.gold : C.frame);
+        tabs.add(tab);
+        if (world.result) tabs.add(text(this, tab.x, tab.y + 20, 'completed', 11, C.dim).setOrigin(0.5, 0));
+      });
+      selected.days.forEach((d, i) => {
+        const col = i % 5, row = Math.floor(i / 5);
+        const b = button(this, x + 100 + col * 215, y + 122 + row * 58, `${label.slice(0, -1)} ${d}`, () => {
+          day = d;
+          render();
+        }, 190, 44, day === d ? C.gold : C.frame);
+        detail.add(b);
+      });
+      if (!selected.days.length) {
+        detail.add(text(this, W / 2, y + 240, 'No cards collected on this mission yet. Answer a pet quiz correctly to earn one.', 21, C.dim, { wordWrap: { width: w - 100 }, align: 'center' }).setOrigin(0.5, 0));
+      } else {
+        const lesson = lessonFor(day || selected.days[0], selected.id);
+        const card = store.lessonCard(lesson!.sol, selected.id, selected.result?.stormWeekId);
+        detail.add(text(this, x + 42, y + 248, `${selected.id === 'moon' ? 'Lunar day' : 'Mars sol'} ${lesson!.sol} · ${SPEAKERS[lesson!.who].name}`, 25, C.goldText, { fontStyle: 'bold' }));
+        detail.add(text(this, x + 42, y + 292, lesson!.goal, 21, C.text, { fontStyle: 'bold', wordWrap: { width: w - 84 } }));
+        if (card) {
+          detail.add(text(this, x + 42, y + 348, card.text, 18, C.text, { wordWrap: { width: w - 84 }, lineSpacing: 5 }));
+          const src = text(this, x + 42, y + h - 104, `Source: ${card.source.replace(/^https?:\/\//, '').slice(0, 96)} »`, 15, C.teal).setInteractive({ useHandCursor: true });
+          src.on('pointerdown', () => window.open(card.source, '_blank', 'noopener'));
+          detail.add(src);
+        }
+      }
+      detail.add(text(this, x + 28, y + h - 66, 'Esc to close', 15, C.dim));
+    };
+    render();
     return c;
   }
 

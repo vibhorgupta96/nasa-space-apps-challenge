@@ -1,7 +1,9 @@
 import Phaser from 'phaser';
 import { store, type Result } from '../core/store';
 import { bus, EV } from '../core/events';
-import { sfx } from '../core/audio';
+import { petSound, sfx } from '../core/audio';
+import { RULES } from '../core/rules';
+import { settings } from '../core/settings';
 import { loadAstronaut, PET_TRICKS, type PetKind } from '../farm/look';
 import { cropById } from '../data/loaders';
 import { cropStage } from '../farm/art';
@@ -53,6 +55,8 @@ export class FarmScene extends Phaser.Scene {
   private keys!: Record<string, Phaser.Input.Keyboard.Key>;
   private chatIndex: Record<string, number> = {};
   private eggTree?: Phaser.GameObjects.Image;
+  private panelSprite?: Phaser.GameObjects.Image;
+  private exercising = false;
   private counters: Record<string, number> = {};
   private unsub: (() => void)[] = [];
   /** Tap/click-to-walk target (for touch screens), and the tile to use on arrival. */
@@ -113,7 +117,7 @@ export class FarmScene extends Phaser.Scene {
       else this.walkTarget = { x: tx * T + T / 2, y: ty * T + T / 2, tile: [tx, ty], stuckMs: 0 };
     });
 
-    const onHit = () => this.cameras.main.shake(400, 0.004);
+    const onHit = () => !settings.reducedMotion && this.cameras.main.shake(400, 0.004);
     bus.on(EV.STORM_HIT, onHit);
     this.unsub.push(() => bus.off(EV.STORM_HIT, onHit));
     // Scene events outlive a restart, so remove this listener again on shutdown.
@@ -176,6 +180,9 @@ export class FarmScene extends Phaser.Scene {
     this.place('kitchen', 6, 2, 'm-kitchen');
     this.place('gerald', 13, 2, 'm-plant');
     this.place('pot', 10, 2, 'm-plant').setTint(0x8a7a6a);
+    this.place('moxie', 21, 2, 'm-moxie');
+    this.panelSprite = this.place('panel', 21, 7, 'm-panel');
+    this.place('treadmill', 14, 12, 'm-treadmill');
     // Bottom of the dome.
     this.place('shelter', 16, 12, 'm-shelter');
     // One bed each for you, Rosa, Theo and Priya (Bolt recharges instead).
@@ -260,17 +267,25 @@ export class FarmScene extends Phaser.Scene {
     this.movePlayer(delta);
     this.movePet(delta);
     const ground = this.hopStart ?? this.player;
-    this.hopShadow.setPosition(ground.x, ground.y + 12).setScale(this.hopStart ? 0.65 : 1).setAlpha(this.hopStart ? 0.22 : 0.35);
+    const reducedHopMotion = store.worldId === 'moon' && settings.reducedMotion;
+    this.hopShadow.setPosition(ground.x, ground.y + 12)
+      .setScale(this.hopStart && !reducedHopMotion ? 0.65 : 1)
+      .setAlpha(this.hopStart && !reducedHopMotion ? 0.22 : 0.35)
+      .setVisible(!reducedHopMotion || !this.hopStart);
     this.refreshPlots();
     this.bolt.setVisible(s.rover.status === 'home' || s.rover.status === 'repairing');
     const tree = store.meta.storySeen.find((x) => x.startsWith('mystery-planted@'));
     this.eggTree?.setVisible(!!tree && s.sol > Number(tree.split('@')[1]));
+    const panelDusty = store.panelsNeedCleaning();
+    this.panelSprite?.setTexture(panelDusty ? 'm-panel-dusty' : 'm-panel')
+      .setTint(panelDusty && store.worldId === 'moon' ? 0xc6c6c6 : 0xffffff);
     const [fx, fy] = this.facingTile();
     this.cursor.setPosition(fx * T + T / 2, fy * T + T / 2).setVisible(!store.paused);
   }
 
   private movePlayer(delta: number) {
-    if (store.paused || store.state.phase !== 'day') {
+    const reducedHopMotion = store.worldId === 'moon' && settings.reducedMotion;
+    if (this.exercising || store.paused || store.state.phase !== 'day') {
       this.player.stop();
       this.cancelHop();
       return;
@@ -287,8 +302,8 @@ export class FarmScene extends Phaser.Scene {
       this.hopStart = moved;
       if (clock.complete) this.cancelHop();
       else {
-        const arc = Math.sin((Math.PI * (this.hopClock.elapsedMs ?? 0)) / 250) * 12;
-        this.player.setPosition(moved.x, moved.y - arc).setScale(1.12);
+        const arc = reducedHopMotion ? 0 : Math.sin((Math.PI * (this.hopClock.elapsedMs ?? 0)) / 250) * 12;
+        this.player.setPosition(moved.x, moved.y - arc).setScale(reducedHopMotion ? 1 : 1.12);
       }
       return;
     }
@@ -500,6 +515,23 @@ export class FarmScene extends Phaser.Scene {
         return this.hint(`Storm shelter. Today: ${s.split.shelter} cell(s) + ${s.shield} shield layer(s) of protection.`);
       case 'bed':
         return this.useBed();
+      case 'moxie':
+        return this.report(store.runOxygenMaker(), () => {
+          sfx('melter', -300);
+          this.puff(x, y, 0xcfe9f5);
+          this.firstTime(`oxygen-maker-intro-${store.worldId}`, [{ who: 'priya', text: store.worldId === 'moon'
+            ? 'The water oxygen maker uses water and a spare power cell to make breathable air. This is our game adaptation of water recovery and electrolysis work on the space station.'
+            : '{fact:moxie-oxygen} Our MOXIE is a game version: each spare power cell makes a little air.' }]);
+        });
+      case 'panel':
+        if (!store.panelsNeedCleaning()) return this.hint(`Solar panel: clean. It makes our ${store.rules.cellsPerSol} power cells every morning.`);
+        return this.report(store.cleanPanels(), () => {
+          sfx('clear');
+          this.puff(x, y, 0xb5793f);
+          if (store.worldId === 'moon') this.hint('Lunar dust brushed away. Power returns to the panel tomorrow morning.');
+        });
+      case 'treadmill':
+        return this.useTreadmill(x, y);
       case 'earth':
         this.counters.earth = (this.counters.earth || 0) + 1;
         if (this.counters.earth >= 3) return this.egg('egg-earth', EGGS.earth);
@@ -558,6 +590,9 @@ export class FarmScene extends Phaser.Scene {
   }
 
   private talk(name: string) {
+    store.talkedTo(name);
+    const req = store.openRequest();
+    if (req && req.who === name) return this.crewRequest();
     if (name === 'bolt') {
       store.meta.boltTalks += 1;
       if (store.meta.boltTalks === 42) return this.egg('egg-bolt42', [EGGS.bolt42]);
@@ -574,6 +609,52 @@ export class FarmScene extends Phaser.Scene {
     this.say([lines[i]]);
   }
 
+  /** Today's crew request: ask for it, or hand it over when you have enough. */
+  private crewRequest() {
+    const req = store.openRequest()!;
+    const have = store.requestHave(req);
+    if (have < req.amount) {
+      return this.say([{ who: req.who, text: `${req.ask} (You have ${have} of ${req.amount}.)` }]);
+    }
+    this.report(store.fulfilRequest(), () => {
+      sfx('confirm');
+      this.say([{ who: req.who, text: `${req.thanks} (+${RULES.requestRewardSeeds} seeds)` }]);
+    });
+  }
+
+  /** A few seconds of running on the treadmill ticks "exercise" on today's schedule. */
+  private useTreadmill(x: number, y: number) {
+    const s = store.state;
+    if (s.phase !== 'day') return this.hint('Start the day first!');
+    if (store.meta.exercisedSols.includes(s.sol)) return this.hint('You already exercised today. Astronauts plan it once a day.');
+    this.exercising = true;
+    store.pause('exercise');
+    this.player.play('player-walk-down');
+    const bounce = this.tweens.add({ targets: this.player, y: this.player.y - 2, yoyo: true, repeat: -1, duration: 160 });
+    const steps = this.time.addEvent({ delay: 320, loop: true, callback: () => sfx('step-1') });
+    this.time.delayedCall(3000, () => {
+      bounce.stop();
+      steps.remove();
+      this.player.stop();
+      this.exercising = false;
+      store.resume('exercise');
+      this.report(store.exercise(), () => {
+        sfx('confirm');
+        this.puff(x, y, 0x7ee081);
+        store.log('Exercise done! Strong muscles and bones.');
+        this.firstTime(`exercise-intro-${store.worldId}`, [{ who: 'rosa', text: store.worldId === 'moon'
+          ? '{fact:iss-exercise} Astronauts exercise during spaceflight to help maintain strength in microgravity. Our lunar habitat uses a treadmill too.'
+          : '{fact:iss-exercise} On Mars there is some gravity, but we still train every day.' }]);
+      });
+    });
+  }
+
+  private firstTime(tag: string, lines: Line[]) {
+    if (store.meta.storySeen.includes(tag)) return;
+    store.meta.storySeen.push(tag);
+    this.say(lines);
+  }
+
   // ---------- pet ----------
 
   private buildPet() {
@@ -584,7 +665,7 @@ export class FarmScene extends Phaser.Scene {
     const intro = `pet-intro-${this.petKind}`;
     if (!store.meta.storySeen.includes(intro)) {
       store.meta.storySeen.push(intro);
-      store.log(`Your ${PET_TRICKS[this.petKind].name} follows you around. Use it once a sol for a helpful trick!`);
+      store.log(`Your ${this.petDisplayName(this.petKind)} follows you around. Use it once a ${store.world.dayLabel.toLowerCase()} for a helpful trick!`);
     }
   }
 
@@ -608,18 +689,39 @@ export class FarmScene extends Phaser.Scene {
   }
 
 
+  /**
+   * Petting: hearts and a happy noise every time. Once a sol, during the day, the pet also brings
+   * a quiz card (today's lesson question); a right answer wins a Wiz Card and the pet's reward.
+   */
   private usePet() {
     const pet = this.pet;
     if (!pet || this.petKind === 'none') return;
-    const trick = PET_TRICKS[this.petKind];
+    const kind = this.petKind;
     this.petHopping = true;
     pet.stop();
     this.tweens.add({ targets: pet, y: pet.y - 10, yoyo: true, duration: 160, repeat: 1, onComplete: () => (this.petHopping = false) });
-    const r = store.petTrick(trick.item, trick.amount);
-    if (!r.ok) return this.hint(r.reason === 'already' ? trick.already : r.reason);
-    sfx('found');
-    this.puff(Math.floor(pet.x / T), Math.floor(pet.y / T), 0xffd166);
-    this.say([{ who: 'you', text: trick.line }]);
+    petSound(kind);
+    this.hearts(pet.x, pet.y - 12);
+    const s = store.state;
+    if (s.phase !== 'day') return this.hint('Start the day first!');
+    if (store.petUsedToday()) return this.hint(store.worldId === 'moon'
+      ? `Your ${this.petDisplayName(kind)} already helped today. Try again tomorrow!`
+      : PET_TRICKS[kind].already);
+    bus.emit('ui:open', 'petquiz');
+  }
+
+  private petDisplayName(kind: Exclude<PetKind, 'none'>) {
+    return store.worldId === 'moon' && kind === 'alien' ? 'alien visitor' : PET_TRICKS[kind].name;
+  }
+
+  private hearts(x: number, y: number) {
+    for (let i = 0; i < 4; i++) {
+      const h = this.add.image(x + (i - 1.5) * 7, y, 'heart').setDepth(8).setScale(1.2);
+      this.tweens.add({
+        targets: h, y: y - 26 - i * 4, x: h.x + Math.sin(i * 1.7) * 8, alpha: 0, scale: 1.6,
+        delay: i * 110, duration: 900, ease: 'Sine.easeOut', onComplete: () => h.destroy(),
+      });
+    }
   }
 
   /** During the day a bed sleeps until night (asks once first); before the day it's a secret. */
@@ -630,8 +732,10 @@ export class FarmScene extends Phaser.Scene {
       this.sleepAskedAt = this.time.now;
       const storm = store.pendingStorms().some((st) => st.hitAtMs <= store.dayEndMs());
       return this.hint(storm
-        ? 'A storm hits before tonight! Sleep anyway? Use the bed again to sleep until night.'
-        : 'Sleep until night? The rest of the sol passes. Use the bed again to sleep.');
+        ? store.worldId === 'moon'
+          ? 'A simulated radiation alert is due before tonight! Sleep anyway? Use the bed again to sleep until night.'
+          : 'A storm hits before tonight! Sleep anyway? Use the bed again to sleep until night.'
+        : `Sleep until night? The rest of the ${store.world.dayLabel.toLowerCase()} passes. Use the bed again to sleep.`);
     }
     this.sleepAskedAt = -Infinity;
     store.pause('sleep');

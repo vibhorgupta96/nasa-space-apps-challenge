@@ -101,7 +101,7 @@ test('Moon dark boundaries, radiation warning and hit are exactly once over relo
   } finally { bus.off(EV.STORM_WARNING,onWarn); bus.off(EV.STORM_HIT,onHit); }
 });
 
-function winMission(initial, withDust = false) {
+function winMission(initial, withDust = false, onDay = () => {}) {
   let s = initial;
   const world = s.worldId;
   const crop = world === 'moon' ? 'moon-pea' : 'red-romaine';
@@ -112,7 +112,8 @@ function winMission(initial, withDust = false) {
     const shelter = events.reduce((m, e) => Math.max(m, e.event.scenario.strength), 0);
     const rover = withDust && (day === 1 || day === 4) ? 1 : 0;
     split(s, {growLights:1, heater:s.thermalRequired(), shelter, rover});
-    if (world === 'moon' && [2,5].includes(day)) check(s.cleanDust());
+    onDay(s, day);
+    if (withDust && world === 'moon' && [2,5].includes(day)) check(s.cleanDust());
     for (let i = 0; i < plots; i++) {
       const p = s.state.plots[i];
       if (p.cropId && p.growthSols >= getData(world).crops.crops.find(c => c.id === p.cropId).growSols) check(s.harvest(i));
@@ -289,4 +290,155 @@ test('travel and retry launch their in-memory mission when storage is blocked or
       assert.equal(store.campaign.completed.length, 1);
     } finally { delete globalThis.window; }
   }
+});
+
+
+test('Moon oxygen uses water and power atomically and preserves daily use over reload', () => {
+  let s = fresh('moon'); split(s, { heater: 1 });
+  s.state.air = 88; s.state.inventory.water = 0;
+  const before = [s.state.air, s.state.cellsToday, s.state.inventory.water];
+  assert.equal(s.runOxygenMaker().ok, false);
+  assert.deepEqual([s.state.air, s.state.cellsToday, s.state.inventory.water], before);
+  s.state.inventory.water = 2;
+  s.pause('modal'); assert.equal(s.runOxygenMaker().ok, false); s.resume('modal');
+  check(s.runOxygenMaker()); assert.equal(s.state.air, 94); assert.equal(s.state.inventory.water, 1);
+  check(s.runMoxie()); assert.equal(s.state.air, 100); assert.equal(s.state.inventory.water, 0);
+  const full = [s.state.air, s.state.cellsToday, s.state.inventory.water];
+  assert.equal(s.runOxygenMaker().ok, false);
+  assert.deepEqual([s.state.air, s.state.cellsToday, s.state.inventory.water], full);
+  s = reload(s); assert.equal(s.moxieToday, 2); assert.equal(s.scheduleToday().science, true);
+  const noPower = fresh('moon'); split(noPower, { heater: 1, growLights: 7 }); noPower.state.air = 80;
+  const noPowerBefore = [noPower.state.air, noPower.state.inventory.water, noPower.state.cellsToday];
+  assert.equal(noPower.runOxygenMaker().ok, false);
+  assert.deepEqual([noPower.state.air, noPower.state.inventory.water, noPower.state.cellsToday], noPowerBefore);
+  const mars = fresh('mars'); split(mars, { heater: 1 }); mars.state.air = 90;
+  const water = mars.state.inventory.water; check(mars.runMoxie());
+  assert.equal(mars.state.air, 96); assert.equal(mars.state.inventory.water, water);
+  assert.match(mars.state.log.at(-1), /carbon dioxide|oxygen maker/i);
+});
+
+test('pet quiz cleans lunar dust for tomorrow and cannot repeat after reload', () => {
+  let s = fresh('moon'); split(s, { rover: 1 });
+  check(s.launchRover([[19,14],[20,14],[19,14]])); tickTo(s, 10000);
+  assert.equal(s.panelsNeedCleaning(), true); const cells = s.state.cellsToday;
+  const answer = s.lesson().answer; const ice = s.state.inventory.ice;
+  s.pause('modal');
+  const result = s.petQuiz(answer, { item: 'ice', amount: 1 }, 'moon', 1);
+  assert.equal(result.ok, true); assert.equal(result.correct, true); assert.equal(result.cleaned, true);
+  assert.equal(s.state.cellsToday, cells); assert.equal(s.nextDayCells(), 8);
+  assert.equal(s.state.inventory.ice, ice); assert.equal(s.state.dustLevel, 0);
+  assert.ok(s.meta.badges.includes('panel-cleaner')); assert.deepEqual(s.meta.wizCards, [1]);
+  s = reload(s); assert.equal(s.petQuiz(answer, { item: 'ice', amount: 1 }, 'moon', 1).ok, false);
+  assert.equal(s.state.inventory.ice, ice); assert.deepEqual(s.meta.wizCards, [1]);
+  assert.equal(s.petQuiz(answer, { item: 'ice', amount: 1 }, 'mars', 1).ok, false);
+  finish(s); assert.equal(s.state.cellsToday, 8);
+});
+
+test('Mars dust cleaning restores a spare cell immediately while Moon cleaning restores tomorrow', () => {
+  let mars = fresh('mars');
+  for (let day = 1; day <= 2; day++) { split(mars); finish(mars); }
+  assert.equal(mars.state.sol, 3); assert.equal(mars.panelsNeedCleaning(), true);
+  assert.equal(mars.state.cellsToday, 5); split(mars, {growLights: 1});
+  mars.pause('modal');
+  const result = mars.petQuiz(mars.lesson().answer, { item: 'water', amount: 1 });
+  assert.equal(result.ok, true); assert.equal(result.cleaned, true); assert.equal(mars.state.cellsToday, 6);
+  assert.equal(mars.panelsNeedCleaning(), false);
+  mars = reload(mars); assert.equal(mars.petQuiz(0, { item: 'water', amount: 1 }).ok, false);
+  let moon = fresh('moon'); split(moon, { rover: 1 });
+  check(moon.launchRover([[19,14],[20,14],[19,14]])); tickTo(moon, 10000); finish(moon);
+  assert.equal(moon.state.cellsToday, 7); split(moon);
+  check(moon.cleanPanels()); assert.equal(moon.state.cellsToday, 7); assert.equal(moon.nextDayCells(), 8);
+  assert.equal(moon.cleanPanels().ok, false); moon = reload(moon); assert.equal(moon.cleanPanels().ok, false);
+});
+
+test('training progress and terminal quiz are archived separately across worlds and retry', () => {
+  const s0 = fresh('mars'); s0.recordQuiz('pre', 4, 'moon'); s0.startCampaign('moon');
+  assert.equal(s0.meta.quiz.pre, 4);
+  let s = winMission(s0, false, (run, day) => {
+    if (day <= 6) assert.equal(run.answerLesson(day, run.lesson(day).answer, 'moon').ok, true);
+  });
+  assert.equal(s.campaign.completed[0].training.quiz.pre, 4);
+  assert.equal(s.campaign.completed[0].training.badges.includes('scholar'), false);
+  const lastAnswer = s.lesson(10).answer;
+  assert.equal(s.answerLesson(10, lastAnswer, 'mars').ok, false);
+  assert.equal(s.answerLesson(10, lastAnswer, 'moon').ok, true);
+  assert.equal(s.answerLesson(10, lastAnswer, 'moon').ok, false);
+  assert.equal(s.campaign.completed[0].training.lessons[10], true);
+  assert.equal(s.campaign.completed[0].training.badges.includes('scholar'), true);
+  s.recordQuiz('post', 5, 'moon'); assert.equal(s.campaign.completed[0].training.quiz.post, 5);
+  s = reload(s); check(s.travel());
+  assert.equal(s.worldId, 'mars'); assert.equal(Object.keys(s.meta.lessons).length, 0);
+  assert.equal(s.campaign.completed[0].training.quiz.post, 5);
+  assert.equal(s.campaign.completed[0].training.lessons[10], true);
+  for (let day = 1; day <= 10 && s.state.phase === 'planning'; day++) { split(s); finish(s); }
+  assert.equal(s.state.phase, 'rescue'); s = reload(s); check(s.retryMission());
+  assert.equal(s.campaign.completed[0].training.quiz.post, 5);
+  assert.equal(s.campaign.completed[0].training.badges.includes('scholar'), true);
+  assert.equal(s.state.worldId, 'mars');
+});
+
+test('older saves default missing training and malformed training never replaces live state', () => {
+  const s = fresh('moon'); const old = JSON.parse(s.serialize());
+  for (const key of ['badges','lessons','wizCards','quiz','journal','dusty','exercisedSols','crewTalked','requestsDone','airGoodSols','fullPowerSols','moxieRuns']) delete old.meta[key];
+  assert.equal(s.restore(JSON.stringify(old)), true);
+  assert.deepEqual(s.meta.quiz, {pre:null, post:null}); assert.deepEqual(s.meta.wizCards, []);
+  const before = s.serialize();
+  for (const change of [
+    x => x.meta.lessons = { 1: 'yes' }, x => x.meta.badges = ['unknown'],
+    x => x.meta.wizCards = [11], x => x.meta.quiz = { pre: 100, post: null },
+    x => x.meta.journal = [null], x => x.meta.exercisedSols = [0],
+  ]) {
+    const invalid = JSON.parse(before); change(invalid);
+    assert.equal(s.restore(JSON.stringify(invalid)), false); assert.equal(s.serialize(), before);
+  }
+});
+
+
+test('each world resolves ten sourced lesson cards without borrowing the other world’s scenario', () => {
+  for (const world of ['mars', 'moon']) {
+    const s = fresh(world);
+    for (let day = 1; day <= 10; day++) {
+      const lesson = s.lesson(day); const card = s.lessonCard(day);
+      assert.ok(lesson && card?.text && /^https:\/\//.test(card.source), `${world} lesson ${day} missing sourced card`);
+      assert.ok(lesson.answer >= 0 && lesson.answer <= 2);
+      if (world === 'moon') assert.doesNotMatch(card.text, /InSight lander|Mars sol|MOXIE made oxygen from Mars/i);
+    }
+    if (world === 'moon') assert.match(s.lesson(7).choices[s.lesson(7).answer], /water/i);
+  }
+  let mars = winMission(fresh('mars'));
+  const weekId = mars.campaign.completed[0].stormWeekId;
+  const marsCard = mars.lessonCard(3, 'mars', weekId);
+  assert.match(marsCard.text, /DONKI|solar/i);
+  check(mars.travel());
+  assert.deepEqual(mars.lessonCard(3, 'mars', weekId), marsCard);
+  assert.match(mars.lessonCard(3, 'moon').text, /moon|lunar|radiation/i);
+  mars = reload(mars);
+  assert.equal(mars.campaign.completed[0].stormWeekId, weekId);
+  assert.deepEqual(mars.lessonCard(3, 'mars', weekId), marsCard);
+});
+
+test('Moon crew request accepts Moon pantry crops and awards its seeds only once', () => {
+  let s = fresh('moon');
+  for (let day = 1; day <= 4; day++) {
+    const shelter = s.storms().filter(x => x.event.scenario.gameSol === day)
+      .reduce((max, event) => Math.max(max, event.event.scenario.strength), 0);
+    split(s, {growLights: 1, heater: s.thermalRequired(), shelter});
+    if (day === 1) check(s.plant(0, 'moon-pea'));
+    else if (s.state.plots[0].growthSols >= 3) check(s.harvest(0));
+    else check(s.water(0));
+    finish(s);
+  }
+  assert.equal(s.state.sol, 5); split(s, { heater: s.thermalRequired() });
+  const request = s.openRequest(); assert.equal(request.need.crop, 'moon-pea');
+  assert.equal(s.requestHave(request), 1); const seeds = s.state.inventory.seed;
+  check(s.fulfilRequest()); assert.equal(s.state.pantry['moon-pea'], 0);
+  assert.equal(s.state.inventory.seed, seeds + 2); assert.equal(s.openRequest(), null);
+  s = reload(s); assert.equal(s.openRequest(), null); assert.equal(s.state.inventory.seed, seeds + 2);
+});
+
+test('a pending pre-quiz is only adopted by the selected world', () => {
+  const s = fresh('mars'); s.recordQuiz('pre', 4, 'moon'); s.startCampaign('mars');
+  assert.equal(s.meta.quiz.pre, null);
+  s.recordQuiz('pre', 3, 'moon'); s.startCampaign('moon'); assert.equal(s.meta.quiz.pre, 3);
+  s.recordQuiz('post', 5, 'mars'); assert.equal(s.meta.quiz.post, null);
 });

@@ -60,13 +60,27 @@ This page lists the deduplicated external URLs present in the checked-in JSON da
 - <https://science.nasa.gov/resource/curiositys-three-frame-mosaic-of-clouds/>
 - <https://science.nasa.gov/moon/facts/>
 - <https://science.nasa.gov/moon/weather-on-the-moon/>
+- <https://science.nasa.gov/moon/moon-water-and-ices/>
 - <https://science.nasa.gov/biological-physical/earth-soil-vs-lunar-regolith-whats-the-difference/>
 - <https://science.nasa.gov/lunar-science/focus-areas/biological-systems/>
+- <https://science.nasa.gov/science-research/heliophysics/how-nasa-will-protect-astronauts-from-space-radiation-at-the-moon/>
 
 ## www.nasa.gov
 
+- <https://www.nasa.gov/centers-and-facilities/johnson/young-engineers-design-nasa-device-to-solve-lunar-dust-challenges/>
+- <https://www.nasa.gov/image-article/nasas-dust-shield-successfully-repels-lunar-regolith-on-moon/>
 - <https://www.nasa.gov/general/is-there-weather-on-the-moon-we-asked-a-nasa-scientist-episode-34/>
 - <https://www.nasa.gov/humans-in-space/scientists-grow-plants-in-lunar-soil/>
+- <https://www.nasa.gov/reference/environmental-control-and-life-support-systems-eclss/>
+- <https://www.nasa.gov/blogs/spacestation/2025/04/01/exercise-research-main-focus-aboard-station-on-tuesday/>
+
+## ntrs.nasa.gov
+
+- <https://ntrs.nasa.gov/api/citations/20240007214/downloads/NDE%20Needs%20to%20Enable%20Deep%20Space%20Exploration.pdf>
+
+## svs.gsfc.nasa.gov
+
+- <https://svs.gsfc.nasa.gov/12739/>
 
 ## ssd.jpl.nasa.gov
 

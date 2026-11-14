@@ -1,7 +1,11 @@
 {
   "fetched": "2026-11-14",
   "mock": false,
-  "source": "https://science.nasa.gov/moon/facts/",
+  "source": [
+    "https://science.nasa.gov/moon/facts/",
+    "https://www.nasa.gov/image-article/nasas-dust-shield-successfully-repels-lunar-regolith-on-moon/",
+    "https://www.nasa.gov/centers-and-facilities/johnson/young-engineers-design-nasa-device-to-solve-lunar-dust-challenges/"
+  ],
   "trivia": [
     {
       "id": "lunar-gravity",
@@ -10,8 +14,8 @@
     },
     {
       "id": "lunar-dust",
-      "fact": "Lunar regolith includes fine dust and rock fragments.",
-      "source": "https://science.nasa.gov/biological-physical/what-is-lunar-regolith/"
+      "fact": "Lunar regolith includes fine dust and rock fragments that can cling to equipment; panel power recovery the next morning is a game rule.",
+      "source": "https://www.nasa.gov/centers-and-facilities/johnson/young-engineers-design-nasa-device-to-solve-lunar-dust-challenges/"
     }
   ]
 }

@@ -114,6 +114,21 @@
         "role": "fact summaries of linked NASA records",
         "humanEdits": "pending team verification",
         "disclosure": "each fact links its NASA source"
+      },
+      {
+        "files": [
+          "src/core/training.ts",
+          "src/core/settings.ts",
+          "src/core/store.ts",
+          "src/core/playtest.ts",
+          "src/farm/recipes.ts",
+          "src/farm/KitchenPanel.ts",
+          "public/data/science.json"
+        ],
+        "media": "code and text",
+        "role": "Person A Junior Astronaut training layer (lessons, badges, journal, schedule, MOXIE, dusty panels, crew requests, kitchen) written by Claude in Claude Code, directed by Muskan; three new science facts checked against the linked NASA pages",
+        "humanEdits": "pending team review",
+        "disclosure": "docs/AI_USAGE.md"
       }
     ],
     "generatedImagesVideoAudio": [

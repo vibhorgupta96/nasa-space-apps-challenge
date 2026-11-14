@@ -31,4 +31,10 @@ export const RULES = {
   maxShieldLayers: 3,
   roverDisabledSols: 1,
   radioMsPerMinute: 1_000,
+  moxieAirPerCell: 6, // weaker than a grow-light cell on a full garden, stronger on an empty one
+  dustCellsLost: 1, // a dusty panel makes this many fewer cells until it is cleaned
+  requestRewardSeeds: 2,
+  lifeSupportAir: 70, // air at or above this at night counts towards the Life Support badge
+  badgeSols: 3, // sols needed for the Life Support, Power Planner and Fit Astronaut badges
+  scholarLessons: 7,
 };

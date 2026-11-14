@@ -1,5 +1,13 @@
 # Validation status
 
+## Latest main and Moon training integration — 2026-11-14
+
+- Regression suite passed (56/56), including 19 Mars nested self-checks. TypeScript type check, Vite production build, and `git diff --check` passed.
+- Browser checks verified Moon day 1 and day 2 quizzes, sourced Moon Wiz Cards (2/10 remained visible after reload, including the NASA 29.5-day lunar-cycle fact), and duplicate pet use without an extra reward. Moon pet rewards use habitat-supply wording without Mars or Phoenix claims.
+- The power planner's unused-cell and start-confirmation messages fit without overlapping the Start button. Rover `C` still toggles the map without opening Wiz Cards. Sleeping advanced Moon day 1 to day 2 and updated the journal. The water oxygen maker increased air from 90 to 96, consumed one water and one spare cell, and awarded its badge.
+- The astronaut name editor was browser-tested with Save, Cancel, Enter, and Esc. The saved name appeared correctly, and using the DOM editor no longer changed the selected suit through Phaser click-through.
+- The rendered terminal certificate and archived first-world tabs were not manually reached. Core/training tests cover the underlying archive and content behavior; they do not constitute a visual check of those screens.
+
 Checked for the two-world campaign change on 2026-11-14:
 
 - Regression tests passed (43 tests): `node --experimental-strip-types --test scripts/*.test.mjs src/ui/*.test.mjs src/story/*.test.mjs`. This includes thirteen core test groups, 16 Mars self-checks, world-specific cooking, pantry and retired-storm save migration, and travel/retry with unavailable storage, rover route-cost parity on both worlds, screen-space controls, movement and cooldown/pause checks, help content, and world-aware story checks.
