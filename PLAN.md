@@ -62,13 +62,13 @@ Each person owns **folders**, not features. **Don't edit another person's folder
 ### 🅰 Person A: Core game and farm
 **Owns:** `src/core/`, `src/scenes/FarmScene.ts`, `src/farm/`, `src/main.ts`, `index.html`, `package.json`, `vite.config.ts`
 
-- [ ] **Hour 0–1 (do first):** scaffold the project (Vite + Phaser + TS). Commit `src/core/types.ts` and `src/core/events.ts` to match section 5, and `src/core/rules.ts` to match section 6, plus empty scenes that switch between each other. Share the commit/branch with B and C.
-- [ ] Game state store + sol loop (morning → plan power → day actions → night → next sol).
-- [ ] Power split UI: drag 6 power-cell icons into slots (Grow lights / Heater / Shelter / Rover battery).
-- [ ] Farm: 3×4 grid of plots. Plant, water once per sol (uses water items), grow, harvest, and clear a wilted plot. Crops come from `crops.json`.
-- [ ] Air and food calculations at the end of each sol (formulas in section 6).
-- [ ] Walkable dome with the player and 3 crew members (simple idle and walk animations).
-- [ ] Soft failure → rescue screen → replay.
+- [x] **Hour 0–1 (do first):** scaffold the project (Vite + Phaser + TS). Commit `src/core/types.ts` and `src/core/events.ts` to match section 5, and `src/core/rules.ts` to match section 6, plus empty scenes that switch between each other. Share the commit/branch with B and C.
+- [x] Game state store + sol loop (morning → plan power → day actions → night → next sol).
+- [x] Power split UI: drag 6 power-cell icons into slots (Grow lights / Heater / Shelter / Rover battery).
+- [x] Farm: 3×4 grid of plots. Plant, water once per sol (uses water items), grow, harvest, and clear a wilted plot. Crops come from `crops.json`.
+- [x] Air and food calculations at the end of each sol (formulas in section 6).
+- [x] Walkable dome with the player and 3 crew members (simple idle and walk animations).
+- [x] Soft failure → rescue screen → replay.
 - **Done when:** you can play 10 sols of farming with mock data, without rover or storms.
 
 ### 🅱 Person B: Rover and Mars map

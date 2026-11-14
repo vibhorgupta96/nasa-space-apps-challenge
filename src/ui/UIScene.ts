@@ -7,6 +7,7 @@ import { getData, mockFiles } from '../data/loaders';
 import { C, H, W, button, fmtMs, hourLabel, panel, text } from './theme';
 import { SPEAKERS, type Line } from '../story/script';
 import { Director } from '../story/director';
+import { addPowerCells } from '../farm/PowerPanel';
 
 // The always-on overlay: HUD, hotbar, toasts, and every modal (dialogue, morning plan,
 // night report, storm board, help, photos). Modals pause the simulation while open.
@@ -360,6 +361,8 @@ export class UIScene extends Phaser.Scene {
       body.setText(full.slice(0, shown));
       if (shown >= full.length) timer.remove();
     } });
+    c.once('destroy', () => timer.remove()); // Escape can close the line mid-typing
+
     this.advance = () => {
       if (shown < full.length) {
         shown = full.length;
@@ -410,7 +413,6 @@ export class UIScene extends Phaser.Scene {
         rows.add(this.add.image(x + 74, ry + 33, info.icon).setScale(3));
         rows.add(text(this, x + 108, ry + 8, info.label, 22, C.text, { fontStyle: 'bold' }));
         rows.add(text(this, x + 108, ry + 38, hints[slot](), 15, slot === 'shelter' && warned.length ? C.warn : C.dim, { wordWrap: { width: 470 } }));
-        for (let k = 0; k < s.split[slot]; k++) rows.add(this.add.image(x + 600 + k * 26, ry + 33, 'icon-power').setScale(1.6).setTint(info.color));
         const minus = button(this, x + w - 160, ry + 33, '–', () => {
           if (s.split[slot] > 0) store.setPowerSplit({ ...s.split, [slot]: s.split[slot] - 1 });
           render();
@@ -423,7 +425,11 @@ export class UIScene extends Phaser.Scene {
         rows.add([minus, plus]);
       });
       const left = s.cellsToday - total;
-      rows.add(text(this, x + 40, y + h - 66, left > 0 ? `${left} cell${left > 1 ? 's' : ''} left to place` : 'All cells placed!', 22, left > 0 ? C.goldText : C.ok));
+      rows.add(text(this, x + 40, y + h - 66, left > 0 ? `${left} cell${left > 1 ? 's' : ''} left · drag ⚡ into a row` : 'All cells placed!', 22, left > 0 ? C.goldText : C.ok));
+      addPowerCells(this, rows, {
+        rowX: x + 40, rowW: w - 80, rowY: (i) => y + 190 + i * 76, rowH: 66,
+        cellX: x + 600, trayX: x + 380, trayY: y + h - 52, tint: (sl) => SLOT_INFO[sl].color,
+      }, render, (reason) => this.toast(reason, C.warn));
     };
     render();
     c.add(button(this, x + w - 150, y + h - 50, 'Start the day ▶', () => {

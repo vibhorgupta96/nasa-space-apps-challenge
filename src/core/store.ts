@@ -76,7 +76,7 @@ function freshMeta(): Meta {
   };
 }
 
-class Store {
+export class Store {
   state!: GameState;
   meta: Meta = freshMeta();
   /** Dialogs, help and other modal UI pause the whole simulation. */
@@ -85,12 +85,16 @@ class Store {
   lastNight: NightReport | null = null;
   private today: Today = { harvested: [], roverTrip: false, storm: null, stormSafe: true, sample: false };
 
-  constructor() {
-    if (typeof document !== 'undefined') {
+  private lastAutosaveMs = 0;
+
+  /** `watchPage` is false for throwaway instances (self-tests) that must not react to the tab. */
+  constructor(watchPage = true) {
+    if (watchPage && typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', () => {
         this.hidden = document.hidden;
         if (this.hidden) this.save();
       });
+      window.addEventListener('pagehide', () => this.save());
     }
   }
 
@@ -136,17 +140,37 @@ class Store {
     bus.emit(EV.SOL_START, { sol: 1 });
   }
 
+  /** True only for a mission that can still be continued (finished missions don't count). */
   hasSave(): boolean {
-    return !!safeStorage()?.getItem(SAVE_KEY);
+    try {
+      const raw = safeStorage()?.getItem(SAVE_KEY);
+      const phase = raw ? JSON.parse(raw)?.state?.phase : null;
+      return phase === 'planning' || phase === 'day';
+    } catch {
+      return false;
+    }
   }
 
   load(): boolean {
+    const raw = safeStorage()?.getItem(SAVE_KEY);
+    if (!raw) return false;
+    if (this.restore(raw)) return true;
+    this.clearSave(); // unreadable or already-finished mission
+    return false;
+  }
+
+  serialize(): string {
+    return JSON.stringify({ v: 1, state: this.state, meta: this.meta });
+  }
+
+  /** Adopt a serialized mission; refuses finished (rescue/debrief) ones. */
+  restore(raw: string): boolean {
     try {
-      const raw = safeStorage()?.getItem(SAVE_KEY);
-      if (!raw) return false;
       const parsed = JSON.parse(raw);
       if (!parsed?.state?.plots) return false;
+      if (parsed.state.phase !== 'planning' && parsed.state.phase !== 'day') return false;
       this.state = parsed.state;
+      this.lastAutosaveMs = parsed.state.missionElapsedMs;
       this.meta = { ...freshMeta(), ...(parsed.meta || {}) };
       this.resetToday();
       return true;
@@ -168,7 +192,7 @@ class Store {
     if (!this.state) return;
     try {
       const s = safeStorage();
-      s?.setItem(SAVE_KEY, JSON.stringify({ v: 1, state: this.state, meta: this.meta }));
+      s?.setItem(SAVE_KEY, this.serialize());
       s?.setItem(META_KEY, JSON.stringify({ weekCursor: this.meta.weekCursor, eggs: this.meta.eggs }));
     } catch {
       /* storage is optional */
@@ -483,6 +507,10 @@ class Store {
     const target = Math.min(end, s.missionElapsedMs + Math.min(deltaMs, 1000));
     this.advanceTo(target);
     if (s.missionElapsedMs >= end) this.endDay();
+    else if (s.missionElapsedMs - this.lastAutosaveMs >= 5000) {
+      this.lastAutosaveMs = s.missionElapsedMs;
+      this.save();
+    }
   }
 
   /** Process every due event up to `target` exactly once, in time order (hits before rover steps). */

@@ -32,6 +32,7 @@ export class FarmScene extends Phaser.Scene {
   private plotCrops: Phaser.GameObjects.Image[] = [];
   private plotSparkles: Phaser.GameObjects.Image[] = [];
   private crew: Record<string, Phaser.GameObjects.Sprite> = {};
+  private walking = new Set<string>();
   private bolt!: Phaser.GameObjects.Image;
   private cursor!: Phaser.GameObjects.Rectangle;
   private keys!: Record<string, Phaser.Input.Keyboard.Key>;
@@ -51,6 +52,7 @@ export class FarmScene extends Phaser.Scene {
     this.plotCrops = [];
     this.plotSparkles = [];
     this.crew = {};
+    this.walking = new Set();
     this.chatIndex = {};
     this.counters = {};
     this.unsub = [];
@@ -154,6 +156,9 @@ export class FarmScene extends Phaser.Scene {
       this.crew[name] = s;
       this.solid.add(`${x},${y}`);
       this.time.addEvent({ delay: 2600 + Math.random() * 2600, loop: true, callback: () => this.wander(name) });
+      // Idle: a slow breath, plus now and then a glance around the dome.
+      this.tweens.add({ targets: s, scaleY: 1.05, yoyo: true, repeat: -1, duration: 900 + Math.random() * 300, ease: 'Sine.easeInOut' });
+      this.time.addEvent({ delay: 1700 + Math.random() * 1500, loop: true, callback: () => this.glance(name) });
     }
     this.bolt = this.add.image(4 * T + T / 2, 3 * T + T / 2, 'bolt').setDepth(5);
     this.solid.add('4,3');
@@ -162,7 +167,7 @@ export class FarmScene extends Phaser.Scene {
 
   private wander(name: string) {
     const s = this.crew[name];
-    if (!s || store.paused || this.tweens.isTweening(s)) return;
+    if (!s || store.paused || this.walking.has(name)) return;
     const x = Math.floor(s.x / T);
     const y = Math.floor(s.y / T);
     const dirs: [number, number, Dir][] = [[1, 0, 'right'], [-1, 0, 'left'], [0, 1, 'down'], [0, -1, 'up']];
@@ -177,11 +182,20 @@ export class FarmScene extends Phaser.Scene {
     }
     this.solid.delete(`${x},${y}`);
     this.solid.add(`${nx},${ny}`);
+    this.walking.add(name);
     s.play(`${name}-walk-${dir}`);
     this.tweens.add({ targets: s, x: nx * T + T / 2, y: ny * T + T / 2, duration: 500, onComplete: () => {
+      this.walking.delete(name);
       s.stop();
       s.setTexture(`${name}-${dir}-0`);
     } });
+  }
+
+  private glance(name: string) {
+    const s = this.crew[name];
+    if (!s || store.paused || this.walking.has(name) || Math.random() < 0.5) return;
+    const dirs: Dir[] = ['down', 'left', 'right', 'down'];
+    s.setTexture(`${name}-${dirs[Math.floor(Math.random() * dirs.length)]}-0`);
   }
 
   private isPlot(x: number, y: number) {
