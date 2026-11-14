@@ -3,8 +3,41 @@ export type ItemId = 'water' | 'ice' | 'regolith' | 'seed' | 'parts' | 'sample';
 export type PowerSlot = 'growLights' | 'heater' | 'shelter' | 'rover';
 export type Phase = 'planning' | 'day' | 'rescue' | 'debrief';
 export type PlotCondition = 'healthy' | 'wilted';
+export type WorldId = 'mars' | 'moon';
+
+export interface TrainingSnapshot {
+  badges: string[];
+  lessons: Record<number, boolean>;
+  wizCards: number[];
+  quiz: { pre: number | null; post: number | null };
+  journal: string[];
+}
+
+export interface MissionResult {
+  worldId: WorldId;
+  /** The scenario used on that world, for its archived lesson cards. */
+  stormWeekId?: string;
+  harvests: Record<string, number>;
+  stormsSurvived: number;
+  stormsTaken: number;
+  trips: number;
+  mealsCooked: number;
+  air: number;
+  food: number;
+  /** Training earned on that world, retained after travelling to the next mission. */
+  training?: TrainingSnapshot;
+}
+
+export interface Campaign {
+  order: [WorldId, WorldId];
+  currentIndex: 0 | 1;
+  completed: MissionResult[];
+}
 
 export interface GameState {
+  worldId: WorldId;
+  dustLevel: number;
+  dustCleanedSol: number | null;
   sol: number; // starts at 1; a successful mission ends after sol 10
   phase: Phase; // new mission: planning, sol 1
   missionElapsedMs: number; // new mission: 0; active simulation time only

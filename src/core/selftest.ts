@@ -217,7 +217,7 @@ export async function runSelfTest() {
       expect(count(EV.STORM_HIT) === 0, 'hit replayed');
       const t4 = new Store(false);
       t3.state.phase = 'debrief';
-      expect(!t4.restore(t3.serialize()), 'finished mission was restorable');
+      expect(!t4.restore(t3.serialize()), 'inconsistent debrief without a completion record was accepted');
       return `resumed at route step ${step}; nothing replayed`;
     });
 

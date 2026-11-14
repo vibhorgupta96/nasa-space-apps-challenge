@@ -1,14 +1,15 @@
 import Phaser from 'phaser';
 import { store } from '../core/store';
-import { RULES } from '../core/rules';
 import { getData } from '../data/loaders';
 import { C, button, fmtMs, text } from '../ui/theme';
 import { ITEM_ICON } from '../ui/icons';
 import { getActiveFindsForSol } from '../rover/findsManager';
 import { getActiveStormWarnings } from '../rover/stormMonitor';
 import { evaluateRoute } from '../rover/routePlanner';
+import { lunarDrivePose } from '../rover/drivingFeel';
+import { setScrollFactorTree } from '../ui/screen-space';
 
-// Rover map: real Mars Trek imagery around InSight's landing site. Plan a route like a real
+// Rover map: NASA Mars imagery or an original lunar terrain illustration. Plan a route like a real
 // rover driver (the whole drive is decided before Bolt leaves), then watch it play out.
 
 type Cell = [number, number];
@@ -37,11 +38,15 @@ export class RoverScene extends Phaser.Scene {
 
   create() {
     this.findIcons = new Map();
-    const t = getData().terrain;
+    const t = store.data.terrain;
     const cell = t.cell;
     const worldW = t.width * cell;
     const worldH = t.height * cell;
-    for (const tile of t.tiles) this.add.image(tile.x, tile.y, `trek:${tile.file}`).setOrigin(0);
+    if (t.tiles.length) {
+      for (const tile of t.tiles) this.add.image(tile.x, tile.y, `trek:${tile.file}`).setOrigin(0);
+    } else {
+      this.drawIllustratedTerrain(t);
+    }
 
     this.costGfx = this.add.graphics().setDepth(1);
     this.drawCost();
@@ -93,7 +98,7 @@ export class RoverScene extends Phaser.Scene {
   private refreshFinds() {
     for (const icon of this.findIcons.values()) icon.destroy();
     this.findIcons.clear();
-    const t = getData().terrain;
+    const t = store.data.terrain;
     const cell = t.cell;
     const sol = this.findsSol();
     this.findsKey = `${store.state.stormWeekId}:${sol}`;
@@ -114,14 +119,14 @@ export class RoverScene extends Phaser.Scene {
   }
 
   private cellAt(p: Phaser.Input.Pointer): Cell {
-    const t = getData().terrain;
+    const t = store.data.terrain;
     const x = Phaser.Math.Clamp(Math.floor(p.worldX / t.cell), 0, t.width - 1);
     const y = Phaser.Math.Clamp(Math.floor(p.worldY / t.cell), 0, t.height - 1);
     return [x, y];
   }
 
   private drawCost() {
-    const t = getData().terrain;
+    const t = store.data.terrain;
     const g = this.costGfx.clear();
     if (!this.showCost) return;
     for (let y = 0; y < t.height; y++) {
@@ -134,16 +139,45 @@ export class RoverScene extends Phaser.Scene {
     }
   }
 
+  /** The lunar map is an original game illustration; it has no orbital imagery tiles. */
+  private drawIllustratedTerrain(terrain: ReturnType<typeof getData>['terrain']) {
+    const g = this.add.graphics().setDepth(0);
+    const cell = terrain.cell;
+    for (let y = 0; y < terrain.height; y++) {
+      for (let x = 0; x < terrain.width; x++) {
+        const cost = terrain.cost[y]?.[x] ?? 1;
+        const seed = (x * 73 + y * 131 + x * y * 17) % 29;
+        const base = seed % 3 === 0 ? 0x756f7b : seed % 3 === 1 ? 0x625e6b : 0x817b85;
+        g.fillStyle(base, 1).fillRect(x * cell, y * cell, cell, cell);
+        if ((x * 17 + y * 31) % 13 === 0) {
+          const cx = x * cell + cell * (0.35 + (seed % 4) * 0.1);
+          const cy = y * cell + cell * (0.35 + ((seed * 3) % 4) * 0.1);
+          const radius = 5 + (seed % 7);
+          g.fillStyle(0x474450, 0.9).fillCircle(cx, cy, radius + 2);
+          g.fillStyle(0x9b9299, 0.8).fillCircle(cx, cy, radius);
+          g.fillStyle(0x514e5b, 0.85).fillCircle(cx - 1, cy - 1, Math.max(2, radius - 3));
+        }
+        if (cost > 1) {
+          g.fillStyle(cost === 3 ? 0xa06c63 : 0xaaa078, cost === 3 ? 0.32 : 0.2)
+            .fillRect(x * cell, y * cell, cell, cell);
+        }
+      }
+    }
+    g.lineStyle(1, 0x33313d, 0.3);
+    for (let x = 0; x <= terrain.width; x++) g.lineBetween(x * cell, 0, x * cell, terrain.height * cell);
+    for (let y = 0; y <= terrain.height; y++) g.lineBetween(0, y * cell, terrain.width * cell, y * cell);
+  }
+
   // ---------- planning ----------
 
   private resetRoute() {
-    this.route = [getData().terrain.dome];
+    this.route = [store.data.terrain.dome];
     this.legs = [];
   }
 
   /** Cheapest path (by terrain cost) between two cells. */
   private path(from: Cell, to: Cell): Cell[] {
-    const t = getData().terrain;
+    const t = store.data.terrain;
     const key = (x: number, y: number) => y * t.width + x;
     const dist = new Map<number, number>([[key(...from), 0]]);
     const prev = new Map<number, number>();
@@ -194,7 +228,7 @@ export class RoverScene extends Phaser.Scene {
 
   private returnHome() {
     if (!this.planning()) return;
-    this.extendTo(getData().terrain.dome);
+    this.extendTo(store.data.terrain.dome);
   }
 
   private send() {
@@ -233,21 +267,21 @@ export class RoverScene extends Phaser.Scene {
     this.planUi.add(this.sendBtn);
     ui.add(this.planUi);
     ui.add(button(this, 1190, 658, 'Inside', () => this.leave(), 110, 44, C.frame));
-    const credit = text(this, 1252, 600, `NASA Mars Trek · Viking colour mosaic · ${getData().terrain.site.name} · 1 square is about ${getData().terrain.kmPerCell} km · C: toggle rough ground`, 14, C.dim, { backgroundColor: '#141927cc', padding: { x: 8, y: 4 } }).setOrigin(1, 1);
+    const terrain = store.data.terrain;
+    const creditText = store.worldId === 'moon'
+      ? `Illustrated Moon terrain · ${terrain.site.name} · 1 square ≈ ${terrain.kmPerCell} km · C: toggle rough ground`
+      : `NASA Mars Trek · Viking colour mosaic · ${terrain.site.name} · 1 square ≈ ${terrain.kmPerCell} km · C: toggle rough ground`;
+    const credit = text(this, 1252, 600, creditText, 14, C.dim, { backgroundColor: '#141927cc', padding: { x: 8, y: 4 } }).setOrigin(1, 1);
     ui.add(credit);
-    // Input hit-tests use each object's own scroll factor, not the container's, so pin every
-    // descendant to the screen. Without this the buttons only work when the map isn't scrolled.
-    const pin = (o: Phaser.GameObjects.GameObject) => {
-      (o as unknown as Phaser.GameObjects.Components.ScrollFactor).setScrollFactor?.(0);
-      if (o instanceof Phaser.GameObjects.Container) o.list.forEach(pin);
-    };
-    pin(ui);
+    // Pin each interactive child as well as the panel. Phaser's hit testing uses
+    // the leaf Zone's scroll factor, even when a parent Container is fixed to the screen.
+    setScrollFactorTree(ui, 0);
   }
 
   update() {
     const s = store.state;
     if (!s) return;
-    const t = getData().terrain;
+    const t = store.data.terrain;
     const cell = t.cell;
     const r = s.rover;
     if (this.findsKey !== `${s.stormWeekId}:${this.findsSol()}`) this.refreshFinds();
@@ -260,7 +294,19 @@ export class RoverScene extends Phaser.Scene {
     for (const [id, c] of this.findIcons) c.setVisible(!r.collectedFindIds.includes(id));
 
     const pos = store.roverPosition();
-    this.rover.setPosition(pos.x * cell + cell / 2, pos.y * cell + cell / 2);
+    let visualX = pos.x;
+    let visualY = pos.y;
+    let bounce = 0;
+    const from = r.route[r.nextRouteIndex - 1];
+    const to = r.route[r.nextRouteIndex];
+    if (store.worldId === 'moon' && r.status === 'out' && from && to && pos.moving) {
+      const progress = Math.abs(pos.x - from[0]) + Math.abs(pos.y - from[1]);
+      const pose = lunarDrivePose(progress, t.cost[to[1]]?.[to[0]] ?? 1);
+      visualX = from[0] + (to[0] - from[0]) * pose.progress;
+      visualY = from[1] + (to[1] - from[1]) * pose.progress;
+      bounce = pose.bounce;
+    }
+    this.rover.setPosition(visualX * cell + cell / 2, visualY * cell + cell / 2 - bounce);
     this.rover.setVisible(r.status !== 'repairing');
     if (r.status === 'out' && r.route[r.nextRouteIndex]) {
       const a = r.route[r.nextRouteIndex - 1];
@@ -303,24 +349,24 @@ export class RoverScene extends Phaser.Scene {
     // Info text.
     this.planUi.setVisible(planning);
     const dayLeft = store.dayEndMs() - s.missionElapsedMs;
-    const stormLine = getActiveStormWarnings(s, getData().storms.weeks)
-      .map((st) => `\n⚠️ Sol ${st.event.scenario.gameSol} storm hits in ${fmtMs(st.hitAtMs - s.missionElapsedMs)} of daytime. Be home before it!`)
+    const stormLine = getActiveStormWarnings(s, store.data.storms.weeks)
+      .map((st) => `\n⚠ ${store.worldId === 'moon' ? 'Radiation scenario' : 'Storm'} on ${store.world.dayLabel.toLowerCase()} ${st.event.scenario.gameSol} hits in ${fmtMs(st.hitAtMs - s.missionElapsedMs)} of daytime. Be home before it!`)
       .join('');
     if (planning) {
       const can = store.roverCanLaunch();
-      const cost = evaluateRoute(this.route, t, s.split.rover).totalBatteryCost;
+      const cost = evaluateRoute(this.route, t, s.split.rover, store.rules.roverCostPerTile).totalBatteryCost;
       const tiles = this.route.length - 1;
       const home = this.route.length > 1 && this.route[this.route.length - 1][0] === t.dome[0] && this.route[this.route.length - 1][1] === t.dome[1];
       this.info.setText(
         (can.ok ? `Plan a drive: click the map to add stops, then 🏠 Return.  Battery: ${s.split.rover} cell(s)\n` : `${can.reason}\n`) +
-          `Route: ${tiles} squares · needs ${cost.toFixed(1)} cells · takes ${fmtMs(tiles * RULES.roverMsPerTile)} (day left ${fmtMs(dayLeft)})` +
+          `Route: ${tiles} squares · needs ${cost.toFixed(1)} cells · takes ${fmtMs(tiles * store.rules.roverMsPerTile)} (day left ${fmtMs(dayLeft)})` +
           (tiles && !home ? ' · must end at the dome' : '') +
           (cost > s.split.rover + 1e-9 ? ' · ⚠️ not enough battery!' : '') +
           stormLine,
       );
       this.info.setColor(can.ok ? C.text : C.warn);
     } else if (r.status === 'out') {
-      const left = (r.route.length - r.nextRouteIndex) * RULES.roverMsPerTile;
+      const left = (r.route.length - r.nextRouteIndex) * store.rules.roverMsPerTile;
       const cargo = Object.entries(r.cargo).filter(([, n]) => n > 0).map(([k, n]) => `${n} ${k}`).join(', ') || 'empty';
       this.info.setText(`Bolt is driving! Battery ${r.batteryCells.toFixed(1)} · home in about ${fmtMs(left)}\nCargo: ${cargo}${stormLine}`);
       this.info.setColor(C.teal);
@@ -328,7 +374,7 @@ export class RoverScene extends Phaser.Scene {
       this.info.setText('Bolt is stuck out here. The crew will tow the rover home tonight. Cargo will be lost.');
       this.info.setColor(C.warn);
     } else {
-      this.info.setText(`The rover is in repair until sol ${r.availableSol}.`);
+      this.info.setText(`The rover is in repair until ${store.world.dayLabel.toLowerCase()} ${r.availableSol}.`);
       this.info.setColor(C.warn);
     }
   }

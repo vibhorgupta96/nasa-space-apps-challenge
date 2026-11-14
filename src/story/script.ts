@@ -32,10 +32,29 @@ export const INTRO: Line[] = [
   { who: 'bolt', text: 'You will never have enough power for everything. This is called a trade-off. Engineers love them. Nobody knows why.', mood: 'happy' },
 ];
 
+/** Short, sourced-mechanics-aware opening for the lunar mission variant. */
+export const MOON_INTRO: Line[] = [
+  { who: 'radio', text: 'Hello, Greenhouse Keeper! This Moon base has a very short radio delay in our game. We did not make you wait for a real message.' },
+  { who: 'radio', text: 'Keep the crew breathing and fed through 10 lunar days. This is a compressed greenhouse mission, with a long simulated dark stretch.' },
+  { who: 'bolt', text: 'Hello! I am Bolt. My Moon rover has a dust brush. I have already named it Brushy. Brushy is a professional.' },
+  { who: 'bolt', text: 'The Moon has about one-sixth of Earth’s gravity, so astronauts can hop more easily. Try my Moon-hop with SHIFT!' },
+  { who: 'rosa', text: 'Commander Rosa Vey. Solar radiation can be a hazard beyond Earth’s protective atmosphere. Keep the shelter ready, and please do not lick the lunar regolith.' },
+  { who: 'theo', text: 'Dr. Theo Marsh, botanist. We grow these crops in our protected greenhouse. A few plant experiments have used lunar regolith, but that does not mean these crops are ready to grow outside.' },
+  { who: 'priya', text: 'Daylight brings 8 power cells. The dark stretch brings 6. Dust on the rover costs us power tomorrow, so clean it at the airlock.' },
+  { who: 'bolt', text: 'Thermal control cools the dome in the bright stretch and warms it in the dark one. My rover takes longer over lunar terrain. My wheels are very careful.' },
+  { who: 'bolt', text: 'This mission compresses the Moon’s very long day-night cycle into ten short game days. The temperature and power rules are game simulations.', mood: 'happy' },
+];
+
 export const TUTORIAL: Line[] = [
   { who: 'bolt', text: 'Quick tour! Walk with the ARROW keys or WASD. Choose a seed with keys 1–5, stand by an empty plot and press SPACE to plant. Key 6 waters a plant; key 7 harvests a ripe crop or clears a wilted one.' },
   { who: 'bolt', text: 'Press SPACE beside a machine to use it. Try the ice melter, shield bench, radio and airlock. The top airlock leads to my rover.' },
   { who: 'bolt', text: 'Press TAB for the storm board. Press H for these tips. If you get stuck, talk to the crew. That is what people are for.', mood: 'happy' },
+];
+
+export const MOON_TUTORIAL: Line[] = [
+  { who: 'bolt', text: 'Walk with the ARROW keys or WASD. Hold SHIFT for a short Moon-hop. Pick seeds with keys 1–5, SPACE to plant, 6 to water, and 7 to harvest or clear.' },
+  { who: 'bolt', text: 'Press SPACE beside a machine to use it. At the airlock, clean rover dust before planning tomorrow’s power. TAB opens the lunar hazard board; H opens these tips.' },
+  { who: 'bolt', text: 'The light and dark stretches are compressed for the game. Thermal control helps the greenhouse in both. Outside the dome, lunar wind and rain are not on the forecast.' },
 ];
 
 /** Story beats played on the morning of each sol, before power planning. */
@@ -63,12 +82,33 @@ export const SOL_BEATS: Record<number, Line[]> = {
   10: [{ who: 'bolt', text: 'Final sol! If I had a heart, it would be doing something complicated right now.' }],
 };
 
+/** Story variants for the compressed Moon days; use lunar language without rewriting Mars. */
+export const MOON_DAY_BEATS: Record<number, Line[]> = {
+  2: [
+    { who: 'bolt', text: 'Good morning! I counted the craters outside. There are many. I suspect they are not breeding.' },
+    { who: 'priya', text: 'Put a cell in the rover battery and Bolt can look for icy patches. The illustrated map is a game simulation, so our finds are pretend.' },
+  ],
+  3: [{ who: 'theo', text: 'The greenhouse leaves look happier today. Or it might be the lighting. Leaves are very hard to read.' }],
+  4: [{ who: 'priya', text: 'The compressed dark stretch begins. Thermal control needs two cells tonight if we want the plants to keep growing.' }],
+  6: [{ who: 'bolt', text: 'Halfway! Statistically, the second half of the mission is the same length as the first half. I checked twice.' }],
+  7: [{ who: 'rosa', text: 'Every rock sample gives our science team another clue about the Moon. Bolt says the crater rocks all look alike. Bolt is still learning.' }],
+  9: [{ who: 'rosa', text: 'The next mission team is almost here. I have prepared a list of things to say. It says “Hello,” “Thank you,” and “Did you bring snacks.”' }],
+  10: [{ who: 'bolt', text: 'Final lunar day! If I had a heart, it would be doing something complicated right now.' }],
+};
+
 /** Radio letters queued each morning. They arrive after the real one-way light delay (compressed). */
 export const RADIO_LETTERS: Record<number, string> = {
   1: 'Welcome aboard! Our replies take {delay} minutes to reach you, so ask your questions early.',
   3: 'Your families say hello. Theo\'s mum says to wear a sweater. On Mars. Indoors. Mums are like that.',
   6: 'This message travelled about {mkm} million km to reach you. It did not stop for snacks.',
   8: 'Supply ship on schedule. They packed extra seeds and one rubber duck. Nobody will say why.',
+};
+
+export const MOON_RADIO_LETTERS: Record<number, string> = {
+  1: 'Welcome to the Moon greenhouse! Our short radio delay is simulated in this game, so ask your questions early.',
+  3: 'Your families say hello. Theo’s mum says to stay cozy through the simulated dark stretch. Mums are like that.',
+  6: 'Your message travelled a short simulated distance in this game. It did not stop for snacks.',
+  8: 'The next team is on schedule. They packed extra seeds and one rubber duck. Nobody will say why.',
 };
 
 /** Things crew say when you talk to them. Cycles through in order. */
@@ -98,6 +138,41 @@ export const CHAT: Record<'rosa' | 'theo' | 'priya' | 'bolt', Line[]> = {
     { who: 'bolt', text: 'I wave at Earth every evening. It is very far away, so I wave extra hard.', mood: 'happy' },
   ],
 };
+
+/** Adjust the few Mars-specific crew lines used in shared farm interactions. */
+export function adaptWorldLines(lines: Line[], worldId: 'mars' | 'moon'): Line[] {
+  if (worldId === 'mars') return lines;
+  return lines.map((line) => ({
+    ...line,
+    text: line.text
+      .replace(/Mars/g, 'the Moon')
+      .replace(/mars/gi, 'the Moon')
+      .replace(/storm shelter/gi, 'radiation shelter')
+      .replace(/sols/gi, 'days')
+      .replace(/\bsol\b/gi, 'day')
+      .replace(/solar storms?/gi, 'radiation alerts')
+      .replace(/storms?/gi, 'radiation events')
+      .replace(/regolith is the Moon dirt/gi, 'lunar regolith is Moon surface material')
+      .replace(/the supply ship arrives after tomorrow/gi, 'the next team arrives after tomorrow')
+      .replace(/the only tree on the Moon/gi, 'a tiny greenhouse tree on the Moon'),
+  }));
+}
+
+export function introForWorld(worldId: 'mars' | 'moon') {
+  return worldId === 'moon' ? MOON_INTRO : INTRO;
+}
+
+export function tutorialForWorld(worldId: 'mars' | 'moon') {
+  return worldId === 'moon' ? MOON_TUTORIAL : TUTORIAL;
+}
+
+export function dayBeatsForWorld(worldId: 'mars' | 'moon') {
+  return worldId === 'moon' ? MOON_DAY_BEATS : SOL_BEATS;
+}
+
+export function radioLettersForWorld(worldId: 'mars' | 'moon') {
+  return worldId === 'moon' ? MOON_RADIO_LETTERS : RADIO_LETTERS;
+}
 
 export const REACT = {
   stormWarningBolt: { who: 'bolt', text: 'Do not worry. Or rather: worry exactly the right amount, then do something useful. Like putting cells in the shelter.', mood: 'worried' } as Line,

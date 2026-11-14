@@ -1,6 +1,6 @@
 # References
 
-This page lists the deduplicated external URLs present in the eight checked-in JSON datasets under `public/data/`, using the same source-link collector as the in-game credits screen. Query parameters are preserved when they identify a source/search; the collector removes credential-like parameters. NASA photo and map credits remain attached to their individual records/assets. Listing a source is not a blanket license or permission grant: follow the source's own credit and reuse terms.
+This page lists the deduplicated external URLs present in the checked-in JSON datasets under `public/data/` and `public/data/moon/`, using the same source-link collector as the in-game credits screen. Query parameters are preserved when they identify a source/search; the collector removes credential-like parameters. NASA photo and map credits remain attached to their individual records/assets. Listing a source is not a blanket license or permission grant: follow the source's own credit and reuse terms. Moon terrain art and lunar mission events are game simulations, not NASA map or lunar weather records.
 
 ## api.nasa.gov
 
@@ -58,6 +58,29 @@ This page lists the deduplicated external URLs present in the eight checked-in J
 
 - <https://science.nasa.gov/biological-physical/investigations/apex-9/>
 - <https://science.nasa.gov/resource/curiositys-three-frame-mosaic-of-clouds/>
+- <https://science.nasa.gov/moon/facts/>
+- <https://science.nasa.gov/moon/weather-on-the-moon/>
+- <https://science.nasa.gov/moon/moon-water-and-ices/>
+- <https://science.nasa.gov/biological-physical/earth-soil-vs-lunar-regolith-whats-the-difference/>
+- <https://science.nasa.gov/lunar-science/focus-areas/biological-systems/>
+- <https://science.nasa.gov/science-research/heliophysics/how-nasa-will-protect-astronauts-from-space-radiation-at-the-moon/>
+
+## www.nasa.gov
+
+- <https://www.nasa.gov/centers-and-facilities/johnson/young-engineers-design-nasa-device-to-solve-lunar-dust-challenges/>
+- <https://www.nasa.gov/image-article/nasas-dust-shield-successfully-repels-lunar-regolith-on-moon/>
+- <https://www.nasa.gov/general/is-there-weather-on-the-moon-we-asked-a-nasa-scientist-episode-34/>
+- <https://www.nasa.gov/humans-in-space/scientists-grow-plants-in-lunar-soil/>
+- <https://www.nasa.gov/reference/environmental-control-and-life-support-systems-eclss/>
+- <https://www.nasa.gov/blogs/spacestation/2025/04/01/exercise-research-main-focus-aboard-station-on-tuesday/>
+
+## ntrs.nasa.gov
+
+- <https://ntrs.nasa.gov/api/citations/20240007214/downloads/NDE%20Needs%20to%20Enable%20Deep%20Space%20Exploration.pdf>
+
+## svs.gsfc.nasa.gov
+
+- <https://svs.gsfc.nasa.gov/12739/>
 
 ## ssd.jpl.nasa.gov
 

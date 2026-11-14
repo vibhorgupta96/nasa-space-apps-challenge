@@ -55,7 +55,8 @@ export function selectScienceCard(data: GameData, activity: DailyActivity): Scie
     if (roverFact) return { text: roverFact.fact, source: roverFact.source };
   }
 
-  const dailyFactId = activity.sol % 2 === 0 ? 'mars-clouds' : 'mars-sol';
+  const isMoon = data.science.facts.some((fact) => fact.id === 'moon-gravity');
+  const dailyFactId = isMoon ? (activity.sol % 2 === 0 ? 'moon-temperature' : 'moon-gravity') : (activity.sol % 2 === 0 ? 'mars-clouds' : 'mars-sol');
   const fallback = data.science.facts.find((item) => item.id === dailyFactId) ?? data.science.facts[0];
   if (!fallback) throw new Error('No sourced science facts are loaded.');
   return fromFact(fallback);

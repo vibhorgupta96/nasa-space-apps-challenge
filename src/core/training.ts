@@ -1,9 +1,9 @@
-import type { ItemId } from './types';
+import type { ItemId, WorldId } from './types';
 
 // The "Junior Astronaut" training layer: one lesson per sol (See it, Try it, Say it), skill
 // badges, the astronaut schedule and small crew requests. The store keeps the progress; this
-// file is only data. Lesson facts point at sourced entries in public/data (science.json,
-// trivia.json) or at live mission data (InSight weather, JPL delay, DONKI storms).
+// file is only data. Planet-specific lessons point at sourced entries in that world's data bundle;
+// weather, delay and storm lessons use the selected mission's simulated/live presentation.
 
 export type BadgeId =
   | 'life-support' | 'power-planner' | 'radiation-safe' | 'comms-officer' | 'rover-pilot' | 'botanist'
@@ -25,7 +25,21 @@ export const BADGES: Record<BadgeId, { name: string; icon: string; how: string }
   scholar: { name: 'Science Star', icon: '🌟', how: 'Answer 7 sol lessons correctly.' },
 };
 
+const MOON_BADGES: Record<BadgeId, { name: string; icon: string; how: string }> = {
+  ...BADGES,
+  'life-support': { ...BADGES['life-support'], how: 'End 3 days with air at 70 or more.' },
+  'power-planner': { ...BADGES['power-planner'], how: 'Use every power cell on 3 days.' },
+  'oxygen-maker': { ...BADGES['oxygen-maker'], how: 'Run the water recycler to make breathable oxygen.' },
+  'panel-cleaner': { ...BADGES['panel-cleaner'], how: 'Clean lunar dust from a solar panel; power recovers next morning.' },
+  'fit-astronaut': { ...BADGES['fit-astronaut'], how: 'Exercise on the treadmill on 3 days.' },
+  scholar: { ...BADGES.scholar, how: 'Answer 7 day lessons correctly.' },
+};
+
 export const BADGE_IDS = Object.keys(BADGES) as BadgeId[];
+
+export function badgeInfoForWorld(id: BadgeId, worldId: WorldId = 'mars') {
+  return (worldId === 'moon' ? MOON_BADGES : BADGES)[id];
+}
 
 /**
  * Where a lesson's "See it" fact comes from:
@@ -110,7 +124,44 @@ export const LESSONS: Lesson[] = [
   },
 ];
 
-export const lessonFor = (sol: number) => LESSONS.find((l) => l.sol === sol) ?? null;
+const MOON_LESSONS: Lesson[] = [
+  { sol: 1, who: 'theo', goal: 'Moon crops grow inside a protected greenhouse with light, water and steady warmth.', see: 'science:veg-water',
+    tryIt: 'Plant a Moon seed, water it and power the grow lights.', question: 'Where do our Moon crops grow?',
+    choices: ['In a protected, controlled greenhouse', 'Outdoors in lunar soil without help', 'In a river valley'], answer: 0 },
+  { sol: 2, who: 'bolt', goal: 'The Moon’s day and night cycle is about 29.5 Earth days; this game compresses time. Moon gravity is about one-sixth of Earth’s.', see: 'science:moon-cycle',
+    tryIt: 'Watch the game clock: its lunar day is shortened for play.', question: 'About how long is one lunar day-and-night cycle on the Moon?',
+    choices: ['One Earth day', 'About 29.5 Earth days', 'About one Mars sol'], answer: 1 },
+  { sol: 3, who: 'rosa', goal: 'The Sun can send harmful space radiation; shelter helps protect astronauts. The game’s hazard schedule is simulated.', see: 'science:moon-radiation',
+    tryIt: 'Check the shelter board and move cells into shelter when the simulated alert appears.', question: 'What helps protect a Moon crew during a solar radiation event?',
+    choices: ['A deeper shelter with shielding', 'A faster rover', 'An open greenhouse roof'], answer: 0 },
+  { sol: 4, who: 'theo', goal: 'Sunlit lunar ground can be hot and dark ground very cold, so the greenhouse controls its temperature.', see: 'science:moon-temperature',
+    tryIt: 'Thermal control: use 1 cell in daylight for cooling and 2 during the dark stretch for heating.', question: 'Why does the Moon greenhouse need thermal controls?',
+    choices: ['The Moon’s surface has large temperature extremes', 'Moon plants need freezing roots', 'Rain cools the lunar soil'], answer: 0 },
+  { sol: 5, who: 'bolt', goal: 'A Moon radio signal takes about 1.3 seconds one way; Mars signals take minutes depending on the planets’ positions. Game timing is compressed.', see: 'science:moon-radio',
+    tryIt: 'Watch the game’s radio messages; their timing is shortened for play.', question: 'Why can a real Moon message reach Earth sooner than a Mars message?',
+    choices: ['Radio travels faster near the Moon', 'The Moon is much closer to Earth', 'The Moon uses a different kind of light'], answer: 1 },
+  { sol: 6, who: 'priya', goal: 'Water ice exists in some permanently shadowed lunar polar craters, not everywhere on the Moon.', see: 'science:moon-polar-ice',
+    tryIt: 'Send Bolt to search a marked ice site, then use the ice melter.', question: 'Where has water ice been found on the Moon?',
+    choices: ['In some permanently shadowed polar areas', 'In rivers across the whole surface', 'Floating in lunar rain clouds'], answer: 0 },
+  { sol: 7, who: 'priya', goal: 'The game’s Moon habitat makes oxygen from water, inspired by ISS water electrolysis; this is not MOXIE or a deployed lunar machine.', see: 'science:moon-water-oxygen',
+    tryIt: 'Leave water and a spare cell, then run the habitat water oxygen maker.', question: 'What does the Moon habitat’s water oxygen maker use?',
+    choices: ['Water and power in a simulated habitat system', 'Carbon dioxide from lunar air with MOXIE', 'Moon rocks without power'], answer: 0 },
+  { sol: 8, who: 'priya', goal: 'Sticky lunar regolith can cling to equipment; the Moon has no weather like atmospheric wind or rain. Cleaned panel power returns next morning in this game.', see: 'trivia:lunar-dust',
+    tryIt: 'Clean lunar dust at the panel station and check its power next morning.', question: 'What happens after you clean dust from a Moon solar panel?',
+    choices: ['Its power recovers next morning', 'A lunar rainstorm washes it immediately', 'It makes less power forever'], answer: 0 },
+  { sol: 9, who: 'theo', goal: 'A range of crops can make a healthier food mix; Moon crops in this game grow only inside a controlled habitat.', see: 'science:moon-crop-variety',
+    tryIt: 'Grow two Moon crop types and prepare a kitchen recipe.', question: 'Why does the Moon greenhouse grow more than one crop?',
+    choices: ['Different foods make a varied diet', 'Lunar soil grows every food outdoors', 'All crops have identical nutrients'], answer: 0 },
+  { sol: 10, who: 'rosa', goal: 'Exercise, sleep and routines support astronaut health in spaceflight; this is general spaceflight research.', see: 'science:iss-exercise',
+    tryIt: 'Follow today’s schedule: farm, exercise, science, then sleep in your bed.', question: 'Why do astronauts exercise during spaceflight?',
+    choices: ['To help maintain muscles and bones', 'To make the spacecraft travel faster', 'To charge solar panels'], answer: 0 },
+];
+
+export function lessonsForWorld(worldId: WorldId = 'mars'): Lesson[] {
+  return worldId === 'moon' ? MOON_LESSONS : LESSONS;
+}
+
+export const lessonFor = (sol: number, worldId: WorldId = 'mars') => lessonsForWorld(worldId).find((l) => l.sol === sol) ?? null;
 
 /** Sols whose questions make the optional 5-question quiz before and after a mission. */
 export const QUIZ_SOLS = [1, 3, 5, 6, 7];
@@ -123,6 +174,17 @@ export const SCHEDULE = [
   { id: 'sleep', icon: '😴', label: 'Sleep', how: 'end the sol in your bed' },
 ] as const;
 export type ScheduleId = (typeof SCHEDULE)[number]['id'];
+
+const MOON_SCHEDULE = [
+  { id: 'farm', icon: '🌱', label: 'Farm', how: 'plant, water or harvest' },
+  { id: 'exercise', icon: '🏃', label: 'Exercise', how: 'use the treadmill' },
+  { id: 'science', icon: '🔬', label: 'Science', how: 'send the rover or run the water oxygen maker' },
+  { id: 'sleep', icon: '😴', label: 'Sleep', how: 'end the day in your bed' },
+] as const;
+
+export function scheduleForWorld(worldId: WorldId = 'mars') {
+  return worldId === 'moon' ? MOON_SCHEDULE : SCHEDULE;
+}
 
 export interface CrewRequest {
   who: 'rosa' | 'theo' | 'priya';
@@ -145,13 +207,29 @@ export const REQUESTS: Record<number, CrewRequest> = {
   9: { who: 'priya', need: { item: 'water' }, amount: 2, ask: 'Last test: 2 water for the cooling loop. Then everything is ready for the supply ship.', thanks: 'Cooling loop full. We are ready!' },
 };
 
+const MOON_REQUESTS: Record<number, CrewRequest> = {
+  2: { who: 'priya', need: { item: 'water' }, amount: 3, ask: 'Could you spare 3 water for the Moon habitat recycler? We reuse every drop.', thanks: 'Recycler test complete. The beeps sound pleased.' },
+  3: { who: 'theo', need: { item: 'regolith' }, amount: 1, ask: 'Could you bring 1 lunar regolith sample? I want to inspect its grains under the microscope.', thanks: 'Fine grains! I have labeled this sample for our Moon study.' },
+  4: { who: 'rosa', need: { item: 'ice' }, amount: 1, ask: 'Please bring 1 ice from the marked lunar polar site for a purity check.', thanks: 'Sample logged. Polar ice is precious, so every test counts.' },
+  5: { who: 'theo', need: { crop: 'moon-pea' }, amount: 1, ask: 'May I have 1 pea from our greenhouse? I want to taste-test our game-grown Moon crop.', thanks: 'Sweet! Our habitat harvest passed the taste test.' },
+  6: { who: 'priya', need: { item: 'regolith' }, amount: 1, ask: 'Can you get me 1 more lunar regolith sample for an engineering test?', thanks: 'The equipment test is complete. Lunar dust is tricky stuff.' },
+  7: { who: 'rosa', need: { item: 'seed' }, amount: 2, ask: 'Could you spare 2 seeds for the Moon habitat emergency kit?', thanks: 'Emergency kit ready. I feel 4% calmer.' },
+  8: { who: 'theo', need: { crop: 'moon-potato' }, amount: 1, ask: 'Could I have 1 potato from our greenhouse to weigh this game-grown Moon harvest?', thanks: 'A fine habitat-grown potato. I have recorded its weight.' },
+  9: { who: 'priya', need: { item: 'water' }, amount: 2, ask: 'Last test: 2 water for the Moon habitat cooling loop.', thanks: 'Cooling loop ready. The greenhouse is comfortable.' },
+};
+
+export function requestsForWorld(worldId: WorldId = 'mars'): Record<number, CrewRequest> {
+  return worldId === 'moon' ? MOON_REQUESTS : REQUESTS;
+}
+
 /** Sols on which dust settles on a solar panel overnight (a game rule inspired by real Mars missions). */
 export const DUST_SOLS = [3, 6, 8];
 
 /** The title printed on the training certificate, earned from badges, lessons and finishing the mission. */
-export function astronautTitle(badges: number, lessonsRight: number, completed: boolean): { title: string; points: number } {
+export function astronautTitle(badges: number, lessonsRight: number, completed: boolean, worldId: WorldId = 'mars'): { title: string; points: number } {
   const points = badges + lessonsRight + (completed ? 3 : 0);
-  const title = points >= 22 ? 'Mars Mission Commander'
+  const commander = worldId === 'moon' ? 'Moon Mission Commander' : 'Mars Mission Commander';
+  const title = points >= 22 ? commander
     : points >= 16 ? 'Mission Specialist'
       : points >= 10 ? 'Flight Engineer'
         : 'Astronaut Cadet';

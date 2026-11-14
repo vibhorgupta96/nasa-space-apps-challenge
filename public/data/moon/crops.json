@@ -1,0 +1,58 @@
+{
+  "fetched": "2026-11-14",
+  "mock": false,
+  "source": [
+    "https://www.nasa.gov/exploration-research-and-technology/growing-plants-in-space/",
+    "https://www.nasa.gov/humans-in-space/scientists-grow-plants-in-lunar-soil/"
+  ],
+  "note": "Crop choice and growth values are simulated; no claim of lunar food farming.",
+  "crops": [
+    {
+      "id": "moon-wheat",
+      "name": "Dwarf Wheat",
+      "growSols": 3,
+      "food": 18,
+      "color": "#d6b45c",
+      "fact": "NASA studies how to grow plants in protected space gardens.",
+      "factSource": "https://www.nasa.gov/exploration-research-and-technology/growing-plants-in-space/"
+    },
+    {
+      "id": "moon-potato",
+      "name": "Potato",
+      "growSols": 4,
+      "food": 26,
+      "color": "#b28a5e",
+      "fact": "NASA studies how to grow plants in protected space gardens.",
+      "factSource": "https://www.nasa.gov/exploration-research-and-technology/growing-plants-in-space/"
+    },
+    {
+      "id": "moon-tomato",
+      "name": "Dwarf Tomato",
+      "growSols": 5,
+      "food": 32,
+      "color": "#dd5645",
+      "fact": "NASA studies how to grow plants in protected space gardens.",
+      "factSource": "https://www.nasa.gov/exploration-research-and-technology/growing-plants-in-space/",
+      "waterPerDay": 2
+    },
+    {
+      "id": "moon-pea",
+      "name": "Pea",
+      "growSols": 3,
+      "food": 15,
+      "color": "#74bf75",
+      "fact": "NASA studies how to grow plants in protected space gardens.",
+      "factSource": "https://www.nasa.gov/exploration-research-and-technology/growing-plants-in-space/",
+      "oxygenPerDay": 4
+    },
+    {
+      "id": "moon-arabidopsis",
+      "name": "Arabidopsis",
+      "growSols": 3,
+      "food": 0,
+      "color": "#e8dce4",
+      "fact": "Researchers grew Arabidopsis in samples of lunar regolith on Earth.",
+      "factSource": "https://www.nasa.gov/humans-in-space/scientists-grow-plants-in-lunar-soil/"
+    }
+  ]
+}

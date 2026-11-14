@@ -1,0 +1,81 @@
+{
+  "fetched": "2026-11-14",
+  "mock": false,
+  "source": [
+    "https://science.nasa.gov/moon/facts/",
+    "https://www.nasa.gov/general/is-there-weather-on-the-moon-we-asked-a-nasa-scientist-episode-34/"
+  ],
+  "note": "Illustrative simulated surface temperatures, not measurements; light/dark cycle compressed for play.",
+  "sols": [
+    {
+      "marsSol": 1,
+      "earthDate": "",
+      "minC": 100,
+      "maxC": 100,
+      "windAvg": null
+    },
+    {
+      "marsSol": 2,
+      "earthDate": "",
+      "minC": 100,
+      "maxC": 100,
+      "windAvg": null
+    },
+    {
+      "marsSol": 3,
+      "earthDate": "",
+      "minC": 100,
+      "maxC": 100,
+      "windAvg": null
+    },
+    {
+      "marsSol": 4,
+      "earthDate": "",
+      "minC": -150,
+      "maxC": -150,
+      "windAvg": null
+    },
+    {
+      "marsSol": 5,
+      "earthDate": "",
+      "minC": -150,
+      "maxC": -150,
+      "windAvg": null
+    },
+    {
+      "marsSol": 6,
+      "earthDate": "",
+      "minC": -150,
+      "maxC": -150,
+      "windAvg": null
+    },
+    {
+      "marsSol": 7,
+      "earthDate": "",
+      "minC": -150,
+      "maxC": -150,
+      "windAvg": null
+    },
+    {
+      "marsSol": 8,
+      "earthDate": "",
+      "minC": 100,
+      "maxC": 100,
+      "windAvg": null
+    },
+    {
+      "marsSol": 9,
+      "earthDate": "",
+      "minC": 100,
+      "maxC": 100,
+      "windAvg": null
+    },
+    {
+      "marsSol": 10,
+      "earthDate": "",
+      "minC": 100,
+      "maxC": 100,
+      "windAvg": null
+    }
+  ]
+}
