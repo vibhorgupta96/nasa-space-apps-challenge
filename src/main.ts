@@ -21,5 +21,9 @@ const game = new Phaser.Game({
   scene: [BootScene, TitleScene, FarmScene, RoverScene, DebriefScene, UIScene],
 });
 
-// Handy for debugging in the browser console during development.
-if (import.meta.env.DEV) Object.assign(window, { game, store });
+// Handy for debugging in the browser console during development. `await selftest()` runs the
+// PLAN.md section 6 play checks against a throwaway store.
+if (import.meta.env.DEV) {
+  const selftest = () => import('./core/selftest').then((m) => m.runSelfTest());
+  Object.assign(window, { game, store, selftest });
+}
