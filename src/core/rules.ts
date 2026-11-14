@@ -16,6 +16,7 @@ export const RULES = {
   stormWarningSols: 2,
   roverMsPerTile: 4_000, // advances on the same active clock
   roverCostPerTile: 0.1, // multiplied by terrain cost 1–3
+  roverRockCostExtra: 0, // additional game battery cost on rocky ground
   growLightsPlotsPerCell: 4, // lowest-numbered eligible plots receive light first
   airLossPerSol: 10,
   airPerHealthyLitCrop: 3,
