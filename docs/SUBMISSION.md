@@ -42,7 +42,7 @@ See [`docs/AI_USAGE.md`](AI_USAGE.md) and [`docs/AI_USAGE.json`](AI_USAGE.json).
 
 ## Demo deck and optional video storyboard
 
-The current demo alternative is a seven-slide illustrated presentation, not gameplay footage: [`public/demo.pdf`](../public/demo.pdf) and [`public/demo.pptx`](../public/demo.pptx). It uses NASA rover images with slide credits and is visibly marked as AI-assisted. The PDF page count and links were checked, and its fresh render was visually inspected; official submission eligibility and hosted URLs remain unverified. If deployed, the expected URLs are `https://vibhorgupta96.github.io/nasa-space-apps-challenge/demo.pdf` and `https://vibhorgupta96.github.io/nasa-space-apps-challenge/demo.pptx`. See [Demo deck notes](DEMO.md). Browser gameplay recording remains unavailable in this environment.
+The current demo alternative is a seven-slide illustrated presentation, not gameplay footage: [`public/demo.pdf`](../public/demo.pdf) and [`public/demo.pptx`](../public/demo.pptx). It uses NASA rover images with slide credits and is visibly marked as AI-assisted. The PDF page count and links were checked, and its fresh render was visually inspected. The deployed PDF and PPTX URLs both returned HTTP 200 and matched the reviewed local files by SHA-256. The URLs are [PDF](https://vibhorgupta96.github.io/nasa-space-apps-challenge/demo.pdf) and [PPTX](https://vibhorgupta96.github.io/nasa-space-apps-challenge/demo.pptx). Official submission eligibility remains unverified. See [Demo deck notes](DEMO.md). Browser gameplay recording remains unavailable in this environment.
 
 Optional video target, if the team later records one: 30 seconds or less, with English captions. Record only after the team has verified controls and a storm warning. Use game capture and original project audio; include no minors.
 
@@ -62,12 +62,12 @@ This storyboard remains a proposal, not a recording or tested gameplay capture. 
 - Registered event: the public team record names the Universal Event. The project schedule, team-lead timezone, and actual submission cutoff still need confirmation in the official event account.
 - Roster and eligibility: the public team record lists Muskan Bararia, Vibhor Gupta, and Shresth Sahai. Confirm the Members tab and each person's registration/eligibility before submission.
 - Team page: [Space Force](https://www.spaceappschallenge.org/2026/find-a-team/space-force4/). Its public project record currently says **Project Space Force**; this draft proposes **Sol Sprouts**. The other required project fields are empty.
-- Demo deck: the seven-slide PDF/PPTX artifacts exist in the repository; verify artifact rendering and event eligibility. Their expected GitHub Pages URLs are listed above but are not yet live-checked.
+- Demo deck: the seven-slide PDF/PPTX artifacts are deployed and their hosted bytes match the reviewed local files. Confirm that the event accepts a deck in place of gameplay footage.
 - Public gameplay video: not recorded.
-- Deployed final-project URL: not configured or verified yet. The repository URL alone is not a running game link.
+- Deployed final-project URL: [Sol Sprouts](https://vibhorgupta96.github.io/nasa-space-apps-challenge/) returned HTTP 200; the production JavaScript asset also returned HTTP 200. This does not establish interactive browser behavior.
 - Human-reviewed AI/SI answers, references, team originality and terms confirmations: not complete.
 - Submitted version, submission time, and confirmation: none recorded; submit and verify in the event form after all edits.
 
-The public team record previously reported the Universal Event and an unsubmitted project with no saved time. The Pages workflow is configured but its production URL is unverified until an Actions deployment succeeds. This status is a snapshot, not evidence of a later save, deployment, or submission. [`docs/SUBMISSION_STATUS.json`](SUBMISSION_STATUS.json) records the observed state and must be refreshed from the official pages after any save, deploy, or submit action.
+The public team record previously reported the Universal Event and an unsubmitted project with no saved time. GitHub Pages deployment succeeded for revision `fee644e4c44a440c4f80ab27e9fd55511a17e9c8`; the game and both deck URLs returned HTTP 200, and the hosted deck files matched the reviewed local files by SHA-256. This does not change the event form: no project submission or acceptance is claimed. [`docs/SUBMISSION_STATUS.json`](SUBMISSION_STATUS.json) records the checked status and must be refreshed after any save, deploy, or submit action.
 
 See the [2026 Project Submission Guide](https://www.spaceappschallenge.org/resources/project-submission-guide/) and [2026 Judging & Awards Guide](https://www.spaceappschallenge.org/resources/judging-awards-guide/) for the registered event's current instructions. Source URLs and tool/license references are collected in [References](REFERENCES.md).

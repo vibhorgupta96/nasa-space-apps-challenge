@@ -23,18 +23,24 @@
     "artifacts": ["public/demo.pdf", "public/demo.pptx"],
     "type": "illustrated_ai_assisted_deck_not_gameplay_footage",
     "slides": 7,
-    "url": null,
+    "url": "https://vibhorgupta96.github.io/nasa-space-apps-challenge/demo.pdf",
+    "publicUrlsVerified": true,
+    "verifiedUrls": [
+      "https://vibhorgupta96.github.io/nasa-space-apps-challenge/demo.pdf",
+      "https://vibhorgupta96.github.io/nasa-space-apps-challenge/demo.pptx"
+    ],
     "expectedUrls": [
       "https://vibhorgupta96.github.io/nasa-space-apps-challenge/demo.pdf",
       "https://vibhorgupta96.github.io/nasa-space-apps-challenge/demo.pptx"
     ],
-    "videoLimitSeconds": 30,
-    "publicUrlsVerified": false
+    "videoLimitSeconds": 30
   },
   "deployment": {
     "workflow": "configured",
-    "publicationVerified": false,
-    "url": null
+    "publicationVerified": true,
+    "url": "https://vibhorgupta96.github.io/nasa-space-apps-challenge/",
+    "verifiedImplementationRevision": "fee644e4c44a440c4f80ab27e9fd55511a17e9c8",
+    "workflowRunUrl": "https://github.com/vibhorgupta96/nasa-space-apps-challenge/actions/runs/43575325635"
   },
   "submittedRevision": null
 }

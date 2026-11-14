@@ -67,4 +67,4 @@ Open the in-game **NASA data we used** screen for the sources included in the ga
 
 ## Deployment
 
-The GitHub Pages workflow publishes the production build from `main` and `codex/person-c-completion`. A published URL is not recorded until the deployment has succeeded; check [docs/SUBMISSION_STATUS.json](docs/SUBMISSION_STATUS.json) before sharing a final-project link.
+The reviewed build is live at [Sol Sprouts](https://vibhorgupta96.github.io/nasa-space-apps-challenge/). The seven-slide demo deck is available as [PDF](https://vibhorgupta96.github.io/nasa-space-apps-challenge/demo.pdf) and [PPTX](https://vibhorgupta96.github.io/nasa-space-apps-challenge/demo.pptx). GitHub Actions deployed revision `fee644e4c44a440c4f80ab27e9fd55511a17e9c8`; the workflow also publishes pushes to `main` and `codex/person-c-completion`. See [validation evidence](docs/VALIDATION.md) and [submission status](docs/SUBMISSION_STATUS.json).
