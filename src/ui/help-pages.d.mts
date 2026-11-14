@@ -3,4 +3,4 @@ export interface HelpPage {
   lines: string[];
 }
 
-export function createHelpPages(cellsPerSol: number, heaterNeededBelowC: number): HelpPage[];
+export function createHelpPages(cellsPerSol: number, heaterNeededBelowC: number, worldId?: 'mars' | 'moon'): HelpPage[];

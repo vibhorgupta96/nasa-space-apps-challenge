@@ -1,5 +1,33 @@
-/** The three short how-to screens shown from Help and during the first-sol tutorial. */
-export function createHelpPages(cellsPerSol, heaterNeededBelowC) {
+/** The three short how-to screens shown from Help and during the first-day tutorial. */
+export function createHelpPages(cellsPerSol, heaterNeededBelowC, worldId = 'mars') {
+  if (worldId === 'moon') {
+    return [
+      {
+        title: '1 · Plant and care for crops',
+        lines: [
+          'Move with the arrow keys or WASD. Hold SHIFT for a short Moon-hop.',
+          'Keys 1–5 choose lunar greenhouse seeds. SPACE plants; key 6 waters; key 7 harvests or clears.',
+          'Tomatoes need extra water. Peas make extra air. The Arabidopsis experiment adds no food.',
+        ],
+      },
+      {
+        title: '2 · Plan for light and dark',
+        lines: [
+          `${cellsPerSol} power cells are available today. The compressed bright and dark stretches have different budgets.`,
+          'Thermal control cools in daylight and warms the greenhouse during the dark stretch.',
+          'Dust from a rover return reduces tomorrow’s power. Clean the rover at the airlock.',
+        ],
+      },
+      {
+        title: '3 · Watch lunar hazards',
+        lines: [
+          'Press TAB for the lunar hazard board. Radiation timing and effects in the game are simulated.',
+          'Shelter cells plus shield layers must reach a hazard’s simulated strength.',
+          'Use the rover map to find ice and samples, and plan a route back to the dome.',
+        ],
+      },
+    ];
+  }
   return [
     {
       title: '1 · Plant and care for crops',

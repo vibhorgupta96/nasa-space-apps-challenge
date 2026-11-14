@@ -1,0 +1,41 @@
+{
+  "fetched": "2026-11-14",
+  "mock": false,
+  "source": [
+    "https://science.nasa.gov/moon/facts/",
+    "https://www.nasa.gov/humans-in-space/scientists-grow-plants-in-lunar-soil/",
+    "https://www.nasa.gov/exploration-research-and-technology/growing-plants-in-space/"
+  ],
+  "facts": [
+    {
+      "id": "moon-gravity",
+      "activity": "sol",
+      "text": "Gravity on the Moon is about one-sixth of Earth's.",
+      "source": "https://science.nasa.gov/moon/facts/"
+    },
+    {
+      "id": "moon-temperature",
+      "activity": "sol",
+      "text": "The Moon's surface can be very hot in sunlight and very cold in darkness.",
+      "source": "https://science.nasa.gov/moon/facts/"
+    },
+    {
+      "id": "veg-garden",
+      "activity": "plant",
+      "text": "Researchers have grown Arabidopsis in small samples of lunar regolith on Earth.",
+      "source": "https://www.nasa.gov/humans-in-space/scientists-grow-plants-in-lunar-soil/"
+    },
+    {
+      "id": "veg-water",
+      "activity": "water",
+      "text": "Space-grown plants need water, nutrients and a protected growing environment.",
+      "source": "https://www.nasa.gov/exploration-research-and-technology/growing-plants-in-space/"
+    },
+    {
+      "id": "plant-oxygen",
+      "activity": "dialogue",
+      "text": "Plants use light during photosynthesis and release oxygen.",
+      "source": "https://www.nasa.gov/missions/station/ways-the-international-space-station-helps-us-study-plant-growth-in-space/"
+    }
+  ]
+}

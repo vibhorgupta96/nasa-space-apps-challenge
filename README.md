@@ -1,6 +1,6 @@
 # Sol Sprouts
 
-A cozy pixel-art farming game for kids aged 7–12. Keep a greenhouse dome alive through a 10-sol Mars mission by choosing how to spend power, caring for crops, and helping a rover explore. NASA data supplies the historical science context; storm strength, effects, crop yields, and game time are simulations. Built for **NASA Space Apps 2026: Build a Junior Astronaut Mission Trainer**.
+A cozy pixel-art farming game for kids aged 7–12. Choose Mars or the Moon, keep its greenhouse alive through a 10-day mission, then travel to the other world for the campaign finale. NASA data supplies the historical science context; weather hazards, power cycles, crop yields, rover terrain, and game time are simulations. Built for **NASA Space Apps 2026: Build a Junior Astronaut Mission Trainer**.
 
 The team plan is in [PLAN.md](PLAN.md).
 
@@ -20,9 +20,9 @@ npm run fetch-data       # DONKI storms, InSight weather, Horizons delay, NASA i
 npm run build-terrain    # Mars Trek map tiles (macOS: uses the built-in `sips`)
 ```
 
-Every file in `public/data/` records `source`, `fetched` and `mock`. While any loaded file is `"mock": true`, the game shows a yellow **MOCK DATA** badge.
+Every file in `public/data/` records `source`, `fetched` and `mock`. When a data file for the current world is `"mock": true`, the game shows a yellow **MOCK DATA** badge.
 
-> **Current data status:** Check each data file's own `mock` field before describing it as fetched. The game displays a **MOCK DATA** badge if any loaded dataset still has `mock: true`.
+> **Current data status:** Check each data file's own `mock` field before describing it as fetched. The game displays a **MOCK DATA** badge if a dataset for the current world has `mock: true`.
 
 See [docs/DATA_PIPELINE.md](docs/DATA_PIPELINE.md) for source details, [docs/REFERENCES.md](docs/REFERENCES.md) for the deduplicated reference list, and [docs/SUBMISSION.md](docs/SUBMISSION.md) for the project-page draft and demo materials. The [Space Force team page](https://www.spaceappschallenge.org/2026/find-a-team/space-force4/) lists the Universal Event. Other project fields were empty when checked; the game has not been submitted. See [submission status](docs/SUBMISSION_STATUS.json) before sharing links.
 
@@ -30,9 +30,13 @@ See [docs/DATA_PIPELINE.md](docs/DATA_PIPELINE.md) for source details, [docs/REF
 
 - **Move:** arrows or WASD. **Act:** SPACE, or click a nearby square.
 - **Tools:** 1–5 seeds · 6 watering can · 7 hand (harvest, or clear a wilted plant).
-- **Each morning:** split 6 power cells between grow lights, heater, storm shelter and rover battery.
+- **Each morning:** split power cells between grow lights, thermal control, storm shelter and rover battery. Mars has 6 cells; Moon has 8 in light and 6 in darkness, less any dust.
 - **Rover:** go through the airlock (the door at the top). Click the map to plan a route, press 🏠 Return, then Send Bolt.
+- **Kitchen:** harvests go to the pantry; cook recipes for the current world or eat crops raw.
 - **Shortcuts:** TAB storm board · H help · P photo album · ESC closes panels.
+- **Moon:** hold SHIFT for a short low-gravity hop. Clean rover dust at the airlock to restore tomorrow’s power budget. Moon crops are greenhouse experiments; the lunar terrain and discoveries are illustrated game simulations.
+
+Choose the order of the two missions at the start of a new campaign. Mars uses archived InSight weather and real historical solar-event records; the Moon mission compresses long bright and dark stretches into ten short game days and uses simulated radiation scenarios. Completing the first mission opens travel to the other world. A rescue lets you retry the current mission.
 
 ## What's real, what's simulated
 
@@ -46,6 +50,7 @@ See [docs/DATA_PIPELINE.md](docs/DATA_PIPELINE.md) for source details, [docs/REF
 | Rough-ground driving cost | MOLA shaded relief brightness | Game abstraction |
 | Crop facts | Linked NASA Veggie, Advanced Plant Habitat, and crop articles | Source-backed summaries. Growth times and food values are game balance |
 | Fun-fact cards, photo album | NASA/JPL Photojournal, Image Library | **Real** |
+| Moon gravity, no-wind/no-rain environment, lunar regolith research | NASA Moon facts and lunar plant experiments | **Real facts**; the short hop, lunar greenhouse crops and their yields are game simulations |
 
 ## Code map
 

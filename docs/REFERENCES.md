@@ -1,6 +1,6 @@
 # References
 
-This page lists the deduplicated external URLs present in the eight checked-in JSON datasets under `public/data/`, using the same source-link collector as the in-game credits screen. Query parameters are preserved when they identify a source/search; the collector removes credential-like parameters. NASA photo and map credits remain attached to their individual records/assets. Listing a source is not a blanket license or permission grant: follow the source's own credit and reuse terms.
+This page lists the deduplicated external URLs present in the checked-in JSON datasets under `public/data/` and `public/data/moon/`, using the same source-link collector as the in-game credits screen. Query parameters are preserved when they identify a source/search; the collector removes credential-like parameters. NASA photo and map credits remain attached to their individual records/assets. Listing a source is not a blanket license or permission grant: follow the source's own credit and reuse terms. Moon terrain art and lunar mission events are game simulations, not NASA map or lunar weather records.
 
 ## api.nasa.gov
 
@@ -58,6 +58,15 @@ This page lists the deduplicated external URLs present in the eight checked-in J
 
 - <https://science.nasa.gov/biological-physical/investigations/apex-9/>
 - <https://science.nasa.gov/resource/curiositys-three-frame-mosaic-of-clouds/>
+- <https://science.nasa.gov/moon/facts/>
+- <https://science.nasa.gov/moon/weather-on-the-moon/>
+- <https://science.nasa.gov/biological-physical/earth-soil-vs-lunar-regolith-whats-the-difference/>
+- <https://science.nasa.gov/lunar-science/focus-areas/biological-systems/>
+
+## www.nasa.gov
+
+- <https://www.nasa.gov/general/is-there-weather-on-the-moon-we-asked-a-nasa-scientist-episode-34/>
+- <https://www.nasa.gov/humans-in-space/scientists-grow-plants-in-lunar-soil/>
 
 ## ssd.jpl.nasa.gov
 

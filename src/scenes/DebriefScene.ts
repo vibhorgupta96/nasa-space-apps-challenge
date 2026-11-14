@@ -1,64 +1,86 @@
 import Phaser from 'phaser';
 import { store } from '../core/store';
-import { RULES } from '../core/rules';
-import { getData } from '../data/loaders';
 import { EGGS } from '../story/script';
 import { C, H, W, button, panel, text } from '../ui/theme';
 import { showCredits } from '../ui/credits';
-import { startMission } from './TitleScene';
+import { launchInitializedMission } from './TitleScene';
 
-// End of a mission: what happened, which real NASA events inspired the storms, and replay.
+/** A terminal mission screen remains resumable until the player chooses what comes next. */
 export class DebriefScene extends Phaser.Scene {
-  constructor() {
-    super('Debrief');
-  }
+  constructor() { super('Debrief'); }
 
   create() {
     const s = store.state;
     const m = store.meta;
     const win = s.phase === 'debrief';
+    const world = store.world;
+    const worldName = world.name;
+    const completedCampaign = store.campaignComplete;
     this.cameras.main.setBackgroundColor(win ? '#132a2a' : '#2a1a1a');
     panel(this, 60, 30, W - 120, H - 60);
-    text(this, W / 2, 50, win ? '🚀 Mission complete!' : '🛟 Rescue mission', 40, C.goldText, { fontStyle: 'bold' }).setOrigin(0.5, 0);
-    text(this, W / 2, 104,
-      win ? `Everyone made it through ${RULES.missionSols} sols. The supply ship has landed.` : `The crew was rescued on sol ${s.sol}. Nobody failed: every mission teaches something.`,
-      22, C.text).setOrigin(0.5, 0);
+    text(this, W / 2, 50, completedCampaign ? '🌟 Campaign complete!' : win ? `🚀 ${worldName} mission complete!` : '🛟 Rescue mission', 38, C.goldText, { fontStyle: 'bold' }).setOrigin(0.5, 0);
+    const summary = completedCampaign
+      ? 'You kept both greenhouses alive. What a journey!'
+      : win
+        ? `Everyone made it through 10 ${world.dayLabel.toLowerCase()}s. Your next world is ready.`
+        : `The crew was rescued on ${world.dayLabel.toLowerCase()} ${s.sol}. Nobody failed: every mission teaches something.`;
+    text(this, W / 2, 100, summary, 20, C.text).setOrigin(0.5, 0);
 
     const harvests = Object.values(m.harvests).reduce((a, b) => a + b, 0);
     const stats = [
       `🥕 Harvests: ${harvests}`,
-      `☀️ Storms: ${m.stormsSurvived} safe, ${m.stormsTaken} rough`,
+      `☀ Hazards: ${m.stormsSurvived} safe, ${m.stormsTaken} rough`,
       `🚙 Rover trips: ${m.trips}`,
       `🍲 Meals cooked: ${m.mealsCooked}`,
       `📷 Photos earned: ${m.photosEarned.length}`,
       `🫁 Final air ${Math.round(s.air)} · food ${Math.round(s.food)}`,
       `⭐ Secrets: ${m.eggs.length}/${EGGS.total}`,
     ];
-    stats.forEach((t, i) => text(this, 110 + (i % 3) * 360, 156 + Math.floor(i / 3) * 36, t, 20, C.text));
+    stats.forEach((item, i) => text(this, 110 + (i % 3) * 360, 148 + Math.floor(i / 3) * 34, item, 19, C.text));
 
-    text(this, 110, 268, 'The real NASA events behind your storms', 24, C.teal, { fontStyle: 'bold' });
-    const week = store.week();
+    const heading = s.worldId === 'moon' ? 'The lunar environment in this simulation' : 'The real NASA events behind the Mars scenario';
+    text(this, 110, 268, heading, 21, C.teal, { fontStyle: 'bold' });
     let y = 306;
-    for (const e of week.events) {
-      const date = new Date(e.realTime).toUTCString().replace(' GMT', ' UTC').slice(5);
-      const kind = e.type === 'CME' ? 'Coronal mass ejection' : e.type === 'SEP' ? 'Solar energetic particle event' : e.type === 'GST' ? 'Geomagnetic storm at Earth' : e.type;
-      const line = text(this, 110, y, `• ${kind}, recorded ${date} -> game sol ${e.scenario.gameSol}, simulated strength ${e.scenario.strength}   »`, 18, C.text).setInteractive({ useHandCursor: true });
-      line.on('pointerdown', () => window.open(e.link, '_blank', 'noopener'));
-      y += 34;
+    if (s.worldId === 'moon') {
+      text(this, 110, y, 'Moon surface has no wind or rain. Light and dark stretches, radiation timing, temperature effects, dust and map finds are game simulations.', 16, C.text, { wordWrap: { width: W - 220 } });
+      y += 54;
+      text(this, 110, y, 'The lunar day-night rhythm is compressed for play; greenhouse conditions are not surface temperatures.', 15, C.dim, { wordWrap: { width: W - 220 } });
+      y += 36;
+    } else {
+      const week = store.week();
+      for (const event of week.events.slice(0, 4)) {
+        const date = new Date(event.realTime).toUTCString().replace(' GMT', ' UTC').slice(5);
+        const kind = event.type === 'CME' ? 'Coronal mass ejection' : event.type === 'SEP' ? 'Solar energetic particle event' : event.type === 'GST' ? 'Geomagnetic storm at Earth' : event.type;
+        const row = text(this, 110, y, `• ${kind}, recorded ${date} → game sol ${event.scenario.gameSol}, simulated strength ${event.scenario.strength}  ↗`, 16, C.text).setInteractive({ useHandCursor: true });
+        row.on('pointerdown', () => window.open(event.link, '_blank', 'noopener'));
+        y += 28;
+      }
+      if (week.earthContext.length) {
+        const kp = Math.max(...week.earthContext.map((event) => event.maxKp));
+        text(this, 110, y, `On Earth, the same week brought geomagnetic storms up to Kp ${kp} (NASA DONKI records).`, 15, C.dim, { wordWrap: { width: W - 220 } });
+        y += 32;
+      }
+      text(this, 110, y, 'Real: Mars event records and dates. Simulated: outpost timing, strength and effects.', 15, C.sim);
+      y += 25;
     }
-    if (week.earthContext.length) {
-      const kp = Math.max(...week.earthContext.map((g) => g.maxKp));
-      text(this, 110, y + 4, `On Earth, the same week brought geomagnetic storms up to Kp ${kp} (NASA DONKI GST records).`, 16, C.dim);
-      y += 30;
-    }
-    text(this, 110, y + 10,
-      'Real: the dates, event types and records. Simulated: their strength, when they reached our outpost, and what they did to it.',
-      16, C.sim, { wordWrap: { width: W - 220 } });
 
-    this.add.existing(button(this, W / 2 - 230, H - 90, 'Play again', () => startMission(this, true), 260, 56, 0xffd166));
-    this.add.existing(button(this, W / 2 + 60, H - 90, 'NASA data we used', () => showCredits(this), 280, 56, C.frame));
-    this.add.existing(button(this, W / 2 + 300, H - 90, 'Title', () => this.scene.start('Title'), 160, 56, 0x9aa3b0));
-    store.clearSave();
-    void getData;
+    const primaryY = H - 94;
+    if (!win) {
+      this.add.existing(button(this, W / 2 - 150, primaryY, `Retry ${worldName}`, () => {
+        const result = store.retryMission();
+        if (result.ok) launchInitializedMission(this);
+      }, 260, 50, 0xffd166));
+    } else if (store.canTravel) {
+      const destination = store.campaign.order[store.campaign.currentIndex + 1];
+      const label = destination === 'moon' ? 'Travel to the Moon' : 'Travel to Mars';
+      this.add.existing(button(this, W / 2 - 150, primaryY, label, () => {
+        const result = store.travel();
+        if (result.ok) launchInitializedMission(this);
+      }, 300, 50, 0xffd166));
+    } else {
+      this.add.existing(button(this, W / 2 - 150, primaryY, 'New campaign', () => this.scene.start('Title'), 240, 50, 0xffd166));
+    }
+    this.add.existing(button(this, W / 2 + 170, primaryY, 'NASA data we used', () => showCredits(this), 260, 50, C.frame));
+    this.add.existing(button(this, W / 2 + 410, primaryY, 'Title', () => this.scene.start('Title'), 130, 50, 0x9aa3b0));
   }
 }

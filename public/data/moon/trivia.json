@@ -1,0 +1,17 @@
+{
+  "fetched": "2026-11-14",
+  "mock": false,
+  "source": "https://science.nasa.gov/moon/facts/",
+  "trivia": [
+    {
+      "id": "lunar-gravity",
+      "fact": "Gravity at the Moon's surface is about one-sixth of Earth's.",
+      "source": "https://science.nasa.gov/moon/facts/"
+    },
+    {
+      "id": "lunar-dust",
+      "fact": "Lunar regolith includes fine dust and rock fragments.",
+      "source": "https://science.nasa.gov/biological-physical/what-is-lunar-regolith/"
+    }
+  ]
+}

@@ -3,8 +3,29 @@ export type ItemId = 'water' | 'ice' | 'regolith' | 'seed' | 'parts' | 'sample';
 export type PowerSlot = 'growLights' | 'heater' | 'shelter' | 'rover';
 export type Phase = 'planning' | 'day' | 'rescue' | 'debrief';
 export type PlotCondition = 'healthy' | 'wilted';
+export type WorldId = 'mars' | 'moon';
+
+export interface MissionResult {
+  worldId: WorldId;
+  harvests: Record<string, number>;
+  stormsSurvived: number;
+  stormsTaken: number;
+  trips: number;
+  mealsCooked: number;
+  air: number;
+  food: number;
+}
+
+export interface Campaign {
+  order: [WorldId, WorldId];
+  currentIndex: 0 | 1;
+  completed: MissionResult[];
+}
 
 export interface GameState {
+  worldId: WorldId;
+  dustLevel: number;
+  dustCleanedSol: number | null;
   sol: number; // starts at 1; a successful mission ends after sol 10
   phase: Phase; // new mission: planning, sol 1
   missionElapsedMs: number; // new mission: 0; active simulation time only

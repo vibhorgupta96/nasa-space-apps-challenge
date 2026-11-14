@@ -3,10 +3,11 @@ import { store, type Result } from '../core/store';
 import { bus, EV } from '../core/events';
 import { sfx } from '../core/audio';
 import { loadAstronaut, PET_TRICKS, type PetKind } from '../farm/look';
-import { cropById, getData } from '../data/loaders';
+import { cropById } from '../data/loaders';
 import { cropStage } from '../farm/art';
-import { CHAT, EGGS, REACT, type Line } from '../story/script';
+import { adaptWorldLines, CHAT, EGGS, REACT, type Line } from '../story/script';
 import { TOOLS } from '../ui/UIScene';
+import { advanceHopClock, beginHop, moveSwept, type HopClock } from '../core/movement';
 
 // The greenhouse dome: walk around, farm the 12 plots, use machines, chat with the crew.
 
@@ -56,6 +57,10 @@ export class FarmScene extends Phaser.Scene {
   private unsub: (() => void)[] = [];
   /** Tap/click-to-walk target (for touch screens), and the tile to use on arrival. */
   private walkTarget: { x: number; y: number; tile: [number, number]; stuckMs: number } | null = null;
+  private hopClock: HopClock = { elapsedMs: null, cooldownMs: 0 };
+  private hopStart: { x: number; y: number } | null = null;
+  private hopDirection = { x: 0, y: 0 };
+  private hopShadow!: Phaser.GameObjects.Ellipse;
 
   constructor() {
     super('Farm');
@@ -73,29 +78,37 @@ export class FarmScene extends Phaser.Scene {
     this.counters = {};
     this.unsub = [];
     this.walkTarget = null;
+    this.hopClock = { elapsedMs: null, cooldownMs: 0 };
+    this.hopStart = null;
     this.buildMap();
     this.buildThings();
     this.buildCrew();
 
     this.player = this.add.sprite(12 * T + T / 2, 4 * T + T / 2, 'player-down-0').setDepth(5);
     this.buildPet();
+    this.hopShadow = this.add.ellipse(this.player.x, this.player.y + 12, 16, 6, 0x000000, 0.35).setDepth(4);
     this.cursor = this.add.rectangle(0, 0, T, T).setStrokeStyle(2, 0xffd166, 0.9).setDepth(4);
 
     const cam = this.cameras.main;
     cam.setZoom(2);
     cam.setBounds(0, -HUD_TOP_PAD, MAP_W * T, MAP_H * T + HUD_TOP_PAD + HUD_BOTTOM_PAD);
     cam.startFollow(this.player, true, 0.15, 0.15);
-    cam.setBackgroundColor('#8f3d22');
+    cam.setBackgroundColor(store.worldId === 'moon' ? '#555b64' : '#8f3d22');
     cam.fadeIn(300);
 
     const kb = this.input.keyboard!;
-    this.keys = kb.addKeys('UP,DOWN,LEFT,RIGHT,W,A,S,D,SPACE,E') as Record<string, Phaser.Input.Keyboard.Key>;
+    this.keys = kb.addKeys('UP,DOWN,LEFT,RIGHT,W,A,S,D,SPACE,E,SHIFT') as Record<string, Phaser.Input.Keyboard.Key>;
     kb.on('keydown-SPACE', () => this.act());
     kb.on('keydown-E', () => this.act());
+    kb.on('keydown-SHIFT', () => this.startHop());
+    const onHop = () => this.startHop();
+    bus.on('ui:hop', onHop);
+    this.unsub.push(() => bus.off('ui:hop', onHop));
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
       if (store.paused) return;
       const tx = Math.floor(p.worldX / T);
       const ty = Math.floor(p.worldY / T);
+      if (this.hopStart) return;
       if (this.inReach(tx, ty)) this.actOn(tx, ty);
       else this.walkTarget = { x: tx * T + T / 2, y: ty * T + T / 2, tile: [tx, ty], stuckMs: 0 };
     });
@@ -120,9 +133,9 @@ export class FarmScene extends Phaser.Scene {
         const wallBottom = y === MAP_H - 2 && x >= 1 && x <= MAP_W - 2;
         const wallSide = (x === 1 || x === MAP_W - 2) && y >= 1 && y <= MAP_H - 2;
         let key = 'floor';
-        if (outside) key = 'mars';
-        else if (wallSide) key = 'wall-side';
-        else if (wallTop || wallBottom) key = 'wall';
+        if (outside) key = store.worldId === 'moon' ? 'moon' : 'mars';
+        else if (wallSide) key = store.worldId === 'moon' ? 'moon-wall-side' : 'wall-side';
+        else if (wallTop || wallBottom) key = store.worldId === 'moon' ? 'moon-wall' : 'wall';
         else if (x >= 3 && x <= 11 && y >= 5 && y <= 11) key = 'mat';
         const img = this.add.image(x * T, y * T, key).setOrigin(0);
         if (wallBottom) img.setFlipY(true);
@@ -246,6 +259,8 @@ export class FarmScene extends Phaser.Scene {
     if (!s) return;
     this.movePlayer(delta);
     this.movePet(delta);
+    const ground = this.hopStart ?? this.player;
+    this.hopShadow.setPosition(ground.x, ground.y + 12).setScale(this.hopStart ? 0.65 : 1).setAlpha(this.hopStart ? 0.22 : 0.35);
     this.refreshPlots();
     this.bolt.setVisible(s.rover.status === 'home' || s.rover.status === 'repairing');
     const tree = store.meta.storySeen.find((x) => x.startsWith('mystery-planted@'));
@@ -255,10 +270,29 @@ export class FarmScene extends Phaser.Scene {
   }
 
   private movePlayer(delta: number) {
-    if (store.paused) {
+    if (store.paused || store.state.phase !== 'day') {
       this.player.stop();
+      this.cancelHop();
       return;
     }
+    if (this.hopStart) {
+      const clock = advanceHopClock(this.hopClock, delta, true);
+      this.hopClock = clock.clock;
+      const stepMs = clock.movedMs;
+      const amount = 110 * 1.6 * 0.25 * (stepMs / 250);
+      const moved = moveSwept(this.hopStart, {
+        x: this.hopDirection.x * amount,
+        y: this.hopDirection.y * amount,
+      }, (x, y) => this.blocked(x, y) || this.isPlot(Math.floor(x / T), Math.floor((y + 8) / T)), 4);
+      this.hopStart = moved;
+      if (clock.complete) this.cancelHop();
+      else {
+        const arc = Math.sin((Math.PI * (this.hopClock.elapsedMs ?? 0)) / 250) * 12;
+        this.player.setPosition(moved.x, moved.y - arc).setScale(1.12);
+      }
+      return;
+    }
+    this.hopClock = advanceHopClock(this.hopClock, delta, true).clock;
     const k = this.keys;
     let dx = 0;
     let dy = 0;
@@ -329,6 +363,33 @@ export class FarmScene extends Phaser.Scene {
     return this.things.some((t) => t.x === x && t.y === y);
   }
 
+  private startHop() {
+    if (!store.world.hopEnabled || store.paused || store.state.phase !== 'day' || this.hopStart) return;
+    const nextClock = beginHop(this.hopClock, true);
+    if (!nextClock) return;
+    let dx = 0;
+    let dy = 0;
+    if (this.keys.LEFT.isDown || this.keys.A.isDown) dx -= 1;
+    if (this.keys.RIGHT.isDown || this.keys.D.isDown) dx += 1;
+    if (this.keys.UP.isDown || this.keys.W.isDown) dy -= 1;
+    if (this.keys.DOWN.isDown || this.keys.S.isDown) dy += 1;
+    if (!dx && !dy) {
+      const facing: Record<Dir, [number, number]> = { down: [0, 1], up: [0, -1], left: [-1, 0], right: [1, 0] };
+      [dx, dy] = facing[this.facing];
+    }
+    const length = Math.hypot(dx, dy) || 1;
+    this.hopDirection = { x: dx / length, y: dy / length };
+    this.hopClock = nextClock;
+    this.hopStart = { x: this.player.x, y: this.player.y };
+  }
+
+  private cancelHop() {
+    if (this.hopStart && this.player?.active) this.player.setPosition(this.hopStart.x, this.hopStart.y);
+    this.hopStart = null;
+    this.hopClock = { ...this.hopClock, elapsedMs: null };
+    if (this.player?.active) this.player.setScale(1);
+  }
+
   private blocked(px: number, py: number) {
     // Small foot box so the player can slip between things.
     const pts = [[px - 9, py + 4], [px + 9, py + 4], [px - 9, py + 14], [px + 9, py + 14]];
@@ -346,7 +407,7 @@ export class FarmScene extends Phaser.Scene {
     const s = store.state;
     s.plots.forEach((p, i) => {
       this.plotTiles[i].setTexture(p.wateredToday ? 'plot-wet' : 'plot-dry');
-      const crop = cropById(p.cropId);
+      const crop = cropById(p.cropId, store.worldId);
       const img = this.plotCrops[i];
       if (!crop) {
         img.setVisible(false);
@@ -362,13 +423,13 @@ export class FarmScene extends Phaser.Scene {
   // ---------- actions ----------
 
   private act() {
-    if (store.paused) return;
+    if (store.paused || this.hopStart) return;
     const [x, y] = this.facingTile();
     this.actOn(x, y);
   }
 
   private say(lines: Line[]) {
-    bus.emit('ui:say', lines);
+    bus.emit('ui:say', adaptWorldLines(lines, store.worldId));
   }
 
   private hint(t: string) {
@@ -383,7 +444,7 @@ export class FarmScene extends Phaser.Scene {
   }
 
   private actOn(x: number, y: number) {
-    if (store.paused) return;
+    if (store.paused || this.hopStart) return;
     const s = store.state;
     const pi = this.plotIndex(x, y);
     if (pi >= 0) return this.usePlot(pi, x, y);
@@ -400,6 +461,12 @@ export class FarmScene extends Phaser.Scene {
     switch (thing.kind) {
       case 'door':
         if (s.phase !== 'day') return this.hint('Start the day first!');
+        if (store.worldId === 'moon' && s.dustLevel > 0 && s.dustCleanedSol !== s.sol) {
+          const clean = store.cleanDust();
+          if (clean.ok) return this.hint(`Airlock cleaned. Tomorrow's power budget returns to ${store.nextDayCells()} cells.`);
+          return this.report(clean);
+        }
+        this.cancelHop();
         this.cameras.main.fadeOut(200);
         this.time.delayedCall(220, () => {
           this.scene.sleep();
@@ -416,7 +483,7 @@ export class FarmScene extends Phaser.Scene {
         bus.emit('ui:open', 'kitchen');
         return;
       case 'console':
-        return this.say([{ who: 'priya', text: `Today's power: ${s.split.growLights} grow lights, ${s.split.heater} heater, ${s.split.shelter} shelter, ${s.split.rover} rover. The split is locked until tomorrow morning.` }]);
+        return this.say([{ who: 'priya', text: `Today's power: ${s.split.growLights} grow lights, ${s.split.heater} ${store.worldId === 'moon' ? 'thermal control' : 'heater'}, ${s.split.shelter} shelter, ${s.split.rover} rover. The split is locked until tomorrow morning.` }]);
       case 'melter':
         return this.report(store.convertIce(), () => {
           sfx('melter');
@@ -428,7 +495,7 @@ export class FarmScene extends Phaser.Scene {
           this.puff(x, y, 0xb5532f);
         });
       case 'tank':
-        return this.hint(`Water tank: ${s.inventory.water} water. Each plant drinks 1 per sol.`);
+        return this.hint(`Water tank: ${s.inventory.water} water. Plants need water when planted and while growing.`);
       case 'shelter':
         return this.hint(`Storm shelter. Today: ${s.split.shelter} cell(s) + ${s.shield} shield layer(s) of protection.`);
       case 'bed':
@@ -452,10 +519,10 @@ export class FarmScene extends Phaser.Scene {
     const s = store.state;
     const p = s.plots[pi];
     const tool = TOOLS[(this.registry.get('tool') as number) ?? 0];
-    const crop = cropById(p.cropId);
+    const crop = cropById(p.cropId, store.worldId);
     if (!crop) {
       if (!tool.startsWith('seed:')) return this.hint('Choose a seed with keys 1–5, then plant.');
-      const pick = getData().crops.crops[Number(tool.slice(5))];
+      const pick = store.data.crops.crops[Number(tool.slice(5))];
       return this.report(store.plant(pi, pick.id), () => {
         sfx('plant');
         this.puff(x, y, 0x9a6a45);
@@ -471,7 +538,7 @@ export class FarmScene extends Phaser.Scene {
       return this.report(store.harvest(pi), () => {
         sfx('harvest');
         this.puff(x, y, 0xfff3b0);
-        if (crop.food === 0 && !store.meta.storySeen.includes('zinnia')) {
+        if (store.worldId === 'mars' && crop.id === 'zinnia' && !store.meta.storySeen.includes('zinnia')) {
           store.meta.storySeen.push('zinnia');
           this.say([REACT.zinnia]);
         } else if (!store.meta.storySeen.includes('first-harvest')) {
@@ -486,7 +553,8 @@ export class FarmScene extends Phaser.Scene {
         this.puff(x, y, 0x5aa9e6);
       });
     }
-    return this.hint(`${crop.name}: ${p.growthSols}/${crop.growSols} sols of growth. Watered today.`);
+    const oxygen = crop.oxygenPerDay ?? 3;
+    return this.hint(`${crop.name}: ${p.growthSols}/${crop.growSols} ${store.world.dayLabel.toLowerCase()}s of growth · ${oxygen} air per day. Watered today.`);
   }
 
   private talk(name: string) {

@@ -3,6 +3,7 @@ import { makeCharacter } from '../farm/art';
 import { HAIRS, PANTS, SKINS, SUITS, loadAstronaut, saveAstronaut, type Astronaut, type PetKind } from '../farm/look';
 import { C, H, W, button, panel, text } from '../ui/theme';
 import { startMission } from './TitleScene';
+import type { WorldId } from '../core/types';
 
 const DIRS = ['down', 'right', 'up', 'left'] as const;
 const PET_LABELS: [PetKind, string][] = [['cat', 'Cat'], ['dog', 'Dog'], ['alien', 'Mars alien'], ['none', 'No pet']];
@@ -11,6 +12,7 @@ const PET_LABELS: [PetKind, string][] = [['cat', 'Cat'], ['dog', 'Dog'], ['alien
 export class CustomizeScene extends Phaser.Scene {
   private astro!: Astronaut;
   private fresh = true;
+  private worldId: WorldId = 'mars';
   private dir = 0;
   private preview!: Phaser.GameObjects.Sprite;
   private petPreview!: Phaser.GameObjects.Sprite;
@@ -20,8 +22,9 @@ export class CustomizeScene extends Phaser.Scene {
     super('Customize');
   }
 
-  init(data: { fresh?: boolean }) {
+  init(data: { fresh?: boolean; worldId?: WorldId }) {
     this.fresh = data.fresh ?? true;
+    this.worldId = data.worldId ?? 'mars';
   }
 
   create() {
@@ -55,7 +58,7 @@ export class CustomizeScene extends Phaser.Scene {
 
   private start() {
     saveAstronaut(this.astro);
-    startMission(this, this.fresh);
+    startMission(this, this.fresh, this.worldId);
   }
 
   private turn(by: number) {
