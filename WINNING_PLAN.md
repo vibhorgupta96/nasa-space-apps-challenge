@@ -63,7 +63,7 @@ Give every sol **one learning goal**, taught in three beats: **See it → Try it
 | Owner | Task |
 |---|---|
 | **C** | Write the 10 learning goals and 10 questions with NASA sources (`public/data/lessons.json`). Write the night-report question UI, the certificate, the city card, the teacher guide and the submission text that leads with learning. |
-| **A** | Store the lesson state (answers, badges, pre/post quiz score), write the journal lines, and add the sol-goal banner in the morning panel. |
+| **A** | ✅ Done on `a/farm`: lesson state (answers, badges, pre/post quiz score), journal lines, and the "Say it" question: the pet brings it once a sol and a right answer wins a Wiz Card plus a pet reward (players without a pet get it after the night report). The morning-panel lesson banner was removed because it cluttered the panel. The 10 lessons are in `src/core/training.ts`. C can reword them or move them into `public/data/lessons.json`. |
 | **B** | Rover lesson (sol 8) with a real rover photo, and a map label for the dome site and Gale/Jezero. |
 | **All** | Record the 30-second demo, test with 2–3 real kids if possible, and quote one sentence they said. |
 

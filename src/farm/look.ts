@@ -7,6 +7,8 @@ import type { HairStyle, Look } from './art';
 export type PetKind = 'cat' | 'dog' | 'alien' | 'none';
 
 export interface Astronaut extends Look {
+  /** The player's name, printed on the training certificate. */
+  name: string;
   kid: 'girl' | 'boy';
   hairStyle: HairStyle;
   pants: string;
@@ -18,7 +20,10 @@ export const HAIRS = ['#1f1a24', '#5b3a29', '#8a5a35', '#e0b44f', '#b0442c', '#d
 export const SUITS = ['#3fa7a0', '#5aa9e6', '#e05050', '#ffd166', '#f08fc0', '#6aa84f', '#8e6bbf', '#f4efe6'];
 export const PANTS = ['#3b3a4f', '#5a6b8a', '#6e5236', '#2f4f3f', '#8a3a4a'];
 
+export const NAME_MAX = 16;
+
 export const DEFAULT_ASTRONAUT: Astronaut = {
+  name: '',
   kid: 'boy', hairStyle: 'short', hair: '#5b3a29', skin: '#e8b48f', suit: '#3fa7a0', pants: '#3b3a4f', pet: 'none',
 };
 
