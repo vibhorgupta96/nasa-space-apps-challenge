@@ -6,6 +6,7 @@ import { ITEM_ICON } from '../ui/icons';
 import { getActiveFindsForSol } from '../rover/findsManager';
 import { getActiveStormWarnings } from '../rover/stormMonitor';
 import { evaluateRoute } from '../rover/routePlanner';
+import { lunarDrivePose } from '../rover/drivingFeel';
 import { setScrollFactorTree } from '../ui/screen-space';
 
 // Rover map: NASA Mars imagery or an original lunar terrain illustration. Plan a route like a real
@@ -293,7 +294,19 @@ export class RoverScene extends Phaser.Scene {
     for (const [id, c] of this.findIcons) c.setVisible(!r.collectedFindIds.includes(id));
 
     const pos = store.roverPosition();
-    this.rover.setPosition(pos.x * cell + cell / 2, pos.y * cell + cell / 2);
+    let visualX = pos.x;
+    let visualY = pos.y;
+    let bounce = 0;
+    const from = r.route[r.nextRouteIndex - 1];
+    const to = r.route[r.nextRouteIndex];
+    if (store.worldId === 'moon' && r.status === 'out' && from && to && pos.moving) {
+      const progress = Math.abs(pos.x - from[0]) + Math.abs(pos.y - from[1]);
+      const pose = lunarDrivePose(progress, t.cost[to[1]]?.[to[0]] ?? 1);
+      visualX = from[0] + (to[0] - from[0]) * pose.progress;
+      visualY = from[1] + (to[1] - from[1]) * pose.progress;
+      bounce = pose.bounce;
+    }
+    this.rover.setPosition(visualX * cell + cell / 2, visualY * cell + cell / 2 - bounce);
     this.rover.setVisible(r.status !== 'repairing');
     if (r.status === 'out' && r.route[r.nextRouteIndex]) {
       const a = r.route[r.nextRouteIndex - 1];
