@@ -1,0 +1,8 @@
+{
+  "date": "2026-11-14",
+  "distanceKm": 225000000,
+  "oneWayMinutes": 12.5,
+  "source": "https://ssd.jpl.nasa.gov/api/horizons.api",
+  "fetched": "2026-11-14",
+  "mock": true
+}

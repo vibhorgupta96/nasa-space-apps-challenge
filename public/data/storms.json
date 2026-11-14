@@ -1,0 +1,43 @@
+{
+  "source": [
+    "https://api.nasa.gov/DONKI/CME",
+    "https://api.nasa.gov/DONKI/SEP",
+    "https://api.nasa.gov/DONKI/GST",
+    "https://ccmc.gsfc.nasa.gov/tools/DONKI/",
+    "https://ccmc.gsfc.nasa.gov/DONKI/guide/data-reference/"
+  ],
+  "fetched": "2026-11-14",
+  "mock": true,
+  "weeks": [
+    {
+      "id": "mock-week-2024-05",
+      "label": "MOCK May 2024 scenario week",
+      "events": [
+        {
+          "id": "mock-cme-2024-05-08-a",
+          "type": "CME",
+          "realTime": "2024-05-08T05:36:00Z",
+          "link": "https://api.nasa.gov/DONKI/CME",
+          "observedTarget": "unknown",
+          "scenario": { "strength": 3, "gameSol": 3, "hitOffsetMs": 60000, "warningSols": 2, "label": "MOCK simulated Mars-outpost effect" }
+        },
+        {
+          "id": "mock-sep-2024-05-10-b",
+          "type": "SEP",
+          "realTime": "2024-05-10T12:00:00Z",
+          "link": "https://api.nasa.gov/DONKI/SEP",
+          "observedTarget": "unknown",
+          "scenario": { "strength": 2, "gameSol": 6, "hitOffsetMs": 60000, "warningSols": 2, "label": "MOCK simulated Mars-outpost effect" }
+        },
+        {
+          "id": "mock-gst-2024-05-14-c",
+          "type": "GST",
+          "realTime": "2024-05-14T00:00:00Z",
+          "link": "https://api.nasa.gov/DONKI/GST",
+          "observedTarget": "unknown",
+          "scenario": { "strength": 1, "gameSol": 9, "hitOffsetMs": 60000, "warningSols": 2, "label": "MOCK simulated Earth-context event; game effect only" }
+        }
+      ]
+    }
+  ]
+}

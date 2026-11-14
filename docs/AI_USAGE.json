@@ -1,0 +1,29 @@
+{
+  "status": "working-draft",
+  "solutionIdeaOrigin": "unknown; confirm with the team before submission",
+  "tools": [
+    {
+      "name": "OpenAI Codex",
+      "models": ["GPT-6.1 Sol", "GPT-6 Luna"],
+      "role": "Sol orchestrated the task; Luna generated synthetic mock data fixtures and draft documentation.",
+      "affectedFiles": [
+        "public/data/storms.json",
+        "public/data/weather.json",
+        "public/data/crops.json",
+        "public/data/delay.json",
+        "public/data/photos.json",
+        "docs/INITIAL_DATA.md",
+        "docs/AI_USAGE.md",
+        "docs/AI_USAGE.json"
+      ],
+      "mediaType": ["data", "text"],
+      "humanEdits": "unknown; update with actual human edits and review before submission",
+      "disclosureLocation": ["docs/AI_USAGE.md", "docs/AI_USAGE.json"]
+    }
+  ],
+  "generatedImagesOrVideo": [],
+  "notes": [
+    "All data fixtures are synthetic and marked mock; they are not NASA observations.",
+    "The solution idea origin is unknown and is not attributed to AI."
+  ]
+}
