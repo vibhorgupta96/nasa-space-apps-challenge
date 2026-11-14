@@ -1,11 +1,15 @@
 {
   "status": "working-draft",
-  "solutionIdeaOrigin": "unknown; confirm with the team before submission",
+  "solutionIdeaOrigin": "Main branch disclosure reports Claude suggested concepts and team chose and shaped direction; confirm with team before submission",
   "tools": [
     {
       "name": "OpenAI Codex",
-      "models": ["GPT-6.1 Sol", "GPT-6 Luna"],
-      "role": "Sol orchestrated the initial data handoff and fetch pipeline; Luna generated synthetic mock fixtures, a Node data-fetch script and tests, and draft documentation.",
+      "models": [
+        "GPT-6.1 Sol",
+        "GPT-6 Luna",
+        "GPT-6.1 Terra"
+      ],
+      "role": "Sol orchestrated the initial data handoff and fetch pipeline; Luna generated synthetic mock fixtures, a Node data-fetch script and tests, and draft documentation. Terra reconciled the data pipeline with the existing game scaffold.",
       "affectedFiles": [
         "public/data/storms.json",
         "public/data/weather.json",
@@ -19,15 +23,70 @@
         "docs/AI_USAGE.md",
         "docs/AI_USAGE.json"
       ],
-      "mediaType": ["data", "text"],
+      "mediaType": [
+        "code",
+        "data",
+        "text"
+      ],
       "humanEdits": "unknown; update with actual human edits and review before submission",
-      "disclosureLocation": ["docs/AI_USAGE.md", "docs/AI_USAGE.json"]
+      "disclosureLocation": [
+        "docs/AI_USAGE.md",
+        "docs/AI_USAGE.json"
+      ]
     }
   ],
   "generatedImagesOrVideo": [],
   "notes": [
     "The initial fixture values were synthetic and marked mock; AI did not generate NASA observations.",
-    "Fetched snapshots contain NASA source records; crop facts are AI-curated summaries checked against the linked NASA pages.",
-    "The solution idea origin is unknown and is not attributed to AI."
-  ]
+    "Fetched snapshots contain NASA source records; crop facts are AI-curated summaries checked against the linked NASA pages."
+  ],
+  "priorProjectDisclosure": {
+    "tools": [
+      {
+        "name": "Claude (Anthropic) via Claude Code",
+        "type": "LLM coding assistant"
+      }
+    ],
+    "entries": [
+      {
+        "files": [
+          "PLAN.md"
+        ],
+        "media": "text",
+        "role": "first draft",
+        "humanEdits": "major rewrite by team"
+      },
+      {
+        "files": [
+          "src/**",
+          "scripts/**",
+          "index.html"
+        ],
+        "media": "code",
+        "role": "initial implementation",
+        "humanEdits": "pending team review",
+        "disclosure": "README.md, docs/AI_USAGE.md, in-game credits screen"
+      },
+      {
+        "files": [
+          "src/story/script.ts"
+        ],
+        "media": "text",
+        "role": "dialogue and storyline",
+        "humanEdits": "pending team review",
+        "disclosure": "in-game credits screen"
+      },
+      {
+        "files": [
+          "public/data/crops.json",
+          "public/data/trivia.json"
+        ],
+        "media": "data",
+        "role": "fact summaries of linked NASA records",
+        "humanEdits": "pending team verification",
+        "disclosure": "each fact links its NASA source"
+      }
+    ],
+    "generatedImagesVideoAudio": []
+  }
 }

@@ -6,6 +6,7 @@ import path from 'node:path';
 import {
   fetchJson,
   normalizeDelay,
+  normalizeCrops,
   normalizePhotos,
   normalizeStorms,
   normalizeWeather,
@@ -34,6 +35,20 @@ test('normalizes only sourced DONKI records in the historical window and labels 
   assert.match(events[2].scenario.label, /Earth geomagnetic/);
   assert.deepEqual(new Set(events.map((event) => event.id)).size, 3);
   assert.equal(result.query.startDate, '2024-05-08');
+  assert.deepEqual(result.weeks[0].realWindow, ['2024-05-08', '2024-05-14']);
+  assert.deepEqual(result.weeks[0].earthContext, []);
+  assert(events.every((event) => event.marsArrival === null));
+});
+
+test('crops retain the existing game IDs, colors, and balance values', () => {
+  const crops = normalizeCrops(fetched, 1).crops;
+  assert.deepEqual(crops.map(({ id, color, growSols, food }) => ({ id, color, growSols, food })), [
+    { id: 'red-romaine', color: '#b8344a', growSols: 3, food: 18 },
+    { id: 'mizuna', color: '#5fae4a', growSols: 3, food: 15 },
+    { id: 'radish', color: '#d4486a', growSols: 4, food: 24 },
+    { id: 'chile', color: '#e0512b', growSols: 5, food: 32 },
+    { id: 'zinnia', color: '#f0a630', growSols: 3, food: 0 },
+  ]);
 });
 
 test('rejects DONKI rows outside the sourced dates and malformed response types', () => {
@@ -159,6 +174,28 @@ test('records actual fetch date separately from a historical Horizons query date
     assert.equal(requestedUrl.searchParams.get('START_TIME'), '2026-11-14');
     assert.equal(output.date, '2026-11-14');
     assert.equal(output.fetched, '2026-11-15');
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('optional trivia refresh preserves curated facts while checking NASA metadata', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'sol-sprouts-trivia-'));
+  const input = path.join(directory, 'curated.json');
+  const original = { source: ['https://images.nasa.gov/details/PIA1'], fetched: '2020-01-01', mock: false,
+    trivia: [{ id: 'one', nasaId: 'PIA1', fact: 'Curated fact', source: 'https://images.nasa.gov/details/PIA1', sourceTitle: 'Old' }] };
+  try {
+    await writeFile(input, JSON.stringify(original));
+    const fetchImpl = async () => jsonResponse({ collection: { items: [{ data: [{ nasa_id: 'PIA1', title: 'New title', date_created: '2021-02-03T00:00:00Z' }] }] } });
+    const output = await run({ date: fetched, outputDir: directory, only: ['trivia'] }, {
+      apiKey: 'test-key', triviaPath: input, fetchImpl, now: () => new Date('2026-11-14T12:00:00Z'), logger: { log() {} },
+    });
+    assert.equal(output.trivia.trivia[0].fact, 'Curated fact');
+    assert.equal(output.trivia.trivia[0].sourceTitle, 'New title');
+    assert.equal(output.trivia.trivia[0].sourceDate, '2021-02-03');
+    assert.deepEqual(JSON.parse(await readFile(path.join(directory, 'trivia.json'), 'utf8')), output.trivia);
+    assert(!parseArgs([]).only.includes('trivia'));
+    assert.deepEqual(parseArgs(['--only', 'trivia']).only, ['trivia']);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

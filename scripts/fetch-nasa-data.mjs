@@ -18,6 +18,7 @@ const ATTEMPTS = 3;
 const TIMEOUT_MS = 12_000;
 
 export const DATASETS = ['storms', 'weather', 'crops', 'delay', 'photos'];
+const SELECTABLE_DATASETS = [...DATASETS, 'trivia'];
 
 const NASA_SOURCES = {
   storms: [
@@ -45,27 +46,27 @@ const NASA_SOURCES = {
 
 const CROP_FACTS = [
   {
-    id: 'red-romaine', name: 'Red Romaine Lettuce', growSols: 4, food: 20,
+    id: 'red-romaine', name: 'Red Romaine Lettuce', growSols: 3, food: 18, color: '#b8344a',
     fact: 'Astronauts grew and ate red romaine lettuce on the space station.',
     factSource: 'https://www.nasa.gov/missions/station/iss-research/chile-peppers-start-spicing-up-the-space-station/',
   },
   {
-    id: 'mizuna', name: 'Mizuna', growSols: 4, food: 18,
+    id: 'mizuna', name: 'Mizuna Greens', growSols: 3, food: 15, color: '#5fae4a',
     fact: 'Astronauts grew, harvested, and ate mizuna mustard greens on the space station.',
     factSource: 'https://www.nasa.gov/image-article/mizuna-mustard-greens-are-growing-aboard-international-space-station-2/',
   },
   {
-    id: 'radish', name: 'Radish', growSols: 3, food: 16,
+    id: 'radish', name: 'Radish', growSols: 4, food: 24, color: '#d4486a',
     fact: 'Radishes grew in the space station’s Advanced Plant Habitat.',
     factSource: 'https://www.nasa.gov/missions/station/astronauts-harvest-radish-crop-on-international-space-station/',
   },
   {
-    id: 'chile-pepper', name: 'Chile Pepper', growSols: 5, food: 22,
+    id: 'chile', name: 'Chile Pepper', growSols: 5, food: 32, color: '#e0512b',
     fact: 'The crew grew and ate Hatch chile peppers aboard the space station.',
     factSource: 'https://www.nasa.gov/missions/station/iss-research/chile-peppers-start-spicing-up-the-space-station/',
   },
   {
-    id: 'zinnia', name: 'Zinnia', growSols: 5, food: 0,
+    id: 'zinnia', name: 'Zinnia', growSols: 3, food: 0, color: '#f0a630',
     fact: 'NASA’s Veggie garden grew zinnia flowers on the space station.',
     factSource: 'https://www.nasa.gov/exploration-research-and-technology/growing-plants-in-space/',
   },
@@ -159,6 +160,7 @@ export function normalizeStorms(responses, fetched) {
       realTime: time,
       link: recordLink(record, type),
       observedTarget: 'unknown',
+      marsArrival: null,
       observation: observationSummary(record, type),
       scenario: {
         strength: simulatedStrength,
@@ -173,7 +175,7 @@ export function normalizeStorms(responses, fetched) {
   });
   return dataFile(fetched, NASA_SOURCES.storms, {
     query: { startDate: '2024-05-08', endDate: '2024-05-14', types: ['CME', 'SEP', 'GST'] },
-    weeks: [{ id: '2024-05', label: 'May 2024 historical scenario', events }],
+    weeks: [{ id: '2024-05', label: 'May 2024 historical scenario', realWindow: ['2024-05-08', '2024-05-14'], events, earthContext: [] }],
   });
 }
 
@@ -431,6 +433,27 @@ async function fetchPhotos(fetchImpl, fetched) {
   return normalizePhotos({ collection: { items: results } }, fetched);
 }
 
+// Refresh metadata for the existing curated trivia; checking an ID does not verify its fact.
+async function fetchTrivia(fetched, fetchImpl, triviaPath) {
+  const existing = JSON.parse(await readFile(triviaPath, 'utf8'));
+  if (existing.mock !== false || !Array.isArray(existing.trivia) || !existing.trivia.length) {
+    throw new Error('Existing trivia must be a non-mock curated collection');
+  }
+  const trivia = [];
+  for (const record of existing.trivia) {
+    if (typeof record.nasaId !== 'string' || !record.nasaId || typeof record.fact !== 'string') {
+      throw new Error('Existing trivia record lacks NASA ID or fact');
+    }
+    const url = endpoint(NASA_SOURCES.photos, { nasa_id: record.nasaId });
+    const response = await fetchJson(url, { fetchImpl });
+    const metadata = response?.collection?.items?.flatMap((item) => item.data || [])
+      .find((item) => item.nasa_id === record.nasaId);
+    if (!metadata || typeof metadata.title !== 'string') throw new Error(`NASA trivia record not found: ${record.nasaId}`);
+    trivia.push({ ...record, sourceTitle: metadata.title, sourceDate: metadata.date_created?.slice(0, 10) || record.sourceDate });
+  }
+  return { ...existing, fetched, trivia };
+}
+
 export function parseArgs(args) {
   const options = { date: null, outputDir: DEFAULT_OUTPUT_DIR, only: DATASETS, help: false };
   for (let index = 0; index < args.length; index += 1) {
@@ -446,7 +469,7 @@ export function parseArgs(args) {
     }
     else if (arg === '--only') {
       const names = (args[++index] || '').split(',').map((name) => name.trim()).filter(Boolean);
-      if (names.length === 0 || names.some((name) => !DATASETS.includes(name))) throw new Error(`--only must be a comma-separated list of: ${DATASETS.join(', ')}`);
+      if (names.length === 0 || names.some((name) => !SELECTABLE_DATASETS.includes(name))) throw new Error(`--only must be a comma-separated list of: ${SELECTABLE_DATASETS.join(', ')}`);
       options.only = [...new Set(names)];
     } else throw new Error(`Unknown option: ${arg}`);
   }
@@ -459,7 +482,7 @@ export const HELP = `Usage: node scripts/fetch-nasa-data.mjs [options]
 Fetch historical and current NASA data into public/data/*.json.
 Options:
   --date YYYY-MM-DD       Horizons snapshot date (defaults to current UTC date)
-  --only names            Comma-separated subset: ${DATASETS.join(', ')}
+  --only names            Comma-separated subset: ${SELECTABLE_DATASETS.join(', ')}
   --output-dir directory  Write files to another directory for review
   --help                  Show this help
 
@@ -490,6 +513,7 @@ export async function run(options, {
   apiKey,
   now = () => new Date(),
   logger = console,
+  triviaPath = path.join(DEFAULT_OUTPUT_DIR, 'trivia.json'),
 } = {}) {
   const date = requireDate(options.date || now().toISOString().slice(0, 10));
   const fetched = requireDate(now().toISOString().slice(0, 10));
@@ -500,6 +524,7 @@ export async function run(options, {
     crops: () => fetchCrops(fetched, fetchImpl),
     delay: () => fetchDelay(date, fetched, fetchImpl),
     photos: () => fetchPhotos(fetchImpl, fetched),
+    trivia: () => fetchTrivia(fetched, fetchImpl, triviaPath),
   };
   const outputs = {};
   for (const name of options.only) {

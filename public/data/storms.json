@@ -41,7 +41,8 @@
             "hitOffsetMs": 60000,
             "warningSols": 2,
             "label": "Simulated Mars-outpost effect (game scenario, not a measured Mars impact)"
-          }
+          },
+          "marsArrival": null
         },
         {
           "id": "2024-05-09T13:59:00-SEP-001",
@@ -63,7 +64,8 @@
             "hitOffsetMs": 60000,
             "warningSols": 2,
             "label": "Simulated Mars-outpost effect (game scenario, not a measured Mars impact)"
-          }
+          },
+          "marsArrival": null
         },
         {
           "id": "2024-05-10T15:00:00-GST-001",
@@ -95,9 +97,15 @@
             "hitOffsetMs": 60000,
             "warningSols": 2,
             "label": "Earth geomagnetic record adapted to a simulated Mars-outpost game effect"
-          }
+          },
+          "marsArrival": null
         }
-      ]
+      ],
+      "realWindow": [
+        "2024-05-08",
+        "2024-05-14"
+      ],
+      "earthContext": []
     }
   ]
 }

@@ -1,0 +1,62 @@
+{
+ "source": [
+  "https://images.nasa.gov/details/PIA24438",
+  "https://images.nasa.gov/details/PIA16112",
+  "https://images.nasa.gov/details/PIA25284",
+  "https://images.nasa.gov/details/PIA22908",
+  "https://images.nasa.gov/details/PIA21457",
+  "https://images.nasa.gov/details/KSC-20200316-PH-JPL01_0002"
+ ],
+ "fetched": "2026-11-14",
+ "mock": false,
+ "trivia": [
+  {
+   "id": "wright",
+   "nasaId": "PIA24438",
+   "fact": "NASA's Ingenuity helicopter carried a tiny piece of fabric from the Wright brothers' first airplane to Mars.",
+   "source": "https://images.nasa.gov/details/PIA24438",
+   "sourceTitle": "Pride of the West — and Mars",
+   "sourceDate": "2021-04-06"
+  },
+  {
+   "id": "morse",
+   "nasaId": "PIA16112",
+   "fact": "Curiosity's wheels have holes that print \"JPL\" in Morse code into the Martian dirt. It helps the rover track how far it really moved.",
+   "source": "https://images.nasa.gov/details/PIA16112",
+   "sourceTitle": "Curiosity Tracks Its Tracks",
+   "sourceDate": "2012-08-29"
+  },
+  {
+   "id": "insight-dust",
+   "nasaId": "PIA25284",
+   "fact": "InSight's solar panels made about 5,000 watt-hours a sol after landing. By spring 2022, dust cut that to about 500.",
+   "source": "https://images.nasa.gov/details/PIA25284",
+   "sourceTitle": "InSight's Power Generation: After Landing and Spring 2022",
+   "sourceDate": "2022-05-17"
+  },
+  {
+   "id": "opportunity",
+   "nasaId": "PIA22908",
+   "fact": "The solar-powered Opportunity rover went silent during a giant dust storm in June 2018.",
+   "source": "https://images.nasa.gov/details/PIA22908",
+   "sourceTitle": "Opportunity Legacy Pan (False Color)",
+   "sourceDate": "2019-03-12"
+  },
+  {
+   "id": "dust-devils",
+   "nasaId": "PIA21457",
+   "fact": "Martian dust devils sometimes blew dust off the Spirit and Opportunity rovers' solar panels, giving them more power.",
+   "source": "https://images.nasa.gov/details/PIA21457",
+   "sourceTitle": "A Dust Devil on Hilly Terrain",
+   "sourceDate": "2017-02-16"
+  },
+  {
+   "id": "names",
+   "nasaId": "KSC-20200316-PH-JPL01_0002",
+   "fact": "The Perseverance rover carried the names of more than 10 million people to Mars on tiny chips.",
+   "source": "https://images.nasa.gov/details/KSC-20200316-PH-JPL01_0002",
+   "sourceTitle": "Mars 2020 Rover Logo",
+   "sourceDate": "2020-03-16"
+  }
+ ]
+}

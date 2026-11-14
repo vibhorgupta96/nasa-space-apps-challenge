@@ -17,40 +17,45 @@
     {
       "id": "red-romaine",
       "name": "Red Romaine Lettuce",
-      "growSols": 4,
-      "food": 20,
+      "growSols": 3,
+      "food": 18,
+      "color": "#b8344a",
       "fact": "Astronauts grew and ate red romaine lettuce on the space station.",
       "factSource": "https://www.nasa.gov/missions/station/iss-research/chile-peppers-start-spicing-up-the-space-station/"
     },
     {
       "id": "mizuna",
-      "name": "Mizuna",
-      "growSols": 4,
-      "food": 18,
+      "name": "Mizuna Greens",
+      "growSols": 3,
+      "food": 15,
+      "color": "#5fae4a",
       "fact": "Astronauts grew, harvested, and ate mizuna mustard greens on the space station.",
       "factSource": "https://www.nasa.gov/image-article/mizuna-mustard-greens-are-growing-aboard-international-space-station-2/"
     },
     {
       "id": "radish",
       "name": "Radish",
-      "growSols": 3,
-      "food": 16,
+      "growSols": 4,
+      "food": 24,
+      "color": "#d4486a",
       "fact": "Radishes grew in the space station’s Advanced Plant Habitat.",
       "factSource": "https://www.nasa.gov/missions/station/astronauts-harvest-radish-crop-on-international-space-station/"
     },
     {
-      "id": "chile-pepper",
+      "id": "chile",
       "name": "Chile Pepper",
       "growSols": 5,
-      "food": 22,
+      "food": 32,
+      "color": "#e0512b",
       "fact": "The crew grew and ate Hatch chile peppers aboard the space station.",
       "factSource": "https://www.nasa.gov/missions/station/iss-research/chile-peppers-start-spicing-up-the-space-station/"
     },
     {
       "id": "zinnia",
       "name": "Zinnia",
-      "growSols": 5,
+      "growSols": 3,
       "food": 0,
+      "color": "#f0a630",
       "fact": "NASA’s Veggie garden grew zinnia flowers on the space station.",
       "factSource": "https://www.nasa.gov/exploration-research-and-technology/growing-plants-in-space/"
     }
