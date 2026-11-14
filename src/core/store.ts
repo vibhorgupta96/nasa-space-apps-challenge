@@ -337,7 +337,7 @@ export class Store {
       }
       if (state.processedWarnings.some((id: unknown) => typeof id !== 'string' || !eventIds.has(id)) || state.processedStormHits.some((id: unknown) => typeof id !== 'string' || !eventIds.has(id)) || state.log.some((x: unknown) => typeof x !== 'string') || state.radioQueue.some((m: any) => !m || typeof m.messageId !== 'string' || typeof m.text !== 'string' || !Number.isFinite(m.arrivesAtMs) || !Number.isFinite(m.delayMinutes))) return null;
       const r = state.rover;
-      if (!r || !['home','out','stranded','repairing'].includes(r.status) || !Number.isFinite(r.batteryCells) || !Array.isArray(r.route) || !Array.isArray(r.collectedFindIds) || !r.cargo || ITEMS.some(k => !Number.isFinite(r.cargo[k]) || r.cargo[k] < 0) || !Number.isInteger(r.nextRouteIndex) || r.nextRouteIndex < 0 || r.nextRouteIndex > r.route.length || r.route.some((xy: unknown) => !Array.isArray(xy) || xy.length !== 2 || !xy.every(Number.isInteger) || xy[0] < 0 || xy[0] >= data.terrain.width || xy[1] < 0 || xy[1] >= data.terrain.height) || !Number.isInteger(r.lastLaunchSol) || !Number.isInteger(r.availableSol) || !(r.routeStartedAtMs === null || Number.isFinite(r.routeStartedAtMs)) || !(r.expeditionId === null || typeof r.expeditionId === 'string') || r.collectedFindIds.some((id: unknown) => typeof id !== 'string') || (r.status === 'out' && (!r.expeditionId || r.routeStartedAtMs === null || r.nextRouteIndex < 1 || r.nextRouteIndex >= r.route.length))) return null;
+      if (!r || (r.driveMode !== undefined && r.driveMode !== 'plan' && r.driveMode !== 'manual') || !['home','out','stranded','repairing'].includes(r.status) || !Number.isFinite(r.batteryCells) || !Array.isArray(r.route) || !Array.isArray(r.collectedFindIds) || !r.cargo || ITEMS.some(k => !Number.isFinite(r.cargo[k]) || r.cargo[k] < 0) || !Number.isInteger(r.nextRouteIndex) || r.nextRouteIndex < 0 || r.nextRouteIndex > r.route.length || r.route.some((xy: unknown) => !Array.isArray(xy) || xy.length !== 2 || !xy.every(Number.isInteger) || xy[0] < 0 || xy[0] >= data.terrain.width || xy[1] < 0 || xy[1] >= data.terrain.height) || !Number.isInteger(r.lastLaunchSol) || !Number.isInteger(r.availableSol) || !(r.routeStartedAtMs === null || Number.isFinite(r.routeStartedAtMs)) || !(r.expeditionId === null || typeof r.expeditionId === 'string') || r.collectedFindIds.some((id: unknown) => typeof id !== 'string') || (r.status === 'out' && (!r.expeditionId || r.routeStartedAtMs === null || r.nextRouteIndex < 1 || (r.nextRouteIndex >= r.route.length && !(r.driveMode === 'manual' && r.nextRouteIndex === r.route.length))))) return null;
       const rawMeta = parsed.meta && typeof parsed.meta === 'object' ? parsed.meta : {};
       if (rawMeta.quiz !== undefined && (!rawMeta.quiz || typeof rawMeta.quiz !== 'object' || Array.isArray(rawMeta.quiz))) return null;
       const defaults = freshMeta();
@@ -734,7 +734,7 @@ export class Store {
     return OK;
   }
 
-  launchRover(route: [number, number][]): Result {
+  launchRover(route: [number, number][], driveMode: 'plan' | 'manual' = 'plan'): Result {
     const g = this.dayCommand();
     if (!g.ok) return g;
     const can = this.roverCanLaunch();
@@ -742,9 +742,9 @@ export class Store {
     const s = this.state;
     const t = this.data.terrain;
     const [dx, dy] = t.dome;
-    if (route.length < 3) return fail('Plan a longer route.');
+    if (route.length < (driveMode === 'manual' ? 2 : 3)) return fail('Plan a longer route.');
     const atDome = (p: [number, number]) => p[0] === dx && p[1] === dy;
-    if (!atDome(route[0]) || !atDome(route[route.length - 1])) return fail('The route must start and end at the dome.');
+    if (!atDome(route[0]) || (driveMode === 'plan' && !atDome(route[route.length - 1]))) return fail('The route must start and end at the dome.');
     for (let i = 1; i < route.length; i++) {
       const [ax, ay] = route[i - 1];
       const [bx, by] = route[i];
@@ -753,6 +753,7 @@ export class Store {
     }
     const r = s.rover;
     r.status = 'out';
+    r.driveMode = driveMode;
     r.batteryCells = s.split.rover;
     r.expeditionId = `exp-${s.sol}-${s.missionElapsedMs}`;
     r.lastLaunchSol = s.sol;
@@ -764,6 +765,26 @@ export class Store {
     this.meta.trips += 1;
     this.log('Bolt drives out of the airlock.');
     bus.emit(EV.ROVER_DEPART, { expeditionId: r.expeditionId, batteryCells: r.batteryCells });
+    return OK;
+  }
+
+  /** Accept one cardinal move only after the previous tile has completed. */
+  driveRover(dx: number, dy: number): Result {
+    if (this.paused) return fail('The game is paused.');
+    const g = this.dayCommand();
+    if (!g.ok) return g;
+    if (!Number.isInteger(dx) || !Number.isInteger(dy) || Math.abs(dx) + Math.abs(dy) !== 1) return fail('Choose one direction.');
+    const r = this.state.rover;
+    const from = r.status === 'home' ? this.data.terrain.dome : r.route[r.nextRouteIndex - 1];
+    if (!from) return fail('Bolt cannot drive right now.');
+    const next: [number, number] = [from[0] + dx, from[1] + dy];
+    const t = this.data.terrain;
+    if (next[0] < 0 || next[1] < 0 || next[0] >= t.width || next[1] >= t.height) return fail('That move leaves the map.');
+    if (r.status === 'home') return this.launchRover([[...from], next], 'manual');
+    if (r.status !== 'out' || r.driveMode !== 'manual' || r.nextRouteIndex < r.route.length) return fail('Wait until Bolt reaches the next tile.');
+    // Preserve the existing route-clock formula while starting this move now, after any idle time.
+    r.routeStartedAtMs = this.state.missionElapsedMs - (r.nextRouteIndex - 1) * this.rules.roverMsPerTile;
+    r.route.push(next);
     return OK;
   }
 
@@ -1263,7 +1284,7 @@ export class Store {
     r.batteryCells = round1(r.batteryCells - need);
     r.nextRouteIndex = i + 1;
     this.collectRoverFind(x, y);
-    if (r.nextRouteIndex >= r.route.length) this.returnRover();
+    if (r.nextRouteIndex >= r.route.length && (r.driveMode !== 'manual' || (x === this.data.terrain.dome[0] && y === this.data.terrain.dome[1]))) this.returnRover();
   }
 
   private deliverRadio(messageId: string) {

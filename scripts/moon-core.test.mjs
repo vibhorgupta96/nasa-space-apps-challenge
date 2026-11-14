@@ -471,3 +471,62 @@ test('lunar rock traction costs match the preview, survive reload and freeze whi
     assert.equal(t.state.rover.status, 'home');
   } finally { terrain.cost[y][x + 1] = old; }
 });
+
+test('manual driving on both worlds idles, resumes after reload, collects and docks once', () => {
+  for (const world of ['mars', 'moon']) {
+    let s = fresh(world);
+    const [x, y] = s.data.terrain.dome;
+    const finds = s.data.terrain.finds;
+    const testFind = {id: 'manual-test-find', item: 'ice', amount: 2, x: x + 1, y};
+    finds.push(testFind);
+    try {
+      const shelter = s.storms().filter(st => st.event.scenario.gameSol === 1)
+        .reduce((max, st) => Math.max(max, st.event.scenario.strength), 0);
+      split(s, {rover: 1, shelter});
+      assert.equal(s.driveRover(1, 1).ok, false);
+      const iceBefore = s.state.inventory.ice;
+      check(s.driveRover(1, 0));
+      assert.equal(s.driveRover(0, 1).ok, false); // no queued turns while moving
+      const duration = s.rules.roverMsPerTile;
+      tickTo(s, duration / 2);
+      s = reload(s);
+      s.pause('test'); s.tick(1000);
+      assert.equal(s.state.missionElapsedMs, duration / 2);
+      assert.equal(s.driveRover(0, 1).ok, false);
+      s.resume('test');
+      tickTo(s, duration);
+      assert.equal(s.state.rover.status, 'out');
+      assert.ok(s.state.rover.collectedFindIds.includes(testFind.id));
+      const battery = s.state.rover.batteryCells;
+      s = reload(s); // idle manual trips are valid saves
+      tickTo(s, duration * 3);
+      assert.equal(s.state.rover.batteryCells, battery);
+      assert.equal(s.roverPosition().x, x + 1);
+      check(s.driveRover(-1, 0));
+      tickTo(s, duration * 4 - 1);
+      assert.equal(s.state.rover.status, 'out');
+      tickTo(s, duration * 4);
+      assert.equal(s.state.rover.status, 'home');
+      assert.ok(s.state.inventory.ice >= iceBefore + 2);
+      assert.equal(s.driveRover(1, 0).ok, false); // once per day
+    } finally { finds.splice(finds.indexOf(testFind), 1); }
+  }
+});
+
+test('manual driving blocks map edges, strands on empty battery and takes storm damage', () => {
+  let s = fresh('moon'); split(s, {rover: 1});
+  check(s.driveRover(1, 0)); tickTo(s, s.rules.roverMsPerTile);
+  s.state.rover.route = [[0, 0]]; s.state.rover.nextRouteIndex = 1;
+  assert.equal(s.driveRover(-1, 0).ok, false);
+  s.state.rover.batteryCells = 0;
+  check(s.driveRover(1, 0)); tickTo(s, s.state.missionElapsedMs + s.rules.roverMsPerTile);
+  assert.equal(s.state.rover.status, 'stranded');
+  s = fresh('moon');
+  const hit = s.storms()[0];
+  assert.ok(hit);
+  s.state.sol = hit.event.scenario.gameSol;
+  s.state.missionElapsedMs = hit.hitAtMs - 10000;
+  split(s, {rover: 1}); check(s.driveRover(1, 0));
+  tickTo(s, hit.hitAtMs);
+  assert.equal(s.state.rover.status, 'stranded');
+});
