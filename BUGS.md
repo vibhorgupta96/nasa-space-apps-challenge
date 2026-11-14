@@ -1,6 +1,7 @@
 # Bugs and plan gaps
 
 Review of `a/farm` at e50f55c (base game + Person A work + Shresth's rover commit from `main`), 14 Nov 2026.
+Updated after merging `main` with Vibhor's real NASA data (PR #1): see B4, B19, B20 and G3.
 
 **Owner** = workstream that owns the file (PLAN.md section 4). **Checked** = how it was confirmed:
 *ran* (reproduced in the browser), *math* (worked out from the code's own numbers), *read* (code reading only, not yet reproduced).
@@ -18,7 +19,7 @@ Already fixed on `a/farm` and not listed below: pressing Escape on a dialogue li
 | B1 | **A crew member can trap the player.** `wander` only avoids the player's centre tile. The player's collision box (feet) reaches into the tile below, so a crew member can step there. Then every move is blocked until that crew member wanders off, which may take several seconds or longer. | `src/scenes/FarmScene.ts:179` (`wander`), `blocked()` at :253 | A | ran: player at (14,6) lower half + solid at (14,7) → blocked left, right and up |
 | B2 | **The morning panel can't be finished with the keyboard.** `buildMorning` never sets `this.advance`, so Enter/Space do nothing. The +/– buttons, drag cells and "Start the day" button are mouse-only. A keyboard-only player is stuck on sol 1 morning. | `src/ui/UIScene.ts:376–440` | C (A's PowerPanel adds to it) | read |
 | B3 | **The game can't be played on a tablet or phone.** Walking and acting only work with the keyboard (arrows/WASD + Space). There are no on-screen controls, and tap-to-move doesn't exist. A lot of 7–12-year-olds will open the link on a tablet. | `src/scenes/FarmScene.ts:225` (`movePlayer`) | A | read |
-| B4 | **Photos repeat as "New photo!" once the 12 are used up.** Shresth's per-sol finds add 2 rock samples every sol (20 over a mission), plus 3 fixed ones, but `photos.json` has 12 photos. After that, `awardPhotos` adds nothing, and `queuePhotos` shows the last earned photo again as new. | `src/rover/findsManager.ts:9`, `src/core/store.ts:482`, `src/ui/UIScene.ts:563` | B + C | ran: every sol's finds are `ice, regolith, parts, sample` ×2; 12 photos |
+| B4 | **Photos repeat as "New photo!" once the 12 are used up.** Shresth's per-sol finds add 2 rock samples every sol (20 over a mission), plus 3 fixed ones, but the real `photos.json` now on `main` has only 6 photos (the mock had 12). After that, `awardPhotos` adds nothing, and `queuePhotos` shows the last earned photo again as new. | `src/rover/findsManager.ts:9`, `src/core/store.ts:482`, `src/ui/UIScene.ts:563` | B + C | ran: every sol's finds are `ice, regolith, parts, sample` ×2; 6 photos on `main` |
 
 ### Medium: wrong or confusing, but playable
 
@@ -42,7 +43,14 @@ Already fixed on `a/farm` and not listed below: pressing Escape on a dialogue li
 | B15 | **Clicking just above the rover panel (the credit line) adds a route stop**, because the cut-off is `p.y > 600` and the credit text sits at about y 585–600. | `src/scenes/RoverScene.ts:70` | B | read |
 | B16 | **Reloading mid-day forgets today's science-card context** (harvests, storm, rover trip), so that night's card can differ from what you'd have seen. | `src/core/store.ts` (`restore` → `resetToday`) | A | read |
 | B17 | **The heater is never optional with the current data.** All 7 InSight sols have a minimum near −96 °C, below the −70 °C threshold, so the "is it cold tonight?" decision never comes up. See also G9. | `public/data/weather.json`, `src/core/rules.ts` | A + C | math |
-| B18 | **The 7 weather sols repeat over 10 game sols**, so sols 8–10 replay sols 1–3. | `src/core/store.ts` (`weather`) | C | math |
+| B18 | **The 7 weather sols repeat over 10 game sols**, so sols 8–10 replay sols 1–3. Still true with the real data on `main`. | `src/core/store.ts` (`weather`) | C | math |
+
+### Found after merging the real data from `main`
+
+| # | Bug | Where | Owner | Checked |
+|---|---|---|---|---|
+| B19 | **"Play again" always gives the same storms.** The real `storms.json` has only 1 week (2024-05); the mock had 2. `newGame` rotates through weeks, so every replay is identical, which breaks design rule 5 ("replay with a different storm week"). | `public/data/storms.json`, `scripts/fetch-nasa-data.mjs` | C | ran: 1 week in the file |
+| B20 | **An Earth geomagnetic storm (GST) is used as a Mars storm.** The 2024-05 week's sol-9 storm is `…-GST-001`. The plan says GST is Earth context only (shown in the debrief), not an outpost storm. The board and debrief also print the raw word "GST" because they only have labels for CME and SEP. | `public/data/storms.json`, `src/ui/UIScene.ts` (`buildBoard`), `src/scenes/DebriefScene.ts` | C | ran |
 
 ---
 
@@ -54,7 +62,7 @@ Already fixed on `a/farm` and not listed below: pressing Escape on a dialogue li
 |---|---|---|---|
 | G1 | **No audio at all.** There's no music, storm loop or sound effects (asset rows 31–33). | 9 | C |
 | G2 | **No public deploy.** There's no GitHub Pages workflow, so there's no game URL for the submission yet. | 3, 8, 10 | A/B (playtest + deploy slot) |
-| G3 | **Real storm and weather data are still mock.** The MOCK DATA badge shows. Someone needs a personal NASA key in `.env`, then `npm run fetch-data`. | 4C, 7 | C |
+| G3 | ~~Real storm and weather data are still mock.~~ **Done on `main`** (PR #1): no data file is mock now. What's left is in B19 and B20. | 4C, 7 | C |
 | G4 | **How-to-play is a single panel**, not the "3 short screens" in the plan. | 4C | C |
 | G5 | **Free drive (arrow keys) is not built.** It's optional and on the cut list. | 4B, 8 | B |
 | G6 | **No dust-storm overlay; the solar storm effect is just a flash.** Asset rows 28–29. | 9 | B + C |
