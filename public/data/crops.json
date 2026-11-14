@@ -1,16 +1,58 @@
 {
   "source": [
-    "https://www.nasa.gov/",
-    "https://www.nasa.gov/mission_pages/station/research/experiments/2157.html",
-    "https://osdr.nasa.gov/bio/repo/data/"
+    "https://osdr.nasa.gov/osdr/data/search?term=plants",
+    "https://www.nasa.gov/exploration-research-and-technology/growing-plants-in-space/",
+    "https://www.nasa.gov/image-article/mizuna-mustard-greens-are-growing-aboard-international-space-station-2/",
+    "https://www.nasa.gov/missions/station/astronauts-harvest-radish-crop-on-international-space-station/",
+    "https://www.nasa.gov/missions/station/iss-research/chile-peppers-start-spicing-up-the-space-station/",
+    "https://www.nasa.gov/gallery/plants/"
   ],
   "fetched": "2026-11-14",
-  "mock": true,
+  "mock": false,
+  "osdrSearch": {
+    "query": "plants",
+    "resultCount": 3516
+  },
   "crops": [
-    { "id": "red-romaine", "name": "Red Romaine Lettuce", "growSols": 4, "food": 20, "fact": "MOCK fact placeholder: replace with a verified NASA source-backed fact before showing as science.", "factSource": "https://www.nasa.gov/" },
-    { "id": "mizuna", "name": "Mizuna", "growSols": 4, "food": 18, "fact": "MOCK fact placeholder: replace with a verified NASA source-backed fact before showing as science.", "factSource": "https://www.nasa.gov/" },
-    { "id": "radish", "name": "Radish", "growSols": 3, "food": 16, "fact": "MOCK fact placeholder: replace with a verified NASA source-backed fact before showing as science.", "factSource": "https://www.nasa.gov/" },
-    { "id": "chile-pepper", "name": "Chile Pepper", "growSols": 5, "food": 22, "fact": "MOCK fact placeholder: replace with a verified NASA source-backed fact before showing as science.", "factSource": "https://www.nasa.gov/" },
-    { "id": "zinnia", "name": "Zinnia", "growSols": 5, "food": 0, "fact": "MOCK fact placeholder: replace with a verified NASA source-backed fact before showing as science.", "factSource": "https://www.nasa.gov/" }
+    {
+      "id": "red-romaine",
+      "name": "Red Romaine Lettuce",
+      "growSols": 4,
+      "food": 20,
+      "fact": "Astronauts grew and ate red romaine lettuce on the space station.",
+      "factSource": "https://www.nasa.gov/missions/station/iss-research/chile-peppers-start-spicing-up-the-space-station/"
+    },
+    {
+      "id": "mizuna",
+      "name": "Mizuna",
+      "growSols": 4,
+      "food": 18,
+      "fact": "Astronauts grew, harvested, and ate mizuna mustard greens on the space station.",
+      "factSource": "https://www.nasa.gov/image-article/mizuna-mustard-greens-are-growing-aboard-international-space-station-2/"
+    },
+    {
+      "id": "radish",
+      "name": "Radish",
+      "growSols": 3,
+      "food": 16,
+      "fact": "Radishes grew in the space station’s Advanced Plant Habitat.",
+      "factSource": "https://www.nasa.gov/missions/station/astronauts-harvest-radish-crop-on-international-space-station/"
+    },
+    {
+      "id": "chile-pepper",
+      "name": "Chile Pepper",
+      "growSols": 5,
+      "food": 22,
+      "fact": "The crew grew and ate Hatch chile peppers aboard the space station.",
+      "factSource": "https://www.nasa.gov/missions/station/iss-research/chile-peppers-start-spicing-up-the-space-station/"
+    },
+    {
+      "id": "zinnia",
+      "name": "Zinnia",
+      "growSols": 5,
+      "food": 0,
+      "fact": "NASA’s Veggie garden grew zinnia flowers on the space station.",
+      "factSource": "https://www.nasa.gov/exploration-research-and-technology/growing-plants-in-space/"
+    }
   ]
 }

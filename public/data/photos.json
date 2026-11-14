@@ -1,6 +1,52 @@
 {
-  "source": "https://images-api.nasa.gov/",
+  "source": [
+    "https://images-api.nasa.gov/search?q=Mars+rover+rock&media_type=image&page_size=20",
+    "https://images-api.nasa.gov/search?q=Mars+surface&media_type=image&page_size=20"
+  ],
   "fetched": "2026-11-14",
-  "mock": true,
-  "photos": []
+  "mock": false,
+  "photos": [
+    {
+      "nasaId": "PIA17068",
+      "title": "Curiosity Mars Rover Drilling Into Its Second Rock",
+      "url": "https://images-assets.nasa.gov/image/PIA17068/PIA17068~small.jpg",
+      "credit": "NASA/JPL-Caltech",
+      "source": "https://images.nasa.gov/details/PIA17068"
+    },
+    {
+      "nasaId": "PIA22061",
+      "title": "Testing New Techniques for Mars Rover Rock-Drilling",
+      "url": "https://images-assets.nasa.gov/image/PIA22061/PIA22061~medium.jpg",
+      "credit": "NASA/JPL-Caltech",
+      "source": "https://images.nasa.gov/details/PIA22061"
+    },
+    {
+      "nasaId": "PIA16717",
+      "title": "Preparatory Test for First Rock Drilling by Mars Rover Curiosity",
+      "url": "https://images-assets.nasa.gov/image/PIA16717/PIA16717~small.jpg",
+      "credit": "NASA/JPL-Caltech/MSSS",
+      "source": "https://images.nasa.gov/details/PIA16717"
+    },
+    {
+      "nasaId": "PIA19146",
+      "title": "Blocky Rock is Exam Target for Mars Rover Opportunity",
+      "url": "https://images-assets.nasa.gov/image/PIA19146/PIA19146~small.jpg",
+      "credit": "NASA/JPL-Caltech",
+      "source": "https://images.nasa.gov/details/PIA19146"
+    },
+    {
+      "nasaId": "PIA20285",
+      "title": "Mars Rover Opportunity at Rock Abrasion Target Potts",
+      "url": "https://images-assets.nasa.gov/image/PIA20285/PIA20285~small.jpg",
+      "credit": "NASA/JPL-Caltech",
+      "source": "https://images.nasa.gov/details/PIA20285"
+    },
+    {
+      "nasaId": "PIA16564",
+      "title": "Snake River Rock Feature Viewed by Curiosity Mars Rover",
+      "url": "https://images-assets.nasa.gov/image/PIA16564/PIA16564~small.jpg",
+      "credit": "NASA/JPL",
+      "source": "https://images.nasa.gov/details/PIA16564"
+    }
+  ]
 }

@@ -1,8 +1,21 @@
 {
-  "date": "2026-11-14",
-  "distanceKm": 225000000,
-  "oneWayMinutes": 12.5,
   "source": "https://ssd.jpl.nasa.gov/api/horizons.api",
   "fetched": "2026-11-14",
-  "mock": true
+  "mock": false,
+  "date": "2026-11-14",
+  "epoch": {
+    "julianDate": 2461358.5,
+    "label": "A.D. 2026-Nov-14 00:00:00.0000",
+    "timeScale": "TDB"
+  },
+  "referenceFrame": "ICRF",
+  "query": {
+    "target": "499 (Mars)",
+    "center": "500@399 (Earth geocenter)",
+    "ephemeris": "VECTORS",
+    "units": "KM-S",
+    "vectorTable": 2
+  },
+  "distanceKm": 198132895.71621737,
+  "oneWayMinutes": 11.015003348094977
 }

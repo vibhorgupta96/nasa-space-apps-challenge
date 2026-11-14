@@ -1,6 +1,6 @@
-# Initial data fixtures
+# Initial data fixtures (historical handoff)
 
-These files unblock the first game scenes while the data pipeline and scene consumers are being built. Every file currently has `"mock": true`. Treat every row as synthetic fixture data, not a NASA observation or fetched record. The `fetched` date is the fixture creation date (2026-11-14); it does not mean NASA data was downloaded that day.
+This page records the first Person C data handoff, when synthetic fixtures unblocked the scenes. The five JSON files initially had `"mock": true`; the rows below describe that initial commit, not the current file contents. They were test fixtures, not NASA observations. The `fetched` date on those original files was the fixture creation date (2026-11-14), not a NASA download date. Current live data and its retrieval evidence are documented in [DATA_PIPELINE.md](DATA_PIPELINE.md).
 
 - `public/data/storms.json`: one test week with three synthetic CME/SEP/GST-shaped records. IDs, timestamps, targets, strengths, and scenario timing are mock values. `observedTarget` is `unknown`; no Mars arrival is asserted. `scenario` values are game adaptations. The May dates make it possible to test the planned May 8–14, 2024 presentation flow, not to claim these are records from those dates.
 - `public/data/weather.json`: ten synthetic daily rows spanning both sides of the game's −70 °C heater threshold. Values are not archived InSight readings.
@@ -9,11 +9,11 @@ These files unblock the first game scenes while the data pipeline and scene cons
 - `public/data/photos.json`: intentionally empty. There are no verified image records or credits yet; the scene should show its local placeholder when no photos are available.
 - `public/data/terrain.json` and terrain images belong to Person B and are not included here.
 
-All data files have `mock: true`; the loader/UI must show the planned `MOCK DATA` badge whenever any loaded file is mock. Consumers, loader, and fetch script are not built in this initial data handoff. Do not remove the badge until real records have replaced all mock values and the files have been checked.
+When any data file has `mock: true`, the loader/UI must show the planned `MOCK DATA` badge. The build-time fetch script and its invocation are described in [DATA_PIPELINE.md](DATA_PIPELINE.md). Do not remove the badge until every loaded file has real records and the files have been checked.
 
 The NASA endpoint/documentation URLs in `source` are provenance pointers for future fetching. They do not verify any fixture row. Crop facts likewise remain placeholders despite the general NASA links.
 
-Quick validation (from repository root, Node.js only):
+This check validates the original mock fixture invariants. It is historical and will fail for current files with `mock: false`:
 
 ```sh
 rtk node --input-type=module -e '

@@ -7,35 +7,95 @@
     "https://ccmc.gsfc.nasa.gov/DONKI/guide/data-reference/"
   ],
   "fetched": "2026-11-14",
-  "mock": true,
+  "mock": false,
+  "query": {
+    "startDate": "2024-05-08",
+    "endDate": "2024-05-14",
+    "types": [
+      "CME",
+      "SEP",
+      "GST"
+    ]
+  },
   "weeks": [
     {
-      "id": "mock-week-2024-05",
-      "label": "MOCK May 2024 scenario week",
+      "id": "2024-05",
+      "label": "May 2024 historical scenario",
       "events": [
         {
-          "id": "mock-cme-2024-05-08-a",
+          "id": "2024-05-08T05:36:00-CME-001",
           "type": "CME",
-          "realTime": "2024-05-08T05:36:00Z",
-          "link": "https://api.nasa.gov/DONKI/CME",
+          "realTime": "2024-05-08T05:36Z",
+          "link": "https://ccmc.gsfc.nasa.gov/DONKI/view/CME/30589/-1",
           "observedTarget": "unknown",
-          "scenario": { "strength": 3, "gameSol": 3, "hitOffsetMs": 60000, "warningSols": 2, "label": "MOCK simulated Mars-outpost effect" }
+          "observation": {
+            "instruments": [
+              "SOHO: LASCO/C2",
+              "SOHO: LASCO/C3",
+              "STEREO A: SECCHI/COR2"
+            ]
+          },
+          "scenario": {
+            "strength": 3,
+            "gameSol": 3,
+            "hitOffsetMs": 60000,
+            "warningSols": 2,
+            "label": "Simulated Mars-outpost effect (game scenario, not a measured Mars impact)"
+          }
         },
         {
-          "id": "mock-sep-2024-05-10-b",
+          "id": "2024-05-09T13:59:00-SEP-001",
           "type": "SEP",
-          "realTime": "2024-05-10T12:00:00Z",
-          "link": "https://api.nasa.gov/DONKI/SEP",
+          "realTime": "2024-05-09T13:59Z",
+          "link": "https://ccmc.gsfc.nasa.gov/DONKI/view/SEP/30609/-1",
           "observedTarget": "unknown",
-          "scenario": { "strength": 2, "gameSol": 6, "hitOffsetMs": 60000, "warningSols": 2, "label": "MOCK simulated Mars-outpost effect" }
+          "observation": {
+            "instruments": [
+              "MODEL: REleASE:ACE/EPAM 15.8-39.8 MeV"
+            ],
+            "linkedEvents": [
+              "2024-05-09T08:45:00-FLR-001"
+            ]
+          },
+          "scenario": {
+            "strength": 2,
+            "gameSol": 6,
+            "hitOffsetMs": 60000,
+            "warningSols": 2,
+            "label": "Simulated Mars-outpost effect (game scenario, not a measured Mars impact)"
+          }
         },
         {
-          "id": "mock-gst-2024-05-14-c",
+          "id": "2024-05-10T15:00:00-GST-001",
           "type": "GST",
-          "realTime": "2024-05-14T00:00:00Z",
-          "link": "https://api.nasa.gov/DONKI/GST",
+          "realTime": "2024-05-10T15:00Z",
+          "link": "https://ccmc.gsfc.nasa.gov/DONKI/view/GST/30693/-1",
           "observedTarget": "unknown",
-          "scenario": { "strength": 1, "gameSol": 9, "hitOffsetMs": 60000, "warningSols": 2, "label": "MOCK simulated Earth-context event; game effect only" }
+          "observation": {
+            "source": [
+              "NOAA",
+              "NOAA",
+              "NOAA",
+              "NOAA",
+              "NOAA",
+              "NOAA",
+              "NOAA",
+              "NOAA",
+              "NOAA",
+              "NOAA",
+              "NOAA",
+              "NOAA",
+              "NOAA"
+            ],
+            "kpIndexCount": 13
+          },
+          "scenario": {
+            "strength": 1,
+            "gameSol": 9,
+            "hitOffsetMs": 60000,
+            "warningSols": 2,
+            "label": "Earth geomagnetic record adapted to a simulated Mars-outpost game effect"
+          }
         }
       ]
     }

@@ -86,7 +86,7 @@ Each person owns **folders**, not features. **Don't edit another person's folder
 **Owns:** `scripts/fetch-nasa-data.mjs`, `public/data/` (except terrain), `src/data/`, `src/ui/`, `src/scenes/TitleScene.ts`, `src/scenes/DebriefScene.ts`, `docs/`, the README and the project submission page
 
 - [x] **Hour 0–1:** commit **mock** versions of every data file (section 7 schemas) with `"mock": true`, so A and B can work right away.
-- [ ] `fetch-nasa-data.mjs`: pull real data and replace the mocks. Keep event records distinct from game scenarios.
+- [x] `fetch-nasa-data.mjs`: pull real data and replace the mocks. Keep event records distinct from game scenarios.
   - DONKI CME/SEP/GST → `storms.json`. Pick up to 3 sourced historical scenarios, including events from **May 8–14, 2024**. A DONKI record proves the listed observation or analysis, not an impact at Mars. GST is Earth geomagnetic context. Record the observed target; use `unknown` where target is absent. Include a Mars arrival only when a separately sourced estimate supports it, with its provenance and `predicted`/`observed` status. Game strength (1–3), warning time, and hit time are explicitly simulated adaptations.
   - InSight weather → `weather.json`
   - OSDR + NASA Veggie / Advanced Plant Habitat pages → `crops.json`. Crops really grown in space include red romaine lettuce, mizuna, radish, chile peppers and zinnia. **Verify each fact and link the source.**

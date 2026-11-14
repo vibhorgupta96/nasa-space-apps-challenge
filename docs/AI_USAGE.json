@@ -5,14 +5,17 @@
     {
       "name": "OpenAI Codex",
       "models": ["GPT-6.1 Sol", "GPT-6 Luna"],
-      "role": "Sol orchestrated the task; Luna generated synthetic mock data fixtures and draft documentation.",
+      "role": "Sol orchestrated the initial data handoff and fetch pipeline; Luna generated synthetic mock fixtures, a Node data-fetch script and tests, and draft documentation.",
       "affectedFiles": [
         "public/data/storms.json",
         "public/data/weather.json",
         "public/data/crops.json",
         "public/data/delay.json",
         "public/data/photos.json",
+        "scripts/fetch-nasa-data.mjs",
+        "scripts/fetch-nasa-data.test.mjs",
         "docs/INITIAL_DATA.md",
+        "docs/DATA_PIPELINE.md",
         "docs/AI_USAGE.md",
         "docs/AI_USAGE.json"
       ],
@@ -23,7 +26,8 @@
   ],
   "generatedImagesOrVideo": [],
   "notes": [
-    "All data fixtures are synthetic and marked mock; they are not NASA observations.",
+    "The initial fixture values were synthetic and marked mock; AI did not generate NASA observations.",
+    "Fetched snapshots contain NASA source records; crop facts are AI-curated summaries checked against the linked NASA pages.",
     "The solution idea origin is unknown and is not attributed to AI."
   ]
 }
