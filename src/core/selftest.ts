@@ -327,9 +327,10 @@ export async function runSelfTest() {
       t.newGame('moon');
       expect(!t.moonwalk('samples').ok, 'moonwalk before the day started');
       start(t, { heater: 2 });
-      const air = t.state.air, rock = t.state.inventory.regolith;
+      const air = t.state.air, rock = t.state.inventory.regolith, dust = t.state.dustLevel;
       const r = t.moonwalk('samples');
       expect(r.ok && t.state.air === air - RULES.moonwalkAirCost && t.state.inventory.regolith === rock + 2, 'samples walk did not cost air or give regolith');
+      expect(t.state.dustLevel === dust + 1 && t.nextDayCells() === RULES.moonDayCells - 1, 'moonwalk dust did not cost a cell tomorrow');
       expect(!t.moonwalk('earth').ok, 'second moonwalk on the same day');
       t.sleepNow();
       const n = t.lastNight!;
@@ -337,7 +338,7 @@ export async function runSelfTest() {
       start(t, { heater: 2 });
       t.state.air = RULES.moonwalkMinAir - 1;
       expect(!t.moonwalk('earth').ok, 'moonwalk with too little air');
-      return `-${RULES.moonwalkAirCost} air, +2 regolith; journal "${n.journal}"`;
+      return `-${RULES.moonwalkAirCost} air, +2 regolith, +1 dust; journal "${n.journal}"`;
     });
 
     check('Training: lessons, schedule, journal, requests and badges', () => {

@@ -90,7 +90,7 @@ test('Moon dark boundaries, radiation warning and hit are exactly once over relo
   bus.on(EV.STORM_WARNING, onWarn); bus.on(EV.STORM_HIT, onHit);
   try {
     for (let day = 1; day <= 7; day++) {
-      assert.equal(s.state.cellsToday, day <= 3 ? 8 : 6);
+      assert.equal(s.state.cellsToday, day <= 3 ? 8 : 5);
       split(s, {heater: s.thermalRequired(), shelter: day === 3 ? 1 : day === 7 ? 2 : 0});
       if (day === 3 || day === 7) { tickTo(s, s.dayStartMs() + 60000); const n=fired.length; s=reload(s); tickTo(s, s.dayStartMs() + 61000); assert.equal(fired.length,n); }
       finish(s);

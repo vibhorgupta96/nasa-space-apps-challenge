@@ -56,7 +56,7 @@ export function addMoonwalk(
   c.add(panel(scene, x, y, w, h));
   c.add(text(scene, x + 32, y + 20, '🧑‍🚀 Moonwalk', 32, C.goldText, { fontStyle: 'bold' }));
   c.add(text(scene, x + 32, y + 64,
-    `Suit up and step outside. One moonwalk a day · the suit uses ${RULES.moonwalkAirCost} air (game rule).`, 17, C.dim));
+    `Suit up and step outside. One moonwalk a day · the suit uses ${RULES.moonwalkAirCost} air and brings dust back in (game rules).`, 17, C.dim));
 
   // The view outside: black sky with stars, Earth, and grey dust with a few craters.
   const vx = x + 32, vy = y + 100, vw = w - 64, vh = 230;
@@ -100,6 +100,8 @@ export function addMoonwalk(
     choices.add(src);
     choices.add(text(scene, x + 32, ry + 142,
       `Brought back +${info.regolith} regolith · suit used ${RULES.moonwalkAirCost} air (game rules). Science ticked on today's schedule.`, 16, C.ok, { wordWrap: { width: w - 300 } }));
+    choices.add(text(scene, x + 32, ry + 186,
+      'Moon dust clung to your suit, just like on Apollo: 1 fewer power cell tomorrow unless you clean the airlock.', 16, C.warn, { wordWrap: { width: w - 300 } }));
     choices.add(button(scene, x + w - 140, y + h - 46, 'Back inside »', close, 230, 52, 0xffd166));
     onFinished();
   };

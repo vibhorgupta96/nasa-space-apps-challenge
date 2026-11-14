@@ -39,4 +39,6 @@ export const RULES = {
   scholarLessons: 7,
   moonwalkAirCost: 4, // suit oxygen for one Moonwalk (game rule)
   moonwalkMinAir: 20, // too little air in the habitat to fill a suit below this
+  moonDayCells: 8, // lunar daylight power budget
+  moonNightCells: 5, // the long lunar night runs on stored power only
 };

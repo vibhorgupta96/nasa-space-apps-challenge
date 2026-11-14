@@ -242,7 +242,7 @@ export class Store {
     this.state = {
       worldId, dustLevel: 0, dustCleanedSol: null,
       sol: 1, phase: 'planning', missionElapsedMs: 0,
-      cellsToday: worldId === 'moon' ? 8 : RULES.cellsPerSol,
+      cellsToday: worldId === 'moon' ? RULES.moonDayCells : RULES.cellsPerSol,
       split: { growLights: 0, heater: 0, shelter: 0, rover: 0 },
       air: RULES.initialAir,
       food: RULES.initialFood,
@@ -477,7 +477,7 @@ export class Store {
 
   nextDayCells() {
     if (this.worldId === 'mars') return RULES.cellsPerSol - (this.meta.dusty || DUST_SOLS.includes(this.state.sol + 1) ? RULES.dustCellsLost : 0);
-    return Math.max(0, (this.isDaylight(this.state.sol + 1) ? 8 : 6) - this.state.dustLevel);
+    return Math.max(0, (this.isDaylight(this.state.sol + 1) ? RULES.moonDayCells : RULES.moonNightCells) - this.state.dustLevel);
   }
 
   cleanDust(): Result {
@@ -971,7 +971,9 @@ export class Store {
     s.air = clamp(s.air - RULES.moonwalkAirCost);
     s.inventory.regolith += info.regolith;
     this.today.moonwalk = task;
-    this.log(`🧑‍🚀 Moonwalk: ${info.label.toLowerCase()}. Suit used ${RULES.moonwalkAirCost} air, +${info.regolith} regolith.`);
+    // Like on Apollo, dust clings to the suit and comes back inside: tomorrow has 1 fewer cell until the airlock is cleaned.
+    s.dustLevel = Math.min(2, s.dustLevel + 1);
+    this.log(`🧑‍🚀 Moonwalk: ${info.label.toLowerCase()}. Suit used ${RULES.moonwalkAirCost} air, +${info.regolith} regolith. Dust came in on the suit.`);
     this.save();
     return { ok: true, info };
   }

@@ -40,7 +40,7 @@ export const MOON_INTRO: Line[] = [
   { who: 'bolt', text: 'The Moon has about one-sixth of Earth’s gravity, so astronauts can hop more easily. Try my Moon-hop with SHIFT!' },
   { who: 'rosa', text: 'Commander Rosa Vey. Solar radiation can be a hazard beyond Earth’s protective atmosphere. Keep the shelter ready, and please do not lick the lunar regolith.' },
   { who: 'theo', text: 'Dr. Theo Marsh, botanist. We grow these crops in our protected greenhouse. A few plant experiments have used lunar regolith, but that does not mean these crops are ready to grow outside.' },
-  { who: 'priya', text: 'Daylight brings 8 power cells. The dark stretch brings 6. Dust on the rover costs us power tomorrow, so clean it at the airlock.' },
+  { who: 'priya', text: 'Daylight brings 8 power cells. The dark stretch brings only 5. Dust from the rover or a moonwalk costs us power tomorrow, so clean it at the airlock.' },
   { who: 'bolt', text: 'Thermal control cools the dome in the bright stretch and warms it in the dark one. My rover takes longer over lunar terrain. My wheels are very careful.' },
   { who: 'bolt', text: 'This mission compresses the Moon’s very long day-night cycle into ten short game days. The temperature and power rules are game simulations.', mood: 'happy' },
 ];
