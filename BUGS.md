@@ -28,12 +28,17 @@ Fixed on `a/farm` after merging `main` at 807b460. **Verified** = checked in the
 | B22 radio overflow | Delay rounded to 0.1 minute; long dialogue lines shrink (down to 16 px) to fit the box. | `UIScene.ts` (C) | Long storm radio line fits at 18 px |
 | B23 HUD hides the room | The farm camera can scroll 96 px above and 64 px below the map, so the top machines and bottom beds move out from under the HUD and hotbar. | `FarmScene.ts` (A) | Camera view top at y −36 near the top wall |
 
-**Still open (need data or a decision, not code):**
+**Data bugs (second pass):**
 
-- **B18:** only 7 InSight sols for 10 game sols. Needs more weather sols in `weather.json` (C, `npm run fetch-data`).
-- **B19:** `storms.json` has one storm week, so every replay has the same storms. Needs more weeks from the fetch script (C).
-- **B20 (data part):** the sol-9 storm is an Earth GST record. Swap it for a CME/SEP record in the fetch script (C); the label fix above only makes it honest.
-- **Part 2 plan gaps** (G1–G19) are unchanged except G3 (done) and G9 (heater, done via B17).
+| Bug | Fix | Files (owner) | Verified |
+|---|---|---|---|
+| B18 weather sols repeat | NASA's InSight API only serves 7 archived sols, so more real sols can't be fetched. From sol 8 the morning panel now says the game is replaying NASA's 7 sols instead of repeating them silently. | `UIScene.ts` (C) | *code* |
+| B19 one storm week | `fetch-nasa-data.mjs` now fetches three historical weeks (May 2024, October 2024, September 2017), so each new mission rotates to a different one. **The data file still has one week until someone runs the fetch with a personal NASA key** (the shared `DEMO_KEY` was out of quota, and the keyless DONKI host isn't reachable from here). | `fetch-nasa-data.mjs`, its test (C) | Script tests 14/14, incl. a new two-week case |
+| B20 GST used as a storm | The script never turns GST records into outpost storms; they go to `earthContext` with their max Kp. In today's `storms.json` the GST event was removed, so May 2024 has 2 real storms (CME sol 3, SEP sol 6); nothing was invented to replace it. | `fetch-nasa-data.mjs` (C), `public/data/storms.json` (C) | Self-test 13/13 on the new file |
+
+**To finish B19:** get a free key at <https://api.nasa.gov>, put `NASA_API_KEY=...` in `.env` (ignored by git), then run `npm run fetch-data -- --only storms`.
+
+**Part 2 plan gaps** (G1–G19) are unchanged except G3 (done) and G9 (heater, done via B17).
 
 Cross-folder edits in this fix (PLAN.md section 13 asks owners to review): `UIScene.ts`, `DebriefScene.ts`, `director.ts`, `help-pages.mjs` (C); `RoverScene.ts`, `findsManager.ts` (B).
 

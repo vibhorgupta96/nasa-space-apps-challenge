@@ -24,6 +24,14 @@ const SLOT_INFO: Record<PowerSlot, { label: string; icon: string; color: number 
   rover: { label: 'Rover battery', icon: 'icon-rover', color: 0x5ee7ff },
 };
 
+/** NASA's InSight API only has a handful of archived sols; say so when the game starts repeating them. */
+function weatherNote(sol: number) {
+  const n = getData().weather.sols.length;
+  return sol > n
+    ? `Archived 2020 data. NASA's InSight feed has only ${n} sols, so the game is replaying them from the start.`
+    : 'Archived 2020 data, replayed in the game.';
+}
+
 export class UIScene extends Phaser.Scene {
   private queue: Modal[] = [];
   private current: Phaser.GameObjects.Container | null = null;
@@ -412,7 +420,7 @@ export class UIScene extends Phaser.Scene {
     const wx = store.weather();
     const cold = store.needsHeater();
     c.add(text(this, x + 40, y + 84,
-      `Real Mars weather · NASA InSight, Mars sol ${wx.marsSol} (Earth date ${wx.earthDate})\nLow ${wx.minC}°C, high ${wx.maxC}°C${wx.windAvg !== null ? `, wind ${wx.windAvg} m/s` : ''}. Archived 2020 data, replayed in the game.`,
+      `Real Mars weather · NASA InSight, Mars sol ${wx.marsSol} (Earth date ${wx.earthDate})\nLow ${wx.minC}°C, high ${wx.maxC}°C${wx.windAvg !== null ? `, wind ${wx.windAvg} m/s` : ''}. ${weatherNote(s.sol)}`,
       17, C.teal, { wordWrap: { width: w - 80 } }));
     c.add(text(this, x + 40, y + 140, `Split today's ${s.cellsToday} power cells. Unused cells are wasted. (Game rules, not NASA numbers.)`, 18, C.dim));
 
