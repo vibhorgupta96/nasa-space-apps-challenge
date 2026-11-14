@@ -4,7 +4,7 @@ export function createHelpPages(cellsPerSol, heaterNeededBelowC) {
     {
       title: '1 · Plant and care for crops',
       lines: [
-        'Move with the arrow keys or WASD. Stand by a plot and press SPACE.',
+        'Move with the arrow keys or WASD, or tap where to go. Next to a plot, press SPACE or tap it.',
         'Keys 1–5 choose seeds. Planting uses one seed and one water.',
         'Key 6 waters your crops. Key 7 harvests ripe plants or clears a wilted plot.',
       ],

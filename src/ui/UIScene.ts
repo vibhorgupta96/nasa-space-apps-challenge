@@ -29,6 +29,12 @@ export class UIScene extends Phaser.Scene {
   private current: Phaser.GameObjects.Container | null = null;
   private currentPauses = false;
   private advance: (() => void) | null = null;
+  /** Extra keys the open modal handles (arrow keys on the morning plan); returns true if used. */
+  private modalKey: ((key: string) => boolean) | null = null;
+  /** Photos already shown this mission, so a rover return only shows the newly earned ones. */
+  private photosShown = 0;
+  /** Invisible blockers over the HUD so clicks on it don't fall through to the farm. */
+  private hotbarBlocker!: Phaser.GameObjects.Zone;
   private hud!: {
     sol: Phaser.GameObjects.Text;
     clock: Phaser.GameObjects.Text;
@@ -62,6 +68,8 @@ export class UIScene extends Phaser.Scene {
     this.planningOpen = false;
     this.boardOpen = false;
     this.toasts = [];
+    this.modalKey = null;
+    this.photosShown = store.meta.photosEarned.length;
     this.tint = this.add.rectangle(0, 0, W, H, 0x0b1026, 0).setOrigin(0).setDepth(-10);
     this.buildHud();
     this.buildHotbar();
@@ -75,7 +83,8 @@ export class UIScene extends Phaser.Scene {
     this.on(UI_EV.TOAST, (p: { text: string }) => this.toast(p.text));
     this.on(EV.RADIO_MESSAGE, (m: { text: string; delayMinutes: number }) => {
       this.toast(`📡 ${m.text}`, C.goldText);
-      this.say([{ who: 'radio', text: `${m.text}\n\n(📡 arrived after ${m.delayMinutes} light-minutes; 1 radio minute = 1 game second)` }]);
+      const minutes = Math.round(m.delayMinutes * 10) / 10;
+      this.say([{ who: 'radio', text: `${m.text}\n\n(📡 arrived after ${minutes} light-minutes; 1 radio minute = 1 game second)` }]);
     });
     this.on(EV.STORM_WARNING, (p: { stormId: string }) => this.director.stormWarning(p.stormId));
     this.on(EV.STORM_HIT, (p: { safe: boolean }) => {
@@ -85,7 +94,7 @@ export class UIScene extends Phaser.Scene {
     this.on(EV.ROVER_DAMAGED, (p: { reason: string }) => this.director.roverDamaged(p.reason));
     this.on(EV.ROVER_RETURN, (p: { deliveredItems: Record<ItemId, number> }) => {
       this.director.roverHome(p.deliveredItems);
-      if (p.deliveredItems.sample > 0) this.queuePhotos(p.deliveredItems.sample);
+      if (p.deliveredItems.sample > 0) this.queueNewPhotos();
     });
     this.on(EV.ROVER_ITEM_FOUND, (p: { findId: string; item: string; amount: number }) => {
       if (p.findId === 'egg-heli') this.director.propeller();
@@ -143,6 +152,7 @@ export class UIScene extends Phaser.Scene {
     this.current?.destroy();
     this.current = null;
     this.advance = null;
+    this.modalKey = null;
     this.planningOpen = false;
     this.boardOpen = false;
     store.resume('modal');
@@ -161,6 +171,7 @@ export class UIScene extends Phaser.Scene {
 
   private onKey(e: KeyboardEvent) {
     const k = e.key;
+    if (this.current && this.modalKey?.(k)) return;
     if (this.current && this.advance && (k === ' ' || k === 'Enter' || k === 'e' || k === 'E')) {
       this.advance();
       return;
@@ -210,6 +221,11 @@ export class UIScene extends Phaser.Scene {
     const hint = text(this, W - 20, H - 18, 'TAB storm board · H help · P photo album', 16, C.dim).setOrigin(1, 1);
     hint.setAlpha(0.8);
     this.hud = { sol, clock, weather, dayBar, bars, air, food, cells, inv, alert, rover, hotbar: this.add.container(0, 0), hotSel: this.add.graphics(), toolName: text(this, 0, 0, '') };
+    // Clicks on the HUD stop here instead of reaching the farm underneath (lower depth so the
+    // HUD's own buttons still win).
+    for (const [bx, by, bw, bh] of [[12, 12, 364, 174], [W - 352, 12, 344, 124]]) this.add.zone(bx, by, bw, bh).setOrigin(0).setDepth(-5).setInteractive();
+    alert.setInteractive();
+    rover.setInteractive();
   }
 
   private buildHotbar() {
@@ -219,6 +235,7 @@ export class UIScene extends Phaser.Scene {
     const x0 = W / 2 - (n * size) / 2;
     const y = H - 52;
     const bar = this.add.container(0, 0);
+    this.hotbarBlocker = this.add.zone(x0 - 10, y - size / 2 - 10, n * size + 20, size + 16).setOrigin(0).setDepth(-5).setInteractive();
     const g = this.add.graphics();
     g.fillStyle(0x000000, 0.35);
     g.fillRoundedRect(x0 - 8, y - size / 2 - 6, n * size + 16, size + 16, 12);
@@ -285,12 +302,14 @@ export class UIScene extends Phaser.Scene {
 
     const pending = store.pendingStorms();
     if (pending.length) {
-      const next = pending[0];
-      const left = next.hitAtMs - s.missionElapsedMs;
-      const need = Math.max(0, next.event.scenario.strength - s.shield);
-      h.alert.setText(`⚠ STORM in ${fmtMs(left)} (sol ${next.event.scenario.gameSol}) · shelter needs ${need}`);
+      const left = pending[0].hitAtMs - s.missionElapsedMs;
+      h.alert.setText(pending.map((st) => {
+        const need = Math.max(0, st.event.scenario.strength - s.shield);
+        return `⚠ STORM in ${fmtMs(st.hitAtMs - s.missionElapsedMs)} (sol ${st.event.scenario.gameSol}) · shelter needs ${need}`;
+      }).join('\n'));
       h.alert.setVisible(true).setAlpha(left < 30000 ? 0.6 + 0.4 * Math.abs(Math.sin(this.time.now / 200)) : 1);
     } else h.alert.setVisible(false);
+    h.rover.setY(h.alert.visible ? h.alert.y + h.alert.height + 8 : h.alert.y);
 
     const r = s.rover;
     const roverText =
@@ -309,6 +328,8 @@ export class UIScene extends Phaser.Scene {
     const t = TOOLS[tool];
     const inFarm = this.scene.isActive('Farm');
     h.hotbar.setVisible(inFarm);
+    if (this.hotbarBlocker.input) this.hotbarBlocker.input.enabled = inFarm;
+    for (const o of h.hotbar.list) if ((o as Phaser.GameObjects.Rectangle).input) (o as Phaser.GameObjects.Rectangle).input!.enabled = inFarm;
     h.hotSel.setVisible(inFarm);
     h.toolName.setVisible(inFarm);
     h.toolName.setText(t.startsWith('seed:') ? `${crops[Number(t.slice(5))]?.name} seeds` : t === 'can' ? 'Watering can' : 'Hand (harvest / clear)');
@@ -356,6 +377,10 @@ export class UIScene extends Phaser.Scene {
     c.add(more);
     this.tweens.add({ targets: more, alpha: 0.3, yoyo: true, repeat: -1, duration: 500 });
     const full = this.director.fill(line.text);
+    // Long lines (radio letters) shrink to fit inside the box instead of spilling below it.
+    body.setText(full);
+    for (let size = 24; body.height > h - 76 && size > 16; size -= 2) body.setFontSize(size - 2);
+    body.setText('');
     let shown = 0;
     const timer = this.time.addEvent({ delay: 18, loop: true, callback: () => {
       shown = Math.min(full.length, shown + 2);
@@ -404,39 +429,78 @@ export class UIScene extends Phaser.Scene {
         : 'No storm warning for today. Check the storm board (TAB).',
       rover: () => (s.rover.status === 'home' && s.sol >= s.rover.availableSol ? 'Cells here become Bolt\'s battery for one drive today.' : roverCan.ok ? '' : `Rover can't drive today: ${s.rover.status === 'out' ? 'Bolt is still out.' : 'in repair.'}`),
     };
+    let selected = 0;
+    let confirmUnused = false;
+    const adjust = (slot: PowerSlot, delta: number) => {
+      confirmUnused = false;
+      const next = s.split[slot] + delta;
+      if (next < 0) return;
+      if (delta > 0 && slot === 'rover' && !store.roverDrivableToday()) {
+        this.toast('Bolt can\'t drive today, so rover cells would be wasted.', C.warn);
+        return;
+      }
+      const r = store.setPowerSplit({ ...s.split, [slot]: next });
+      if (!r.ok) this.toast(r.reason, C.warn);
+    };
     const render = () => {
       rows.removeAll(true);
       const total = store.splitTotal();
       SLOTS.forEach((slot, i) => {
         const ry = y + 190 + i * 76;
         const info = SLOT_INFO[slot];
-        rows.add(this.add.rectangle(x + 40, ry, w - 80, 66, 0x2a3247).setOrigin(0, 0));
+        rows.add(this.add.rectangle(x + 40, ry, w - 80, 66, 0x2a3247).setOrigin(0, 0).setStrokeStyle(3, C.gold, i === selected ? 1 : 0));
         rows.add(this.add.image(x + 74, ry + 33, info.icon).setScale(3));
         rows.add(text(this, x + 108, ry + 8, info.label, 22, C.text, { fontStyle: 'bold' }));
         rows.add(text(this, x + 108, ry + 38, hints[slot](), 15, slot === 'shelter' && warned.length ? C.warn : C.dim, { wordWrap: { width: 470 } }));
         const minus = button(this, x + w - 160, ry + 33, '–', () => {
-          if (s.split[slot] > 0) store.setPowerSplit({ ...s.split, [slot]: s.split[slot] - 1 });
+          selected = i;
+          adjust(slot, -1);
           render();
         }, 54, 44, 0x9aa3b0);
         const plus = button(this, x + w - 90, ry + 33, '+', () => {
-          const r = store.setPowerSplit({ ...s.split, [slot]: s.split[slot] + 1 });
-          if (!r.ok) this.toast(r.reason, C.warn);
+          selected = i;
+          adjust(slot, 1);
           render();
         }, 54, 44, total < s.cellsToday ? C.frame : 0x555d70);
         rows.add([minus, plus]);
       });
       const left = s.cellsToday - total;
-      rows.add(text(this, x + 40, y + h - 66, left > 0 ? `${left} cell${left > 1 ? 's' : ''} left · drag ⚡ into a row` : 'All cells placed!', 22, left > 0 ? C.goldText : C.ok));
+      const status = confirmUnused
+        ? `${left} cell${left > 1 ? 's' : ''} unused! Start again to waste ${left > 1 ? 'them' : 'it'}.`
+        : left > 0 ? `${left} cell${left > 1 ? 's' : ''} left · drag ⚡ into a row` : 'All cells placed!';
+      rows.add(text(this, x + 40, y + h - 66, status, 22, confirmUnused ? C.warn : left > 0 ? C.goldText : C.ok));
+      rows.add(text(this, x + 40, y + h - 34, 'Keys: ↑↓ pick a row · ←→ remove/add · Enter starts the day', 14, C.dim));
       addPowerCells(this, rows, {
         rowX: x + 40, rowW: w - 80, rowY: (i) => y + 190 + i * 76, rowH: 66,
         cellX: x + 600, trayX: x + 380, trayY: y + h - 52, tint: (sl) => SLOT_INFO[sl].color,
-      }, render, (reason) => this.toast(reason, C.warn));
+      }, () => {
+        confirmUnused = false;
+        render();
+      }, (reason) => this.toast(reason, C.warn));
     };
     render();
-    c.add(button(this, x + w - 150, y + h - 50, 'Start the day ▶', () => {
+    const startDay = () => {
+      const left = s.cellsToday - store.splitTotal();
+      if (left > 0 && !confirmUnused) {
+        confirmUnused = true;
+        render();
+        return;
+      }
       store.startDay();
       this.close();
-    }, 240, 54, 0xffd166));
+    };
+    c.add(button(this, x + w - 150, y + h - 50, 'Start the day ▶', startDay, 240, 54, 0xffd166));
+    this.advance = startDay;
+    this.modalKey = (k) => {
+      const key = k.length === 1 ? k.toLowerCase() : k;
+      if (key === 'ArrowUp' || key === 'w') selected = (selected + SLOTS.length - 1) % SLOTS.length;
+      else if (key === 'ArrowDown' || key === 's') selected = (selected + 1) % SLOTS.length;
+      else if (key === 'ArrowLeft' || key === 'a' || key === '-') adjust(SLOTS[selected], -1);
+      else if (key === 'ArrowRight' || key === 'd' || key === '+' || key === '=') adjust(SLOTS[selected], 1);
+      else return false;
+      render();
+      return true;
+    };
     return c;
   }
 
@@ -455,6 +519,7 @@ export class UIScene extends Phaser.Scene {
         `🌱 ${r.litPlots} plant${r.litPlots === 1 ? '' : 's'} got light; ${r.grownPlots} grew a step.`,
     ];
     if (r.roverRecovered) lines.push('🚙 The crew towed the rover home. It needs a sol of repairs.');
+    if (r.roverCalledHome) lines.push('🚙 Bolt was still driving, so the crew called the rover home with its cargo.');
     if (r.outcome === 'rescue') lines.push('⚠ Supplies ran out. Time to call for help.');
     if (r.outcome === 'debrief') lines.push('🚀 That was the final sol!');
     c.add(text(this, x + 40, y + 90, lines.join('\n'), 21, C.text, { lineSpacing: 10, wordWrap: { width: w - 80 } }));
@@ -505,10 +570,10 @@ export class UIScene extends Phaser.Scene {
         for (let i = 0; i < e.scenario.strength; i++) c.add(this.add.image(x + 64 + i * 34, yy + 30, 'icon-sun').setScale(2));
         c.add(text(this, x + 64 + 3 * 34, yy + 16, `Strength ${e.scenario.strength}`, 20, C.text, { fontStyle: 'bold' }));
         c.add(text(this, x + 64 + 3 * 34 + 130, yy + 18, 'SIMULATED', 14, '#1d2333', { backgroundColor: '#c9a6ff', padding: { x: 6, y: 2 } }));
-        const status = hit ? 'Passed' : `Hits sol ${e.scenario.gameSol} at 1:00 pm · in ${fmtMs(st.hitAtMs - s.missionElapsedMs)} of daytime`;
+        const status = hit ? 'Passed' : `Hits sol ${e.scenario.gameSol} at ${hourLabel(e.scenario.hitOffsetMs / RULES.solDurationMs)} · in ${fmtMs(st.hitAtMs - s.missionElapsedMs)} of daytime`;
         c.add(text(this, x + w - 52, yy + 18, status, 19, hit ? C.ok : C.warn, { fontStyle: 'bold' }).setOrigin(1, 0));
         const real = new Date(e.realTime).toUTCString().replace(' GMT', ' UTC').slice(5);
-        const kind = e.type === 'CME' ? 'Coronal mass ejection (CME)' : e.type === 'SEP' ? 'Solar energetic particles (SEP)' : e.type;
+        const kind = e.type === 'CME' ? 'Coronal mass ejection (CME)' : e.type === 'SEP' ? 'Solar energetic particles (SEP)' : e.type === 'GST' ? 'Geomagnetic storm at Earth (GST)' : e.type;
         const arrival = e.marsArrival ? ` · ${e.marsArrival.model || 'model'} ${e.marsArrival.status} Mars arrival ${e.marsArrival.time}` : '';
         c.add(text(this, x + 52, yy + 58, `Real record: ${kind}, ${real}${e.speedKmS ? `, ${e.speedKmS} km/s` : ''}\nObserved by/target: ${e.observedTarget === 'unknown' ? 'target not listed' : e.observedTarget}${arrival}`, 16, C.teal, { wordWrap: { width: w - 120 } }));
         const link = text(this, x + w - 52, yy + 100, 'NASA DONKI record ↗', 15, C.goldText).setOrigin(1, 0).setInteractive({ useHandCursor: true });
@@ -585,10 +650,15 @@ export class UIScene extends Phaser.Scene {
 
   // ---------- photos ----------
 
-  private queuePhotos(n: number) {
+  private queueNewPhotos() {
     const earned = store.meta.photosEarned;
-    const photos = getData().photos.photos.filter((p) => earned.includes(p.nasaId)).slice(-n);
-    for (const p of photos) this.enqueue({ build: () => this.buildPhoto(p.nasaId), pause: true });
+    const fresh = earned.slice(this.photosShown);
+    this.photosShown = earned.length;
+    if (!fresh.length) {
+      this.toast(`Album full: you have all ${getData().photos.photos.length} NASA photos! Samples still count for science.`, C.teal);
+      return;
+    }
+    for (const id of fresh) this.enqueue({ build: () => this.buildPhoto(id), pause: true });
   }
 
   private buildPhoto(nasaId: string) {

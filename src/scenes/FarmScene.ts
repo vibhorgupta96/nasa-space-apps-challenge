@@ -20,6 +20,12 @@ interface Thing {
   sprite?: Phaser.GameObjects.Image | Phaser.GameObjects.Sprite;
 }
 
+// The HUD covers the top corners and the hotbar the bottom of the screen; let the camera scroll
+// this far past the map edges (world px) so nothing in the room stays hidden under them.
+const HUD_TOP_PAD = 96;
+const HUD_BOTTOM_PAD = 64;
+const REACH = 1.8; // tiles
+
 const PLOT_XS = [4, 6, 8, 10];
 const PLOT_YS = [6, 8, 10];
 
@@ -40,6 +46,8 @@ export class FarmScene extends Phaser.Scene {
   private eggTree?: Phaser.GameObjects.Image;
   private counters: Record<string, number> = {};
   private unsub: (() => void)[] = [];
+  /** Tap/click-to-walk target (for touch screens), and the tile to use on arrival. */
+  private walkTarget: { x: number; y: number; tile: [number, number]; stuckMs: number } | null = null;
 
   constructor() {
     super('Farm');
@@ -56,6 +64,7 @@ export class FarmScene extends Phaser.Scene {
     this.chatIndex = {};
     this.counters = {};
     this.unsub = [];
+    this.walkTarget = null;
     this.buildMap();
     this.buildThings();
     this.buildCrew();
@@ -65,7 +74,7 @@ export class FarmScene extends Phaser.Scene {
 
     const cam = this.cameras.main;
     cam.setZoom(2);
-    cam.setBounds(0, 0, MAP_W * T, MAP_H * T);
+    cam.setBounds(0, -HUD_TOP_PAD, MAP_W * T, MAP_H * T + HUD_TOP_PAD + HUD_BOTTOM_PAD);
     cam.startFollow(this.player, true, 0.15, 0.15);
     cam.setBackgroundColor('#8f3d22');
     cam.fadeIn(300);
@@ -75,18 +84,20 @@ export class FarmScene extends Phaser.Scene {
     kb.on('keydown-SPACE', () => this.act());
     kb.on('keydown-E', () => this.act());
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      if (store.paused) return;
       const tx = Math.floor(p.worldX / T);
       const ty = Math.floor(p.worldY / T);
-      const px = this.player.x / T - 0.5;
-      const py = this.player.y / T - 0.5;
-      if (Math.hypot(tx - px, ty - py) <= 1.8) this.actOn(tx, ty);
-      else this.hint('Walk closer to use that.');
+      if (this.inReach(tx, ty)) this.actOn(tx, ty);
+      else this.walkTarget = { x: tx * T + T / 2, y: ty * T + T / 2, tile: [tx, ty], stuckMs: 0 };
     });
 
     const onHit = () => this.cameras.main.shake(400, 0.004);
     bus.on(EV.STORM_HIT, onHit);
     this.unsub.push(() => bus.off(EV.STORM_HIT, onHit));
-    this.events.on('wake', () => this.cameras.main.fadeIn(250));
+    // Scene events outlive a restart, so remove this listener again on shutdown.
+    const onWake = () => this.cameras.main.fadeIn(250);
+    this.events.on('wake', onWake);
+    this.unsub.push(() => this.events.off('wake', onWake));
     this.events.once('shutdown', () => this.unsub.forEach((f) => f()));
   }
 
@@ -174,9 +185,7 @@ export class FarmScene extends Phaser.Scene {
     const [dx, dy, dir] = dirs[Math.floor(Math.random() * 4)];
     const nx = x + dx;
     const ny = y + dy;
-    const px = Math.floor(this.player.x / T);
-    const py = Math.floor(this.player.y / T);
-    if (this.solid.has(`${nx},${ny}`) || (nx === px && ny === py) || this.isPlot(nx, ny) || ny < 3 || ny > 12) {
+    if (this.solid.has(`${nx},${ny}`) || this.playerTiles().has(`${nx},${ny}`) || this.isPlot(nx, ny) || ny < 3 || ny > 12) {
       s.setTexture(`${name}-${dir}-0`);
       return;
     }
@@ -196,6 +205,18 @@ export class FarmScene extends Phaser.Scene {
     if (!s || store.paused || this.walking.has(name) || Math.random() < 0.5) return;
     const dirs: Dir[] = ['down', 'left', 'right', 'down'];
     s.setTexture(`${name}-${dirs[Math.floor(Math.random() * dirs.length)]}-0`);
+  }
+
+  /** Every tile the player's body or feet touch, so the crew never steps onto them. */
+  private playerTiles() {
+    const { x, y } = this.player;
+    const out = new Set<string>();
+    for (const [px, py] of [[x - 9, y - 8], [x + 9, y - 8], [x - 9, y + 14], [x + 9, y + 14]]) out.add(`${Math.floor(px / T)},${Math.floor(py / T)}`);
+    return out;
+  }
+
+  private inReach(tx: number, ty: number) {
+    return Math.hypot(tx - (this.player.x / T - 0.5), ty - (this.player.y / T - 0.5)) <= REACH;
   }
 
   private isPlot(x: number, y: number) {
@@ -234,6 +255,24 @@ export class FarmScene extends Phaser.Scene {
     if (k.RIGHT.isDown || k.D.isDown) dx += 1;
     if (k.UP.isDown || k.W.isDown) dy -= 1;
     if (k.DOWN.isDown || k.S.isDown) dy += 1;
+    const target = this.walkTarget;
+    if (dx || dy) this.walkTarget = null; // keys always win over a tap
+    else if (target) {
+      const [tx, ty] = target.tile;
+      if (this.inReach(tx, ty) && this.hasUse(tx, ty)) {
+        this.walkTarget = null;
+        this.facing = this.directionTo(target.x, target.y);
+        this.actOn(tx, ty);
+        return;
+      }
+      const ex = target.x - this.player.x;
+      const ey = target.y - 8 - this.player.y;
+      if (Math.abs(ex) < 3 && Math.abs(ey) < 3) this.walkTarget = null;
+      else {
+        dx = Math.abs(ex) >= 3 ? Math.sign(ex) : 0;
+        dy = Math.abs(ey) >= 3 ? Math.sign(ey) : 0;
+      }
+    }
     if (!dx && !dy) {
       this.player.stop();
       this.player.setTexture(`player-${this.facing}-0`);
@@ -246,8 +285,31 @@ export class FarmScene extends Phaser.Scene {
     const len = Math.hypot(dx, dy);
     const nx = this.player.x + (dx / len) * speed;
     const ny = this.player.y + (dy / len) * speed;
+    const [x0, y0] = [this.player.x, this.player.y];
     if (!this.blocked(nx, this.player.y)) this.player.x = nx;
     if (!this.blocked(this.player.x, ny)) this.player.y = ny;
+    // A tap target behind a wall or machine: give up instead of pushing forever.
+    if (this.walkTarget && this.player.x === x0 && this.player.y === y0) {
+      this.walkTarget.stuckMs += delta;
+      if (this.walkTarget.stuckMs > 400) {
+        this.walkTarget = null;
+        this.hint('Can\'t walk straight there. Try another way!');
+      }
+    }
+  }
+
+  private directionTo(x: number, y: number): Dir {
+    const dx = x - this.player.x;
+    const dy = y - this.player.y;
+    return Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : dy > 0 ? 'down' : 'up';
+  }
+
+  /** True when tapping this tile should do something once the player gets close. */
+  private hasUse(x: number, y: number) {
+    if (this.plotIndex(x, y) >= 0) return true;
+    if (Object.values(this.crew).some((c) => Math.floor(c.x / T) === x && Math.floor(c.y / T) === y)) return true;
+    if (this.bolt.visible && x === 4 && y === 3) return true;
+    return this.things.some((t) => t.x === x && t.y === y);
   }
 
   private blocked(px: number, py: number) {

@@ -8,7 +8,7 @@ import { INTRO, TUTORIAL, SOL_BEATS, RADIO_LETTERS, REACT, RESCUE, VICTORY, EGGS
 // so reloading a save never replays a scene.
 
 const ITEM_NAMES: Record<ItemId, string> = {
-  water: 'water', ice: 'ice', regolith: 'regolith', seed: 'seeds', parts: 'a mystery part', sample: 'rock samples',
+  water: 'water', ice: 'ice', regolith: 'regolith', seed: 'seeds', parts: 'mystery part(s)', sample: 'rock samples',
 };
 
 export class Director {

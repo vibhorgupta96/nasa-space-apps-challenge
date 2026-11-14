@@ -21,7 +21,7 @@ export const RULES = {
   airPerHealthyLitCrop: 3,
   foodLossPerSol: 8,
   stormAirLoss: 15,
-  heaterNeededBelowC: -70, // game threshold applied to the sourced InSight minimum
+  heaterNeededBelowC: -97, // game threshold applied to the sourced InSight minimum; picked so only some sols need it
   icePerWaterConversion: 1,
   waterPerIceConversion: 2,
   waterPerPlant: 1,

@@ -40,7 +40,7 @@ export class DebriefScene extends Phaser.Scene {
     let y = 290;
     for (const e of week.events) {
       const date = new Date(e.realTime).toUTCString().replace(' GMT', ' UTC').slice(5);
-      const kind = e.type === 'CME' ? 'Coronal mass ejection' : e.type === 'SEP' ? 'Solar energetic particle event' : e.type;
+      const kind = e.type === 'CME' ? 'Coronal mass ejection' : e.type === 'SEP' ? 'Solar energetic particle event' : e.type === 'GST' ? 'Geomagnetic storm at Earth' : e.type;
       const line = text(this, 110, y, `• ${kind}, recorded ${date} → game sol ${e.scenario.gameSol}, simulated strength ${e.scenario.strength}  ↗`, 18, C.text).setInteractive({ useHandCursor: true });
       line.on('pointerdown', () => window.open(e.link, '_blank', 'noopener'));
       y += 34;
