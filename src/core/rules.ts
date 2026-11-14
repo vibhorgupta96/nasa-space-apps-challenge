@@ -26,6 +26,7 @@ export const RULES = {
   waterPerIceConversion: 2,
   waterPerPlant: 1,
   waterPerPlotPerSol: 1,
+  snackBelowFood: 40, // at night the crew eats raw pantry crops while food is below this
   regolithPerShieldLayer: 3,
   maxShieldLayers: 3,
   roverDisabledSols: 1,

@@ -8,6 +8,7 @@ import { C, H, W, button, fmtMs, hourLabel, panel, text } from './theme';
 import { SPEAKERS, type Line } from '../story/script';
 import { Director } from '../story/director';
 import { addPowerCells } from '../farm/PowerPanel';
+import { addKitchen, kitchenKey } from '../farm/KitchenPanel';
 import { createHelpPages } from './help-pages.mjs';
 
 // The always-on overlay: HUD, hotbar, toasts, and every modal (dialogue, morning plan,
@@ -119,6 +120,7 @@ export class UIScene extends Phaser.Scene {
       if (what === 'board') this.openBoard();
       if (what === 'help') this.openHelp();
       if (what === 'album') this.openAlbum();
+      if (what === 'kitchen') this.openKitchen();
     });
 
     this.events.once('shutdown', () => {
@@ -526,6 +528,7 @@ export class UIScene extends Phaser.Scene {
         !r.warm ? `❄️ Too cold (${r.minC}°C) and no heater: the plants took a sol off.` :
         `🌱 ${r.litPlots} plant${r.litPlots === 1 ? '' : 's'} got light; ${r.grownPlots} grew a step.`,
     ];
+    if (r.snacked) lines.push(`🥗 The crew was hungry and ate ${r.snacked} raw crop${r.snacked > 1 ? 's' : ''} from the pantry.`);
     if (r.roverRecovered) lines.push('🚙 The crew towed the rover home. It needs a sol of repairs.');
     if (r.roverCalledHome) lines.push('🚙 Bolt was still driving, so the crew called the rover home with its cargo.');
     if (r.outcome === 'rescue') lines.push('⚠️ Supplies ran out. Time to call for help.');
@@ -548,6 +551,27 @@ export class UIScene extends Phaser.Scene {
   }
 
   // ---------- storm board ----------
+
+  openKitchen() {
+    if (this.current) return;
+    this.enqueue({ build: () => this.buildKitchen(), pause: true });
+  }
+
+  private buildKitchen() {
+    const c = this.add.container(0, 0);
+    const warn = (reason: string) => this.toast(reason, C.warn);
+    // Redraw on the next frame so a Cook button isn't destroyed inside its own click.
+    const later = () => this.time.delayedCall(0, render);
+    const render = () => {
+      c.removeAll(true);
+      c.add(this.add.rectangle(0, 0, W, H, 0x000000, 0.5).setOrigin(0).setInteractive().on('pointerdown', () => this.close()));
+      addKitchen(this, c, 140, 60, W - 280, 600, later, warn);
+      c.add(text(this, W - 172, 640, 'Esc to close', 16, C.dim).setOrigin(1, 0));
+    };
+    render();
+    this.modalKey = (k) => kitchenKey(k, later, warn);
+    return c;
+  }
 
   openBoard() {
     if (this.current) return;

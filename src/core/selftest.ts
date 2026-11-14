@@ -262,6 +262,29 @@ export async function runSelfTest() {
       return '+1 ice on sol 1, again on sol 2';
     });
 
+    check('Kitchen: harvests go to the pantry; recipes beat eating raw; hungry crews snack', () => {
+      const t = fresh();
+      start(t, { heater: 1, growLights: 1 });
+      t.state.pantry = { 'red-romaine': 2, mizuna: 1, zinnia: 1 };
+      t.state.food = 20;
+      expect(!t.cook('chile-tacos').ok, 'cooked tacos without the crops');
+      expect(t.cook('space-salad').ok, 'could not cook a salad');
+      expect(t.state.food === 65 && t.state.pantry['red-romaine'] === 1 && t.state.pantry.mizuna === 0, `food ${t.state.food}, pantry ${JSON.stringify(t.state.pantry)}`);
+      expect(!t.eatRaw('zinnia').ok, 'ate a flower');
+      const seeds = t.state.inventory.seed;
+      expect(t.cook('zinnia-seeds').ok && t.state.inventory.seed === seeds + 3, 'zinnia seeds not saved');
+      expect(t.eatRaw('red-romaine').ok && t.state.food === 83, `raw romaine left food ${t.state.food}`);
+      // A ripe plot harvests into the pantry, not straight into food.
+      Object.assign(t.state.plots[0], { cropId: 'radish', growthSols: 4, condition: 'healthy' });
+      const food = t.state.food;
+      expect(t.harvest(0).ok && t.state.pantry.radish === 1 && t.state.food === food, 'harvest skipped the pantry');
+      // Night: food drops below the snack line, so the crew eats the radish.
+      t.state.food = 30;
+      finishDay(t);
+      expect(t.lastNight?.snacked === 1 && t.state.pantry.radish === 0, `snacked ${t.lastNight?.snacked}`);
+      return `salad +45, raw romaine +18, 3 zinnia seeds, night snack ${t.lastNight?.snacked}`;
+    });
+
     check('Farm: unsafe storm wilts a plot, which can be cleared and replanted', () => {
       const t = fresh();
       const storm = t.storms()[0];

@@ -333,6 +333,10 @@ const MACHINES: Record<string, { rows: string[]; pal: Palette }> = {
     rows: ['................', '................', '................', '................', 'KKKKKK..........', 'KWWWWKKKKKKKKKKK', 'KWWWWKBBBBBBBBBK', 'KWWWWKBBBBBBBBBK', 'KKKKKKBBBBBBBBBK', 'KMMMMMMMMMMMMMMK', 'KKKKKKKKKKKKKKKK', 'KK............KK'],
     pal: { K, W: '#f4efe6', B: '#3fa7a0', M: '#8b94a3' },
   },
+  kitchen: {
+    rows: ['......S..S......', '.....S..S.......', '.....KKKKKK.....', '....KMMMMMMK....', '...KKKKKKKKKK...', '...KPPPPPPPPK...', '...KPPPPPPPPK...', 'KKKKKKKKKKKKKKKK', 'KWWWWWWWWWWWWWWK', 'KWKKKKWWWWKKKKWK', 'KWKDDKWWWWKRRKWK', 'KWKDDKWWWWKRRKWK', 'KWKKKKWWWWKKKKWK', 'KWWWWWWWWWWWWWWK', 'KKKKKKKKKKKKKKKK', '.KK..........KK.'],
+    pal: { K, S: '#cfe9f5', M: '#b8c4cc', P: '#8b94a3', W: '#e8e0d0', D: '#23313f', R: '#e07a3a' },
+  },
   shelter: {
     rows: ['................', '................', '...KKKKKKKKKK...', '..KMMMMMMMMMMK..', '.KMYKYKYKYKYMK..', '.KMKYKYKYKYKMK..', '.KMMMMMMMMMMMK..', '.KMMMKKKKMMMMK..', '.KMMKDDDDKMMMK..', '.KMMKDDDDKMMMK..', '.KMMMKKKKMMMMK..', '.KMMMMMMMMMMMK..', '..KKKKKKKKKKK...'],
     pal: { K, M: '#8b94a3', Y: '#ffd166', D: '#23313f' },
