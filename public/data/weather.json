@@ -1,64 +1,59 @@
 {
- "source": "https://api.nasa.gov/insight_weather/",
- "fetched": "2026-11-14",
- "mock": true,
- "note": "MOCK placeholder until npm run fetch-data succeeds.",
- "sols": [
-  {
-   "marsSol": 675,
-   "earthDate": "2020-10-19",
-   "minC": -96.9,
-   "maxC": -15.9,
-   "windAvg": 7.2,
-   "season": "summer"
-  },
-  {
-   "marsSol": 676,
-   "earthDate": "2020-10-20",
-   "minC": -96.4,
-   "maxC": -17.1,
-   "windAvg": 7,
-   "season": "summer"
-  },
-  {
-   "marsSol": 677,
-   "earthDate": "2020-10-21",
-   "minC": -97.6,
-   "maxC": -14.2,
-   "windAvg": 6.8,
-   "season": "summer"
-  },
-  {
-   "marsSol": 678,
-   "earthDate": "2020-10-22",
-   "minC": -95.8,
-   "maxC": -16,
-   "windAvg": 7.4,
-   "season": "summer"
-  },
-  {
-   "marsSol": 679,
-   "earthDate": "2020-10-23",
-   "minC": -96,
-   "maxC": -15.1,
-   "windAvg": 7.9,
-   "season": "summer"
-  },
-  {
-   "marsSol": 680,
-   "earthDate": "2020-10-24",
-   "minC": -97.2,
-   "maxC": -16.6,
-   "windAvg": 7.1,
-   "season": "summer"
-  },
-  {
-   "marsSol": 681,
-   "earthDate": "2020-10-25",
-   "minC": -96.6,
-   "maxC": -15.4,
-   "windAvg": 6.9,
-   "season": "summer"
-  }
- ]
+  "source": [
+    "https://api.nasa.gov/insight_weather/",
+    "https://mars.nasa.gov/insight/weather/"
+  ],
+  "fetched": "2026-11-14",
+  "mock": false,
+  "sols": [
+    {
+      "marsSol": 675,
+      "earthDate": "2020-10-19",
+      "minC": -96.872,
+      "maxC": -15.908,
+      "windAvg": 7.233
+    },
+    {
+      "marsSol": 676,
+      "earthDate": "2020-10-20",
+      "minC": -96.912,
+      "maxC": -16.499,
+      "windAvg": 8.526
+    },
+    {
+      "marsSol": 677,
+      "earthDate": "2020-10-21",
+      "minC": -97.249,
+      "maxC": -16.853,
+      "windAvg": 7.887
+    },
+    {
+      "marsSol": 678,
+      "earthDate": "2020-10-22",
+      "minC": -97.728,
+      "maxC": -9.055,
+      "windAvg": 5.246
+    },
+    {
+      "marsSol": 679,
+      "earthDate": "2020-10-23",
+      "minC": -96.644,
+      "maxC": -11.561,
+      "windAvg": 5.565
+    },
+    {
+      "marsSol": 680,
+      "earthDate": "2020-10-24",
+      "minC": -96.811,
+      "maxC": -15.298,
+      "windAvg": 6.517
+    },
+    {
+      "marsSol": 681,
+      "earthDate": "2020-10-25",
+      "minC": -95.447,
+      "maxC": -4.444,
+      "windAvg": 5.632
+    }
+  ]
 }

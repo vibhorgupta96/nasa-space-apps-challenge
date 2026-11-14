@@ -1,301 +1,554 @@
-// Downloads NASA data once and writes it to public/data/*.json.
-//
-//   cp .env.example .env    # put your free key from https://api.nasa.gov in it
-//   npm run fetch-data
-//
-// Each output file records "source", "fetched" and "mock". A file is only overwritten
-// with mock:false when its real download succeeded; otherwise the existing file is kept.
-// Raw responses are cached in scripts/.cache so re-running doesn't burn rate limits.
+#!/usr/bin/env node
 
-import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+/**
+ * Build the committed, historical NASA data snapshots used by Sol Sprouts.
+ * This file is a Node-only build tool; importing it makes no network requests.
+ */
 
-const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const dataDir = join(root, 'public/data');
-const cacheDir = join(root, 'scripts/.cache');
-mkdirSync(cacheDir, { recursive: true });
+import { readFile, mkdir, writeFile, rename, unlink } from 'node:fs/promises';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import path from 'node:path';
 
-function loadEnv() {
-  const file = join(root, '.env');
-  if (!existsSync(file)) return;
-  for (const line of readFileSync(file, 'utf8').split('\n')) {
-    const m = line.match(/^\s*([A-Z_]+)\s*=\s*(.*)\s*$/);
-    if (m && !process.env[m[1]]) process.env[m[1]] = m[2];
-  }
-}
-loadEnv();
-const KEY = process.env.NASA_API_KEY || 'DEMO_KEY';
-const today = new Date().toISOString().slice(0, 10);
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const DEFAULT_OUTPUT_DIR = path.join(ROOT, 'public', 'data');
+const DAY_MS = 86_400_000;
+const LIGHT_KM_PER_SECOND = 299_792.458;
+const DEFAULT_API_KEY = 'DEMO_KEY';
+const ATTEMPTS = 3;
+const TIMEOUT_MS = 12_000;
 
-async function getJson(url, cacheName) {
-  const file = join(cacheDir, `${cacheName}.json`);
-  if (existsSync(file)) return JSON.parse(readFileSync(file, 'utf8'));
-  const res = await fetch(url);
-  const text = await res.text();
-  if (!res.ok) throw new Error(`${res.status} ${url.replace(KEY, '***')}: ${text.slice(0, 120)}`);
-  const json = JSON.parse(text);
-  if (json && json.error) throw new Error(`${url.replace(KEY, '***')}: ${JSON.stringify(json.error).slice(0, 120)}`);
-  writeFileSync(file, text);
-  return json;
-}
+export const DATASETS = ['storms', 'weather', 'crops', 'delay', 'photos'];
+const SELECTABLE_DATASETS = [...DATASETS, 'trivia'];
 
-function write(name, obj) {
-  writeFileSync(join(dataDir, name), JSON.stringify(obj, null, 1) + '\n');
-  console.log(`✔ ${name}${obj.mock ? ' (mock)' : ''}`);
-}
+const NASA_SOURCES = {
+  storms: [
+    'https://api.nasa.gov/DONKI/CME',
+    'https://api.nasa.gov/DONKI/SEP',
+    'https://api.nasa.gov/DONKI/GST',
+    'https://ccmc.gsfc.nasa.gov/tools/DONKI/',
+    'https://ccmc.gsfc.nasa.gov/DONKI/guide/data-reference/',
+  ],
+  weather: [
+    'https://api.nasa.gov/insight_weather/',
+    'https://mars.nasa.gov/insight/weather/',
+  ],
+  crops: [
+    'https://osdr.nasa.gov/osdr/data/search?term=plants',
+    'https://www.nasa.gov/exploration-research-and-technology/growing-plants-in-space/',
+    'https://www.nasa.gov/image-article/mizuna-mustard-greens-are-growing-aboard-international-space-station-2/',
+    'https://www.nasa.gov/missions/station/astronauts-harvest-radish-crop-on-international-space-station/',
+    'https://www.nasa.gov/missions/station/iss-research/chile-peppers-start-spicing-up-the-space-station/',
+    'https://www.nasa.gov/gallery/plants/',
+  ],
+  delay: 'https://ssd.jpl.nasa.gov/api/horizons.api',
+  photos: 'https://images-api.nasa.gov/search',
+};
 
-async function step(name, fn) {
-  try {
-    await fn();
-  } catch (err) {
-    console.warn(`✘ ${name}: ${err.message} — keeping existing file`);
-  }
-}
-
-// ---------- DONKI: historical solar events → storms.json ----------
-// The game's strength, sol and hit time are SIMULATED adaptations; the source fields are the real record.
-const WEEKS = [
-  { id: '2024-05', label: 'May 2024 historical scenario', start: '2024-05-08', end: '2024-05-14' },
-  { id: '2024-10', label: 'October 2024 historical scenario', start: '2024-10-01', end: '2024-10-10' },
-  { id: '2017-09', label: 'September 2017 historical scenario', start: '2017-09-04', end: '2017-09-10' },
-];
-const GAME_SOLS = [3, 6, 9];
-
-function cmeStrength(speed) {
-  if (speed >= 1500) return 3;
-  if (speed >= 800) return 2;
-  return 1;
-}
-
-await step('storms.json', async () => {
-  const weeks = [];
-  const sources = [];
-  for (const w of WEEKS) {
-    const q = `startDate=${w.start}&endDate=${w.end}&api_key=${KEY}`;
-    const cmeUrl = `https://api.nasa.gov/DONKI/CME?${q}`;
-    const sepUrl = `https://api.nasa.gov/DONKI/SEP?${q}`;
-    const gstUrl = `https://api.nasa.gov/DONKI/GST?${q}`;
-    const [cmes, seps, gsts] = await Promise.all([
-      getJson(cmeUrl, `donki-cme-${w.id}`),
-      getJson(sepUrl, `donki-sep-${w.id}`),
-      getJson(gstUrl, `donki-gst-${w.id}`),
-    ]);
-    for (const u of [cmeUrl, sepUrl, gstUrl]) sources.push(u.replace(`&api_key=${KEY}`, ''));
-
-    const candidates = [];
-    for (const c of cmes || []) {
-      const a = (c.cmeAnalyses || []).find((x) => x.isMostAccurate) || (c.cmeAnalyses || [])[0];
-      if (!a || !a.speed) continue;
-      let marsArrival = null;
-      for (const e of a.enlilList || []) {
-        const hit = (e.impactList || []).find((i) => /mars/i.test(i.location));
-        if (hit) {
-          marsArrival = { status: 'predicted', time: hit.arrivalTime, source: e.link || c.link, model: 'WSA-ENLIL' };
-          break;
-        }
-      }
-      candidates.push({
-        id: c.activityID,
-        type: 'CME',
-        realTime: c.startTime,
-        link: c.link,
-        observedTarget: 'unknown',
-        speedKmS: a.speed,
-        marsArrival,
-        rank: a.speed + (marsArrival ? 400 : 0),
-        strength: cmeStrength(a.speed),
-      });
-    }
-    for (const s of seps || []) {
-      candidates.push({
-        id: s.sepID,
-        type: 'SEP',
-        realTime: s.eventTime,
-        link: s.link,
-        observedTarget: (s.instruments || []).map((i) => i.displayName).join(', ') || 'unknown',
-        marsArrival: null,
-        rank: 1000,
-        strength: 2,
-      });
-    }
-    candidates.sort((a, b) => b.rank - a.rank);
-    const chosen = candidates.slice(0, 3).sort((a, b) => a.realTime.localeCompare(b.realTime));
-    const events = chosen.map((c, i) => ({
-      id: c.id,
-      type: c.type,
-      realTime: c.realTime,
-      link: c.link,
-      observedTarget: c.observedTarget,
-      ...(c.speedKmS ? { speedKmS: c.speedKmS } : {}),
-      marsArrival: c.marsArrival,
-      scenario: {
-        strength: c.strength,
-        gameSol: GAME_SOLS[i],
-        hitOffsetMs: 60000,
-        warningSols: 2,
-        label: 'simulated Mars-outpost effect',
-      },
-    }));
-    const earthContext = (gsts || []).map((g) => ({
-      id: g.gstID,
-      startTime: g.startTime,
-      maxKp: Math.max(...(g.allKpIndex || []).map((k) => k.kpIndex), 0),
-      link: g.link,
-    }));
-    weeks.push({ id: w.id, label: w.label, realWindow: [w.start, w.end], events, earthContext });
-  }
-  write('storms.json', {
-    source: sources,
-    fetched: today,
-    mock: false,
-    note: 'Source fields are DONKI records. "scenario" fields (strength 1–3, game sol, hit time) are simulated game adaptations, not observed Mars effects. GST (Kp) is Earth geomagnetic context only.',
-    weeks,
-  });
-});
-
-// ---------- InSight weather (archived) → weather.json ----------
-await step('weather.json', async () => {
-  const url = `https://api.nasa.gov/insight_weather/?api_key=${KEY}&feedtype=json&ver=1.0`;
-  const j = await getJson(url, 'insight-weather');
-  const sols = (j.sol_keys || [])
-    .filter((k) => j[k] && j[k].AT)
-    .map((k) => ({
-      marsSol: Number(k),
-      earthDate: (j[k].First_UTC || '').slice(0, 10),
-      minC: Math.round(j[k].AT.mn * 10) / 10,
-      maxC: Math.round(j[k].AT.mx * 10) / 10,
-      windAvg: j[k].HWS ? Math.round(j[k].HWS.av * 10) / 10 : null,
-      season: j[k].Season || null,
-    }));
-  if (!sols.length) throw new Error('no sols in response');
-  write('weather.json', {
-    source: 'https://api.nasa.gov/insight_weather/ (InSight Mars Weather Service, archived 2020)',
-    fetched: today,
-    mock: false,
-    note: 'Real temperatures and winds recorded by NASA InSight at Elysium Planitia in 2020. The game reuses these archived sols in order.',
-    sols,
-  });
-});
-
-// ---------- JPL Horizons → delay.json ----------
-await step('delay.json', async () => {
-  const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
-  const url =
-    `https://ssd.jpl.nasa.gov/api/horizons.api?format=json&COMMAND='499'&OBJ_DATA='NO'&MAKE_EPHEM='YES'` +
-    `&EPHEM_TYPE='OBSERVER'&CENTER='500@399'&START_TIME='${today}'&STOP_TIME='${tomorrow}'&STEP_SIZE='1d'&QUANTITIES='20'`;
-  const j = await getJson(url, `horizons-${today}`);
-  const block = j.result.split('$$SOE')[1].split('$$EOE')[0].trim().split('\n')[0];
-  const au = Number(block.trim().split(/\s+/)[2]);
-  if (!au) throw new Error('could not parse Horizons range');
-  const km = au * 149597870.7;
-  write('delay.json', {
-    date: today,
-    distanceKm: Math.round(km),
-    distanceAu: au,
-    oneWayMinutes: Math.round((km / 299792.458 / 60) * 10) / 10,
-    source: url,
-    fetched: today,
-    mock: false,
-    note: 'Earth–Mars distance from JPL Horizons (Mars as seen from Earth\'s centre) at 00:00 UT; one-way light time = distance ÷ speed of light.',
-  });
-});
-
-// ---------- NASA Image and Video Library → photos.json ----------
-await step('photos.json', async () => {
-  const queries = ['Curiosity rover rock Mars', 'Perseverance rover rock Mars'];
-  const photos = [];
-  for (const q of queries) {
-    const url = `https://images-api.nasa.gov/search?media_type=image&q=${encodeURIComponent(q)}`;
-    const j = await getJson(url, `images-${q.replace(/\W+/g, '-')}`);
-    for (const it of j.collection.items) {
-      const d = it.data[0];
-      const thumb = (it.links || []).find((l) => l.rel === 'preview');
-      if (!thumb || photos.some((p) => p.nasaId === d.nasa_id)) continue;
-      photos.push({
-        nasaId: d.nasa_id,
-        title: d.title,
-        date: (d.date_created || '').slice(0, 10),
-        url: thumb.href,
-        page: `https://images.nasa.gov/details/${d.nasa_id}`,
-        credit: d.secondary_creator || d.photographer || `NASA ${d.center || ''}`.trim(),
-      });
-      if (photos.filter((p) => p.nasaId).length >= 12) break;
-    }
-  }
-  write('photos.json', { source: 'https://images-api.nasa.gov/', fetched: today, mock: false, photos: photos.slice(0, 12) });
-});
-
-// ---------- Crops and trivia (facts written by the team, each tied to a NASA record) ----------
-// The script checks every NASA ID still exists and stores the record title so judges can trace it.
-const CROPS = [
+const CROP_FACTS = [
   {
     id: 'red-romaine', name: 'Red Romaine Lettuce', growSols: 3, food: 18, color: '#b8344a',
-    nasaId: 'KSC-2013-3563',
-    fact: 'NASA grew "Outredgeous" red romaine lettuce in Veggie, a plant box built for the Space Station.',
+    fact: 'Astronauts grew and ate red romaine lettuce on the space station.',
+    factSource: 'https://www.nasa.gov/missions/station/iss-research/chile-peppers-start-spicing-up-the-space-station/',
   },
   {
     id: 'mizuna', name: 'Mizuna Greens', growSols: 3, food: 15, color: '#5fae4a',
-    nasaId: 'iss060e006116',
-    fact: 'Mizuna mustard greens grew on the Space Station in 2019 to test how light colour changes plants.',
+    fact: 'Astronauts grew, harvested, and ate mizuna mustard greens on the space station.',
+    factSource: 'https://www.nasa.gov/image-article/mizuna-mustard-greens-are-growing-aboard-international-space-station-2/',
   },
   {
     id: 'radish', name: 'Radish', growSols: 4, food: 24, color: '#d4486a',
-    nasaId: 'KSC-20201214-PH-KLS01_0017',
-    fact: 'Radishes grew in NASA\'s Advanced Plant Habitat for the PH-02 experiment. This batch grew on Earth to compare with space.',
+    fact: 'Radishes grew in the space station’s Advanced Plant Habitat.',
+    factSource: 'https://www.nasa.gov/missions/station/astronauts-harvest-radish-crop-on-international-space-station/',
   },
   {
     id: 'chile', name: 'Chile Pepper', growSols: 5, food: 32, color: '#e0512b',
-    nasaId: 'iss066e023179',
-    fact: 'In October 2021 an astronaut tasted a red chile pepper grown on the Space Station. The seeds were planted that July.',
+    fact: 'The crew grew and ate Hatch chile peppers aboard the space station.',
+    factSource: 'https://www.nasa.gov/missions/station/iss-research/chile-peppers-start-spicing-up-the-space-station/',
   },
   {
     id: 'zinnia', name: 'Zinnia', growSols: 3, food: 0, color: '#f0a630',
-    nasaId: 'KSC-20181127-PH_JBS01_0069',
-    fact: 'Zinnia seeds grown on the Space Station came back to Earth and were planted again in 2018.',
+    fact: 'NASA’s Veggie garden grew zinnia flowers on the space station.',
+    factSource: 'https://www.nasa.gov/exploration-research-and-technology/growing-plants-in-space/',
   },
 ];
 
-const TRIVIA = [
-  { id: 'wright', nasaId: 'PIA24438', fact: 'NASA\'s Ingenuity helicopter carried a tiny piece of fabric from the Wright brothers\' first airplane to Mars.' },
-  { id: 'morse', nasaId: 'PIA16112', fact: 'Curiosity\'s wheels have holes that print "JPL" in Morse code into the Martian dirt. It helps the rover track how far it really moved.' },
-  { id: 'insight-dust', nasaId: 'PIA25284', fact: 'InSight\'s solar panels made about 5,000 watt-hours a sol after landing. By spring 2022, dust cut that to about 500.' },
-  { id: 'opportunity', nasaId: 'PIA22908', fact: 'The solar-powered Opportunity rover went silent during a giant dust storm in June 2018.' },
-  { id: 'dust-devils', nasaId: 'PIA21457', fact: 'Martian dust devils sometimes blew dust off the Spirit and Opportunity rovers\' solar panels, giving them more power.' },
-  { id: 'names', nasaId: 'KSC-20200316-PH-JPL01_0002', fact: 'The Perseverance rover carried the names of more than 10 million people to Mars on tiny chips.' },
-];
+const finite = (value) => {
+  if (value === null || value === undefined || value === '' || typeof value === 'boolean') return null;
+  const number = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(number) ? number : null;
+};
 
-async function nasaRecord(nasaId) {
-  const url = `https://images-api.nasa.gov/search?nasa_id=${encodeURIComponent(nasaId)}`;
-  const j = await getJson(url, `record-${nasaId}`);
-  const it = j.collection.items[0];
-  if (!it) throw new Error(`NASA record ${nasaId} not found`);
-  const preview = (it.links || []).find((l) => l.rel === 'preview');
-  return { title: it.data[0].title, date: (it.data[0].date_created || '').slice(0, 10), preview: preview ? preview.href : null };
+function requireDate(date) {
+  const timestamp = typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)
+    ? Date.parse(`${date}T00:00:00Z`)
+    : Number.NaN;
+  if (!Number.isFinite(timestamp) || new Date(timestamp).toISOString().slice(0, 10) !== date) {
+    throw new Error(`Invalid date: ${date}; expected YYYY-MM-DD`);
+  }
+  return date;
 }
 
-await step('crops.json', async () => {
-  const crops = [];
-  for (const c of CROPS) {
-    const rec = await nasaRecord(c.nasaId);
-    crops.push({ ...c, factSource: `https://images.nasa.gov/details/${c.nasaId}`, sourceTitle: rec.title, sourceDate: rec.date });
+function dateStamp(date) {
+  return Date.parse(`${requireDate(date)}T00:00:00Z`);
+}
+
+function dataFile(fetched, source, payload) {
+  return { source, fetched, mock: false, ...payload };
+}
+
+function getObservationTime(record, type) {
+  return type === 'SEP' ? record.eventTime : record.startTime;
+}
+
+function getRecordId(record, type) {
+  return type === 'SEP' ? record.sepID : type === 'GST' ? record.gstID : record.activityID;
+}
+
+function recordLink(record, type) {
+  if (typeof record.link === 'string' && /^https:\/\//.test(record.link)) return record.link;
+  return null;
+}
+
+function observationSummary(record, type) {
+  if (type === 'CME') {
+    return {
+      instruments: Array.isArray(record.instruments) ? record.instruments.map((item) => item.displayName).filter(Boolean) : [],
+    };
   }
-  write('crops.json', {
-    source: crops.map((c) => c.factSource),
-    fetched: today,
-    mock: false,
-    note: 'Facts are short summaries of the linked NASA records. growSols and food are game-balance values; zinnia has food 0.',
-    crops,
+  if (type === 'SEP') {
+    return {
+      instruments: Array.isArray(record.instruments) ? record.instruments.map((item) => item.displayName).filter(Boolean) : [],
+      linkedEvents: Array.isArray(record.linkedEvents) ? record.linkedEvents.map((item) => item.activityID).filter(Boolean) : [],
+    };
+  }
+  return {
+    source: Array.isArray(record.allKpIndex) ? record.allKpIndex.map((item) => item.source).filter(Boolean) : [],
+    kpIndexCount: Array.isArray(record.allKpIndex) ? record.allKpIndex.length : 0,
+  };
+}
+
+/** Convert DONKI CME/SEP/GST response arrays into sourced records and separate game adaptations. */
+export function normalizeStorms(responses, fetched) {
+  const types = ['CME', 'SEP', 'GST'];
+  const available = [];
+  for (const type of types) {
+    const records = responses[type];
+    if (!Array.isArray(records)) throw new Error(`DONKI ${type} response must be an array`);
+    const selected = records
+      .filter((record) => {
+        if (!record || typeof getRecordId(record, type) !== 'string' || typeof getObservationTime(record, type) !== 'string' || !recordLink(record, type)) return false;
+        const observedAt = Date.parse(getObservationTime(record, type));
+        return Number.isFinite(observedAt) && observedAt >= Date.parse('2024-05-08T00:00:00Z') && observedAt < Date.parse('2024-05-15T00:00:00Z');
+      })
+      .sort((a, b) => getObservationTime(a, type).localeCompare(getObservationTime(b, type)))
+      .slice(0, 1);
+    for (const record of selected) available.push({ type, record, time: getObservationTime(record, type) });
+  }
+  available.sort((a, b) => a.time.localeCompare(b.time));
+  const selected = available.slice(0, 3);
+  if (selected.length === 0) throw new Error('DONKI returned no usable CME, SEP, or GST records for May 8–14, 2024');
+  if (new Set(selected.map(({ type, record }) => getRecordId(record, type))).size !== selected.length) {
+    throw new Error('DONKI returned duplicate source record IDs');
+  }
+
+  const events = selected.map(({ type, record, time }, index) => {
+    const id = getRecordId(record, type);
+    const simulatedStrength = [3, 2, 1][index];
+    return {
+      id,
+      type,
+      realTime: time,
+      link: recordLink(record, type),
+      observedTarget: 'unknown',
+      marsArrival: null,
+      observation: observationSummary(record, type),
+      scenario: {
+        strength: simulatedStrength,
+        gameSol: [3, 6, 9][index],
+        hitOffsetMs: 60_000,
+        warningSols: 2,
+        label: type === 'GST'
+          ? 'Earth geomagnetic record adapted to a simulated Mars-outpost game effect'
+          : 'Simulated Mars-outpost effect (game scenario, not a measured Mars impact)',
+      },
+    };
   });
-});
+  return dataFile(fetched, NASA_SOURCES.storms, {
+    query: { startDate: '2024-05-08', endDate: '2024-05-14', types: ['CME', 'SEP', 'GST'] },
+    weeks: [{ id: '2024-05', label: 'May 2024 historical scenario', realWindow: ['2024-05-08', '2024-05-14'], events, earthContext: [] }],
+  });
+}
 
-await step('trivia.json', async () => {
-  const trivia = [];
-  for (const t of TRIVIA) {
-    const rec = await nasaRecord(t.nasaId);
-    trivia.push({ ...t, source: `https://images.nasa.gov/details/${t.nasaId}`, sourceTitle: rec.title, sourceDate: rec.date });
+/** Parse archived InSight API `sol_keys`, `AT`, and `HWS` values. */
+export function normalizeWeather(response, fetched) {
+  if (!response || !Array.isArray(response.sol_keys)) throw new Error('InSight response has no sol_keys array');
+  const sols = response.sol_keys.map((sol) => {
+    const reading = response[sol];
+    if (!reading || typeof reading !== 'object') return null;
+    const minC = finite(reading.AT?.mn);
+    const maxC = finite(reading.AT?.mx);
+    const earthDate = typeof reading.First_UTC === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(reading.First_UTC)
+      ? reading.First_UTC.slice(0, 10)
+      : null;
+    if (minC === null || maxC === null || !earthDate || minC > maxC) return null;
+    const windAvg = finite(reading.HWS?.av);
+    return { marsSol: Number(sol), earthDate, minC, maxC, windAvg };
+  }).filter((row) => row && Number.isInteger(row.marsSol)).sort((a, b) => a.marsSol - b.marsSol);
+  if (sols.length === 0) throw new Error('InSight returned no sols with valid minimum and maximum temperatures');
+  return dataFile(fetched, NASA_SOURCES.weather, { sols });
+}
+
+/** Parse JPL Horizons VECTORS output in KM-S; values in the state vector are X/Y/Z km. */
+export function parseHorizonsDistance(response) {
+  if (!response || typeof response.result !== 'string') throw new Error('Horizons response has no result text');
+  if (response.error) throw new Error('Horizons reported an error');
+  const result = response.result;
+  const start = result.indexOf('$$SOE');
+  const end = result.indexOf('$$EOE');
+  if (start < 0 || end < start) throw new Error('Horizons response has no ephemeris data row');
+  const row = result.slice(start + 5, end).trim().split(/\r?\n/)[0];
+  const fields = row.split(',').map((field) => field.trim());
+  // CSV columns are JD, calendar label, X, Y, Z, VX, VY, VZ.
+  const julianDate = finite(fields[0]);
+  const x = finite(fields[2]);
+  const y = finite(fields[3]);
+  const z = finite(fields[4]);
+  if (julianDate === null || x === null || y === null || z === null) throw new Error('Horizons ephemeris row has invalid distance fields');
+  const distanceKm = Math.hypot(x, y, z);
+  const oneWayMinutes = (distanceKm / LIGHT_KM_PER_SECOND) / 60;
+  if (!Number.isFinite(distanceKm) || distanceKm <= 0 || !Number.isFinite(oneWayMinutes)) throw new Error('Horizons distance is not positive and finite');
+  return { julianDate, epochLabel: fields[1], distanceKm, oneWayMinutes };
+}
+
+export function normalizeDelay(response, date, fetched) {
+  const parsed = parseHorizonsDistance(response);
+  return dataFile(fetched, NASA_SOURCES.delay, {
+    date,
+    epoch: { julianDate: parsed.julianDate, label: parsed.epochLabel, timeScale: 'TDB' },
+    referenceFrame: 'ICRF',
+    query: { target: '499 (Mars)', center: '500@399 (Earth geocenter)', ephemeris: 'VECTORS', units: 'KM-S', vectorTable: 2 },
+    distanceKm: parsed.distanceKm,
+    oneWayMinutes: parsed.oneWayMinutes,
+  });
+}
+
+/** Choose only NASA image search results with a usable NASA image URL and metadata credit. */
+export function normalizePhotos(response, fetched) {
+  const items = response?.collection?.items;
+  if (!Array.isArray(items)) throw new Error('NASA Image Library response has no collection items');
+  const photos = [];
+  const ids = new Set();
+  for (const item of items) {
+    const metadata = item?.data?.[0];
+    if (!metadata || metadata.media_type !== 'image' || typeof metadata.nasa_id !== 'string' || ids.has(metadata.nasa_id)) continue;
+    const image = Array.isArray(item.links) ? item.links.find((link) => typeof link.href === 'string' && /^https:\/\/images-assets\.nasa\.gov\//.test(link.href)) : null;
+    if (!image) continue;
+    const credit = metadata.photographer || metadata.secondary_creator || (metadata.center ? `NASA/${metadata.center}` : null);
+    if (!credit) continue;
+    ids.add(metadata.nasa_id);
+    photos.push({
+      nasaId: metadata.nasa_id,
+      title: metadata.title || 'Mars image',
+      url: image.href,
+      credit,
+      source: metadata.url || `https://images.nasa.gov/details/${encodeURIComponent(metadata.nasa_id)}`,
+    });
+    if (photos.length === 6) break;
   }
-  write('trivia.json', { source: trivia.map((t) => t.source), fetched: today, mock: false, trivia });
-});
+  if (photos.length === 0) throw new Error('NASA Image Library returned no usable credited Mars images');
+  return dataFile(fetched, [
+    'https://images-api.nasa.gov/search?q=Mars+rover+rock&media_type=image&page_size=20',
+    'https://images-api.nasa.gov/search?q=Mars+surface&media_type=image&page_size=20',
+  ], { photos });
+}
 
-console.log('Done.');
+export function normalizeCrops(fetched, osdrResultCount) {
+  return dataFile(fetched, NASA_SOURCES.crops, {
+    osdrSearch: { query: 'plants', resultCount: osdrResultCount },
+    crops: CROP_FACTS,
+  });
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function safeError(error, secret) {
+  let message = String(error?.message || error || 'request failed');
+  if (secret) message = message.split(secret).join('[redacted]');
+  return message.replace(/([?&]api_key=)[^&\s]+/gi, '$1[redacted]').replace(/\s+/g, ' ').slice(0, 240);
+}
+
+/** Fetch JSON with bounded timeouts and retries, while never returning a credential-bearing URL. */
+export async function fetchJson(url, {
+  fetchImpl = globalThis.fetch,
+  attempts = ATTEMPTS,
+  timeoutMs = TIMEOUT_MS,
+  apiKey,
+  sleepImpl = sleep,
+} = {}) {
+  if (typeof fetchImpl !== 'function') throw new Error('Node fetch is unavailable');
+  let lastError;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetchImpl(url, { signal: controller.signal, headers: { accept: 'application/json' } });
+      if (!response.ok) {
+        const error = new Error(`HTTP ${response.status}`);
+        error.retryable = response.status === 429 || response.status >= 500;
+        throw error;
+      }
+      return await response.json();
+    } catch (error) {
+      lastError = error;
+      if (error?.retryable === false || (error?.message?.startsWith('HTTP ') && !error.retryable)) break;
+      if (attempt < attempts) await sleepImpl(250 * attempt);
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+  throw new Error(`NASA data request failed: ${safeError(lastError, apiKey)}`);
+}
+
+function endpoint(url, query = {}) {
+  const result = new URL(url);
+  for (const [key, value] of Object.entries(query)) result.searchParams.set(key, String(value));
+  return result;
+}
+
+async function fetchPage(url, { fetchImpl = globalThis.fetch, attempts = ATTEMPTS, timeoutMs = TIMEOUT_MS, sleepImpl = sleep } = {}) {
+  let lastError;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetchImpl(url, { signal: controller.signal, headers: { accept: 'text/html' } });
+      if (!response.ok) {
+        const error = new Error(`HTTP ${response.status}`);
+        error.retryable = response.status === 429 || response.status >= 500;
+        throw error;
+      }
+      return await response.text();
+    } catch (error) {
+      lastError = error;
+      if (error?.retryable === false || (error?.message?.startsWith('HTTP ') && !error.retryable)) break;
+      if (attempt < attempts) await sleepImpl(250 * attempt);
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+  throw new Error(`NASA source page request failed: ${safeError(lastError)}`);
+}
+
+function visibleText(html) {
+  return html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&amp;/gi, '&').replace(/&nbsp;/gi, ' ').replace(/&#39;|&apos;/gi, "'")
+    .replace(/\s+/g, ' ').toLowerCase();
+}
+
+async function verifyCropSources(fetchImpl) {
+  const checks = [
+    ['https://www.nasa.gov/exploration-research-and-technology/growing-plants-in-space/', ['zinnia', 'veggie']],
+    ['https://www.nasa.gov/image-article/mizuna-mustard-greens-are-growing-aboard-international-space-station-2/', ['mizuna mustard greens', 'harvested']],
+    ['https://www.nasa.gov/missions/station/astronauts-harvest-radish-crop-on-international-space-station/', ['radish', 'advanced plant habitat']],
+    ['https://www.nasa.gov/missions/station/iss-research/chile-peppers-start-spicing-up-the-space-station/', ['hatch', 'advanced plant habitat']],
+    ['https://www.nasa.gov/gallery/plants/', ['red romaine', 'radish plants']],
+  ];
+  for (const [url, phrases] of checks) {
+    const text = visibleText(await fetchPage(url, { fetchImpl }));
+    if (phrases.some((phrase) => !text.includes(phrase))) throw new Error(`NASA crop source no longer confirms expected wording: ${new URL(url).pathname}`);
+  }
+}
+
+function createCropsApiUrl() {
+  return 'https://osdr.nasa.gov/osdr/data/search?term=plants';
+}
+
+function addKey(url, apiKey) {
+  const result = new URL(url);
+  result.searchParams.set('api_key', apiKey);
+  return result;
+}
+
+async function readApiKey() {
+  if (process.env.NASA_API_KEY?.trim()) return process.env.NASA_API_KEY.trim();
+  // The plan expects .env. This parser reads it without creating or modifying it.
+  try {
+    const contents = await readFile(path.join(ROOT, '.env'), 'utf8');
+    const line = contents.split(/\r?\n/).find((item) => /^\s*NASA_API_KEY\s*=/.test(item));
+    const value = line?.replace(/^\s*NASA_API_KEY\s*=\s*/, '').trim().replace(/^['"]|['"]$/g, '');
+    if (value) return value;
+  } catch {
+    // No .env is expected in a clean checkout.
+  }
+  return DEFAULT_API_KEY;
+}
+
+async function fetchStorms(apiKey, fetched, fetchImpl) {
+  const params = { startDate: '2024-05-08', endDate: '2024-05-14' };
+  const responses = {};
+  for (const type of ['CME', 'SEP', 'GST']) {
+    const url = addKey(endpoint(`https://api.nasa.gov/DONKI/${type}`, params), apiKey);
+    responses[type] = await fetchJson(url, { fetchImpl, apiKey });
+  }
+  return normalizeStorms(responses, fetched);
+}
+
+async function fetchWeather(apiKey, fetched, fetchImpl) {
+  const url = addKey(endpoint('https://api.nasa.gov/insight_weather/', { feedtype: 'json', ver: '1.0' }), apiKey);
+  return normalizeWeather(await fetchJson(url, { fetchImpl, apiKey }), fetched);
+}
+
+async function fetchCrops(fetched, fetchImpl) {
+  // OSDR is a research catalogue reference; each kid-facing fact is validated against its linked NASA article.
+  const response = await fetchJson(new URL(createCropsApiUrl()), { fetchImpl });
+  const hits = response?.hits?.total;
+  if (!Number.isFinite(Number(hits)) || !Array.isArray(response?.hits?.hits)) {
+    throw new Error('OSDR plant search response has an unexpected shape');
+  }
+  await verifyCropSources(fetchImpl);
+  return normalizeCrops(fetched, Number(hits));
+}
+
+async function fetchDelay(date, fetched, fetchImpl) {
+  const nextDate = new Date(dateStamp(date) + DAY_MS).toISOString().slice(0, 10);
+  const url = endpoint(NASA_SOURCES.delay, {
+    format: 'json', COMMAND: '499', CENTER: '500@399', MAKE_EPHEM: 'YES', EPHEM_TYPE: 'VECTORS',
+    START_TIME: date, STOP_TIME: nextDate, STEP_SIZE: '1d', OUT_UNITS: 'KM-S', VEC_TABLE: '2', CSV_FORMAT: 'YES',
+  });
+  return normalizeDelay(await fetchJson(url, { fetchImpl }), date, fetched);
+}
+
+async function fetchPhotos(fetchImpl, fetched) {
+  const results = [];
+  for (const term of ['Mars rover rock', 'Mars surface']) {
+    const url = endpoint(NASA_SOURCES.photos, { q: term, media_type: 'image', page_size: 20 });
+    const response = await fetchJson(url, { fetchImpl });
+    if (!Array.isArray(response?.collection?.items)) throw new Error('NASA Image Library returned an invalid collection');
+    results.push(...response.collection.items);
+  }
+  return normalizePhotos({ collection: { items: results } }, fetched);
+}
+
+// Refresh metadata for the existing curated trivia; checking an ID does not verify its fact.
+async function fetchTrivia(fetched, fetchImpl, triviaPath) {
+  const existing = JSON.parse(await readFile(triviaPath, 'utf8'));
+  if (existing.mock !== false || !Array.isArray(existing.trivia) || !existing.trivia.length) {
+    throw new Error('Existing trivia must be a non-mock curated collection');
+  }
+  const trivia = [];
+  for (const record of existing.trivia) {
+    if (typeof record.nasaId !== 'string' || !record.nasaId || typeof record.fact !== 'string') {
+      throw new Error('Existing trivia record lacks NASA ID or fact');
+    }
+    const url = endpoint(NASA_SOURCES.photos, { nasa_id: record.nasaId });
+    const response = await fetchJson(url, { fetchImpl });
+    const metadata = response?.collection?.items?.flatMap((item) => item.data || [])
+      .find((item) => item.nasa_id === record.nasaId);
+    if (!metadata || typeof metadata.title !== 'string') throw new Error(`NASA trivia record not found: ${record.nasaId}`);
+    trivia.push({ ...record, sourceTitle: metadata.title, sourceDate: metadata.date_created?.slice(0, 10) || record.sourceDate });
+  }
+  return { ...existing, fetched, trivia };
+}
+
+export function parseArgs(args) {
+  const options = { date: null, outputDir: DEFAULT_OUTPUT_DIR, only: DATASETS, help: false };
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === '--help' || arg === '-h') options.help = true;
+    else if (arg === '--date') {
+      options.date = args[++index];
+      if (!options.date || options.date.startsWith('--')) throw new Error('--date requires a YYYY-MM-DD value');
+    } else if (arg === '--output-dir') {
+      const value = args[++index];
+      if (!value || value.startsWith('--')) throw new Error('--output-dir requires a directory');
+      options.outputDir = path.resolve(value);
+    }
+    else if (arg === '--only') {
+      const names = (args[++index] || '').split(',').map((name) => name.trim()).filter(Boolean);
+      if (names.length === 0 || names.some((name) => !SELECTABLE_DATASETS.includes(name))) throw new Error(`--only must be a comma-separated list of: ${SELECTABLE_DATASETS.join(', ')}`);
+      options.only = [...new Set(names)];
+    } else throw new Error(`Unknown option: ${arg}`);
+  }
+  if (options.date) requireDate(options.date);
+  return options;
+}
+
+export const HELP = `Usage: node scripts/fetch-nasa-data.mjs [options]
+
+Fetch historical and current NASA data into public/data/*.json.
+Options:
+  --date YYYY-MM-DD       Horizons snapshot date (defaults to current UTC date)
+  --only names            Comma-separated subset: ${SELECTABLE_DATASETS.join(', ')}
+  --output-dir directory  Write files to another directory for review
+  --help                  Show this help
+
+Set NASA_API_KEY in the environment (or an existing, ignored .env file).
+Without a key, NASA's shared DEMO_KEY is used and may be rate limited.
+This script runs in Node at build time; the browser does not call NASA APIs.
+`;
+
+async function writeOutputs(outputDir, outputs) {
+  await mkdir(outputDir, { recursive: true });
+  const staged = [];
+  try {
+    for (const [name, data] of Object.entries(outputs)) {
+      const destination = path.join(outputDir, `${name}.json`);
+      const temporary = path.join(outputDir, `.${name}.${process.pid}.${Date.now()}.tmp`);
+      await writeFile(temporary, `${JSON.stringify(data, null, 2)}\n`, { flag: 'wx', mode: 0o600 });
+      staged.push({ temporary, destination });
+    }
+    for (const file of staged) await rename(file.temporary, file.destination);
+  } catch (error) {
+    await Promise.all(staged.map(({ temporary }) => unlink(temporary).catch(() => {})));
+    throw error;
+  }
+}
+
+export async function run(options, {
+  fetchImpl = globalThis.fetch,
+  apiKey,
+  now = () => new Date(),
+  logger = console,
+  triviaPath = path.join(DEFAULT_OUTPUT_DIR, 'trivia.json'),
+} = {}) {
+  const date = requireDate(options.date || now().toISOString().slice(0, 10));
+  const fetched = requireDate(now().toISOString().slice(0, 10));
+  const key = apiKey || await readApiKey();
+  const fetchers = {
+    storms: () => fetchStorms(key, fetched, fetchImpl),
+    weather: () => fetchWeather(key, fetched, fetchImpl),
+    crops: () => fetchCrops(fetched, fetchImpl),
+    delay: () => fetchDelay(date, fetched, fetchImpl),
+    photos: () => fetchPhotos(fetchImpl, fetched),
+    trivia: () => fetchTrivia(fetched, fetchImpl, triviaPath),
+  };
+  const outputs = {};
+  for (const name of options.only) {
+    logger.log(`Fetching ${name}...`);
+    outputs[name] = await fetchers[name]();
+    if (outputs[name].mock !== false) throw new Error(`${name} did not produce a verified non-mock dataset`);
+  }
+  await writeOutputs(options.outputDir, outputs);
+  logger.log(`Wrote ${Object.keys(outputs).join(', ')} to ${options.outputDir}`);
+  return outputs;
+}
+
+async function main(args = process.argv.slice(2)) {
+  const options = parseArgs(args);
+  if (options.help) {
+    console.log(HELP);
+    return;
+  }
+  await run(options);
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+  main().catch((error) => {
+    console.error(`Data fetch failed: ${safeError(error, process.env.NASA_API_KEY)}`);
+    process.exitCode = 1;
+  });
+}
