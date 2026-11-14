@@ -2,8 +2,8 @@ import Phaser from 'phaser';
 import { store, SLOTS, type NightReport } from '../core/store';
 import { bus, EV, UI_EV } from '../core/events';
 import { RULES } from '../core/rules';
-import type { ItemId, PowerSlot } from '../core/types';
-import { getData, mockFiles } from '../data/loaders';
+import type { ItemId, PowerSlot, WorldId, MissionResult } from '../core/types';
+import { getAllWorldData, mockFiles } from '../data/loaders';
 import { C, H, W, button, fmtMs, hourLabel, panel, text } from './theme';
 import { SPEAKERS, type Line } from '../story/script';
 import { Director } from '../story/director';
@@ -12,7 +12,7 @@ import { addKitchen, kitchenKey } from '../farm/KitchenPanel';
 import { createHelpPages } from './help-pages.mjs';
 import { settings } from '../core/settings';
 import { sfx } from '../core/audio';
-import { lessonFor, SCHEDULE } from '../core/training';
+import { lessonFor, lessonsForWorld, badgeInfoForWorld, scheduleForWorld, type BadgeId } from '../core/training';
 import { loadAstronaut, PET_TRICKS, type PetKind } from '../farm/look';
 
 // The always-on overlay: HUD, hotbar, toasts, and every modal (dialogue, morning plan,
@@ -31,7 +31,7 @@ const SLOT_INFO: Record<PowerSlot, { label: string; icon: string; color: number 
 
 /** NASA's InSight API only has a handful of archived sols; say so when the game starts repeating them. */
 function weatherNote(sol: number) {
-  const n = getData().weather.sols.length;
+  const n = store.data.weather.sols.length;
   return sol > n
     ? `Archived 2020 data. NASA's InSight feed has only ${n} sols, so the game is replaying them from the start.`
     : 'Archived 2020 data, replayed in the game.';
@@ -63,12 +63,15 @@ export class UIScene extends Phaser.Scene {
     hotbar: Phaser.GameObjects.Container;
     hotSel: Phaser.GameObjects.Graphics;
     toolName: Phaser.GameObjects.Text;
+    hop: Phaser.GameObjects.Container;
+    dust: Phaser.GameObjects.Text;
   };
   private toasts: Phaser.GameObjects.Text[] = [];
   private director!: Director;
   private listeners: [string, (...a: never[]) => void][] = [];
   private planningOpen = false;
   private boardOpen = false;
+  private interactionHint!: Phaser.GameObjects.Text;
   /** The night "Say it" question is waiting for an answer. */
   private lessonOpen = false;
   /** The sol whose question is on screen (read by the playtest runner). */
@@ -98,10 +101,17 @@ export class UIScene extends Phaser.Scene {
     kb.on('keydown', (e: KeyboardEvent) => this.onKey(e));
 
     this.on(UI_EV.TOAST, (p: { text: string }) => this.toast(p.text));
+    this.on(UI_EV.BADGE, (p: { id: BadgeId }) => {
+      const badge = badgeInfoForWorld(p.id, store.worldId);
+      this.toast(`🏅 ${badge.icon} ${badge.name}: ${badge.how}`, C.goldText);
+    });
     this.on(EV.RADIO_MESSAGE, (m: { text: string; delayMinutes: number }) => {
       this.toast(`📡 ${m.text}`, C.goldText);
       const minutes = Math.round(m.delayMinutes * 10) / 10;
-      this.say([{ who: 'radio', text: `${m.text}\n\n(📡 arrived after ${minutes} light-minutes; 1 radio minute = 1 game second)` }]);
+      const delayNote = store.worldId === 'moon'
+        ? `arrived after about ${(m.delayMinutes * 60).toFixed(1)} light-seconds; Moon-Earth radio delay is compressed in the game`
+        : `arrived after ${minutes} light-minutes; 1 radio minute = 1 game second`;
+      this.say([{ who: 'radio', text: `${m.text}\n\n(📡 ${delayNote})` }]);
     });
     this.on(EV.STORM_WARNING, (p: { stormId: string }) => this.director.stormWarning(p.stormId));
     this.on(EV.STORM_HIT, (p: { safe: boolean }) => {
@@ -119,7 +129,8 @@ export class UIScene extends Phaser.Scene {
     });
     this.on(UI_EV.NIGHT_REPORT, (r: NightReport) => {
       this.enqueue({ build: () => this.buildNight(r), pause: true });
-      if (lessonFor(r.sol) && !(r.sol in store.meta.lessons)) this.enqueue({ build: () => this.buildQuiz(r.sol), pause: true });
+      const quizWorld = store.worldId;
+      if (lessonFor(r.sol, quizWorld) && !(r.sol in store.meta.lessons)) this.enqueue({ build: () => this.buildQuiz(r.sol, 'none', quizWorld), pause: true });
     });
     this.on(EV.SOL_START, (p: { sol: number }) => this.director.morning(p.sol));
     this.on(UI_EV.PHASE_CHANGED, (p: { phase: string }) => {
@@ -207,6 +218,7 @@ export class UIScene extends Phaser.Scene {
     if (k === 'Tab') this.openBoard();
     else if (k === 'h' || k === 'H') this.openHelp();
     else if (k === 'p' || k === 'P') this.openAlbum();
+    else if ((k === 'c' || k === 'C') && this.scene.isActive('Farm')) this.openWizCards();
     else if (/^[1-7]$/.test(k)) this.selectTool(Number(k) - 1);
   }
 
@@ -228,7 +240,7 @@ export class UIScene extends Phaser.Scene {
     const air = text(this, 62, 116, '', 18, C.text);
     const food = text(this, 226, 116, '', 18, C.text);
     const cells: Phaser.GameObjects.Image[] = [];
-    for (let i = 0; i < RULES.cellsPerSol; i++) cells.push(this.add.image(40 + i * 30, 160, 'icon-power').setScale(1.6));
+    for (let i = 0; i < 8; i++) cells.push(this.add.image(40 + i * 30, 160, 'icon-power').setScale(1.6));
     const right = panel(this, W - 352, 12, 340, 120, C.panel, 0.9);
     right.setDepth(0);
     const inv: Record<string, Phaser.GameObjects.Text> = {};
@@ -241,9 +253,12 @@ export class UIScene extends Phaser.Scene {
     });
     const alert = text(this, W - 20, 142, '', 20, C.warn, { fontStyle: 'bold', align: 'right', backgroundColor: '#1d2333cc', padding: { x: 10, y: 6 } }).setOrigin(1, 0);
     const rover = text(this, W - 20, 186, '', 18, C.teal, { align: 'right', backgroundColor: '#1d2333cc', padding: { x: 10, y: 5 } }).setOrigin(1, 0);
-    const hint = text(this, W - 20, H - 18, 'TAB storm board · H help · P photo album', 16, C.dim).setOrigin(1, 1);
-    hint.setAlpha(0.8);
-    this.hud = { sol, clock, weather, dayBar, bars, air, food, cells, inv, alert, rover, hotbar: this.add.container(0, 0), hotSel: this.add.graphics(), toolName: text(this, 0, 0, '') };
+    this.interactionHint = text(this, W - 20, H - 18, '', 16, C.dim).setOrigin(1, 1);
+    this.interactionHint.setAlpha(0.8);
+    const hop = button(this, W - 94, 232, '⇧ Hop', () => bus.emit('ui:hop'), 130, 48, C.frame);
+    this.add.existing(hop).setDepth(100);
+    const dust = text(this, 32, 184, '', 15, C.warn, { backgroundColor: '#141927cc', padding: { x: 7, y: 3 } });
+    this.hud = { sol, clock, weather, dayBar, bars, air, food, cells, inv, alert, rover, hotbar: this.add.container(0, 0), hotSel: this.add.graphics(), toolName: text(this, 0, 0, ''), hop, dust };
     // Clicks on the HUD stop here instead of reaching the farm underneath (lower depth so the
     // HUD's own buttons still win).
     for (const [bx, by, bw, bh] of [[12, 12, 364, 174], [W - 352, 12, 344, 124]]) this.add.zone(bx, by, bw, bh).setOrigin(0).setDepth(-5).setInteractive();
@@ -252,7 +267,7 @@ export class UIScene extends Phaser.Scene {
   }
 
   private buildHotbar() {
-    const crops = getData().crops.crops;
+    const crops = store.data.crops.crops;
     const n = TOOLS.length;
     const size = 64;
     const x0 = W / 2 - (n * size) / 2;
@@ -283,7 +298,7 @@ export class UIScene extends Phaser.Scene {
   }
 
   private buildBadge() {
-    const mocks = mockFiles();
+    const mocks = mockFiles(store.data);
     if (!mocks.length) return;
     text(this, W / 2, 8, `MOCK DATA: ${mocks.join(', ')}`, 16, '#1d2333', { backgroundColor: '#ffd166', padding: { x: 8, y: 4 }, fontStyle: 'bold' })
       .setOrigin(0.5, 0)
@@ -295,14 +310,22 @@ export class UIScene extends Phaser.Scene {
     if (!s) return;
     store.tick(delta);
     const h = this.hud;
+    this.interactionHint?.setText(this.scene.isActive('Rover')
+      ? 'TAB environment board · H help · P photo album · C rover map'
+      : 'TAB environment board · H help · P photo album · C Wiz Cards');
     const frac = s.phase === 'planning' ? 0 : store.dayFraction();
-    h.sol.setText(`Sol ${s.sol} / ${RULES.missionSols}`);
+    const rules = store.rules;
+    h.sol.setText(`${store.world.dayLabel} ${s.sol} / ${rules.missionSols}`);
     h.clock.setText(s.phase === 'planning' ? 'Morning' : hourLabel(frac));
     h.dayBar.clear();
     h.dayBar.fillStyle(0x2a3247).fillRoundedRect(32, 68, 320, 10, 5);
     h.dayBar.fillStyle(frac > 0.75 ? 0x7c6cd6 : 0xffd166).fillRoundedRect(32, 68, Math.max(10, 320 * frac), 10, 5);
     const w = store.weather();
-    h.weather.setText(`Mars low ${Math.round(w.minC)}°C · high ${Math.round(w.maxC)}°C (InSight)`);
+    h.weather.setText(store.worldId === 'moon'
+      ? `${store.isDaylight() ? 'Sunlit' : 'Dark'} side · simulated ${Math.round(w.minC)}° to ${Math.round(w.maxC)}°C\nGravity ${store.world.gravityMs2} m/s² · hop motion is simulated`
+      : `Mars low ${Math.round(w.minC)}°C · high ${Math.round(w.maxC)}°C (InSight)\nGravity ${store.world.gravityMs2} m/s²`);
+    h.dust.setVisible(store.worldId === 'moon').setText(`Lunar dust ${s.dustLevel}/2 · tomorrow ${store.nextDayCells()} power cells`);
+    h.hop.setVisible(store.world.hopEnabled && this.scene.isActive('Farm'));
 
     h.bars.clear();
     const bar = (x: number, v: number, color: number) => {
@@ -332,7 +355,7 @@ export class UIScene extends Phaser.Scene {
       const left = pending[0].hitAtMs - s.missionElapsedMs;
       h.alert.setText(pending.map((st) => {
         const need = Math.max(0, st.event.scenario.strength - s.shield);
-        return `⚠️ STORM in ${fmtMs(st.hitAtMs - s.missionElapsedMs)} (sol ${st.event.scenario.gameSol}) · shelter needs ${need}`;
+        return `⚠ ${store.worldId === 'moon' ? 'RADIATION' : 'STORM'} in ${fmtMs(st.hitAtMs - s.missionElapsedMs)} (${store.world.dayLabel.toLowerCase()} ${st.event.scenario.gameSol}) · shelter needs ${need}`;
       }).join('\n'));
       h.alert.setVisible(true).setAlpha(left < 30000 ? 0.6 + 0.4 * Math.abs(Math.sin(this.time.now / 200)) : 1);
     } else h.alert.setVisible(false);
@@ -342,7 +365,7 @@ export class UIScene extends Phaser.Scene {
     const roverText =
       r.status === 'out' ? `Bolt is driving · battery ${r.batteryCells.toFixed(1)}` :
       r.status === 'stranded' ? 'Bolt is stuck outside (towed home tonight)' :
-      r.status === 'repairing' ? `Rover in repair until sol ${r.availableSol}` :
+      r.status === 'repairing' ? `Rover in repair until ${store.world.dayLabel.toLowerCase()} ${r.availableSol}` :
       s.split.rover > 0 && r.lastLaunchSol !== s.sol ? `Rover ready · ${s.split.rover} cell${s.split.rover > 1 ? 's' : ''}` : 'Bolt is home';
     h.rover.setText(roverText);
 
@@ -351,7 +374,7 @@ export class UIScene extends Phaser.Scene {
     const size = 64;
     const x0 = W / 2 - (TOOLS.length * size) / 2;
     h.hotSel.clear().lineStyle(4, C.gold).strokeRoundedRect(x0 + tool * size + 2, H - 52 - size / 2 + 0, size - 4, size - 4, 8);
-    const crops = getData().crops.crops;
+    const crops = store.data.crops.crops;
     const t = TOOLS[tool];
     const inFarm = this.scene.isActive('Farm');
     h.hotbar.setVisible(inFarm);
@@ -359,7 +382,10 @@ export class UIScene extends Phaser.Scene {
     for (const o of h.hotbar.list) if ((o as Phaser.GameObjects.Rectangle).input) (o as Phaser.GameObjects.Rectangle).input!.enabled = inFarm;
     h.hotSel.setVisible(inFarm);
     h.toolName.setVisible(inFarm);
-    h.toolName.setText(t.startsWith('seed:') ? `${crops[Number(t.slice(5))]?.name} seeds` : t === 'can' ? 'Watering can' : 'Hand (harvest / clear)');
+    if (t.startsWith('seed:')) {
+      const crop = crops[Number(t.slice(5))];
+      h.toolName.setText(`${crop?.name} seeds · ${crop?.waterPerDay ?? 1} water/day · ${crop?.oxygenPerDay ?? 3} air/day · ${crop?.growSols} ${store.world.dayLabel.toLowerCase()}s`);
+    } else h.toolName.setText(t === 'can' ? 'Watering can' : 'Hand (harvest / clear)');
 
     // Evening light.
     this.tint.setFillStyle(0x0b1026, inFarm && s.phase === 'day' ? Math.max(0, (frac - 0.7) * 1.2) : 0);
@@ -436,18 +462,16 @@ export class UIScene extends Phaser.Scene {
     const rowTop = y + 178;
     c.add(this.add.rectangle(0, 0, W, H, 0x0b1026, 0.55).setOrigin(0).setInteractive());
     c.add(panel(this, x, y, w, h));
-    c.add(text(this, W / 2, y + 18, `Good morning! Sol ${s.sol}`, 34, C.goldText, { fontStyle: 'bold' }).setOrigin(0.5, 0));
+    c.add(text(this, W / 2, y + 26, `Good morning! ${store.world.dayLabel} ${s.sol}`, 34, C.goldText, { fontStyle: 'bold' }).setOrigin(0.5, 0));
     const wx = store.weather();
     const cold = store.needsHeater();
-    c.add(text(this, x + 40, y + 66,
-      `Real Mars weather · NASA InSight, Mars sol ${wx.marsSol} (Earth date ${wx.earthDate})\nLow ${wx.minC}°C, high ${wx.maxC}°C${wx.windAvg !== null ? `, wind ${wx.windAvg} m/s` : ''}. ${weatherNote(s.sol)}`,
-      17, C.teal, { wordWrap: { width: w - 80 } }));
-    c.add(text(this, x + 40, y + 116, `Today's schedule: ${SCHEDULE.map((st) => `${st.icon} ${st.label}`).join('  ·  ')}`, 18, C.text));
-    c.add(text(this, x + 40, y + 142,
-      store.meta.dusty
-        ? `Dusty solar panel: only ${s.cellsToday} cells today. Clean it for a spare cell. (Game rules.)`
-        : `Split today's ${s.cellsToday} power cells. Spare cells can run MOXIE for air. (Game rules.)`,
-      16, store.meta.dusty ? C.warn : C.dim, { wordWrap: { width: w - 80 } }));
+    const weatherCopy = store.worldId === 'moon'
+      ? `Simulated lunar environment · ${store.isDaylight() ? 'sunlit' : 'dark'} side · ${wx.minC}° to ${wx.maxC}°C. Moon has no wind or rain.`
+      : `Real Mars weather · NASA InSight, Mars sol ${wx.marsSol} (Earth date ${wx.earthDate})\nLow ${wx.minC}°C, high ${wx.maxC}°C${wx.windAvg !== null ? `, wind ${wx.windAvg} m/s` : ''}. ${weatherNote(s.sol)}`;
+    c.add(text(this, x + 40, y + 84, weatherCopy, 17, C.teal, { wordWrap: { width: w - 80 } }));
+    const dustBudget = store.worldId === 'moon' && s.dustLevel > 0
+      ? ` Dust level ${s.dustLevel} reduces tomorrow's budget to ${store.nextDayCells()} unless you clean the airlock.` : '';
+    c.add(text(this, x + 40, y + 140, `Split today's ${s.cellsToday} power cells. Unallocated cells can make oxygen later today.${dustBudget}`, 17, C.dim, { wordWrap: { width: w - 80 } }));
 
     const rows = this.add.container(0, 0);
     c.add(rows);
@@ -455,8 +479,10 @@ export class UIScene extends Phaser.Scene {
     const warned = storms.filter((st) => s.processedWarnings.includes(st.event.id));
     const roverCan = store.roverCanLaunch();
     const hints: Record<PowerSlot, () => string> = {
-      growLights: () => `Each cell lights up to ${RULES.growLightsPlotsPerCell} watered plants so they grow and make air. Planted: ${s.plots.filter((p) => p.cropId).length}.`,
-      heater: () => (cold ? `Tonight is colder than ${RULES.heaterNeededBelowC}°C. Without 1 heater cell, plants won't grow.` : 'Warm enough tonight. The heater is optional.'),
+      growLights: () => `Each cell lights up to ${store.rules.growLightsPlotsPerCell} watered plants so they grow and make air. Planted: ${s.plots.filter((p) => p.cropId).length}.`,
+      heater: () => store.worldId === 'moon'
+        ? `Thermal control needs ${store.thermalRequired()} cell${store.thermalRequired() === 1 ? '' : 's'} for ${store.isDaylight() ? 'daylight cooling' : 'night heating'}; without it, plants pause.`
+        : (cold ? `Tonight is colder than ${RULES.heaterNeededBelowC}°C. Without 1 heater cell, plants won't grow.` : 'Warm enough tonight. The heater is optional.'),
       shelter: () => warned.length
         ? `⚠️ STORM TODAY! Strength ${warned[0].event.scenario.strength} (simulated). Shelter cells + ${s.shield} shield layer(s) must reach it.`
         : 'No storm warning for today. Check the storm board (TAB).',
@@ -480,7 +506,8 @@ export class UIScene extends Phaser.Scene {
       const total = store.splitTotal();
       SLOTS.forEach((slot, i) => {
         const ry = rowTop + i * 76;
-        const info = SLOT_INFO[slot];
+        const baseInfo = SLOT_INFO[slot];
+        const info = slot === 'heater' && store.worldId === 'moon' ? { ...baseInfo, label: 'Thermal control' } : baseInfo;
         rows.add(this.add.rectangle(x + 40, ry, w - 80, 66, 0x2a3247).setOrigin(0, 0).setStrokeStyle(3, C.gold, i === selected ? 1 : 0));
         rows.add(this.add.image(x + 74, ry + 33, info.icon).setScale(3));
         rows.add(text(this, x + 108, ry + 8, info.label, 22, C.text, { fontStyle: 'bold' }));
@@ -499,9 +526,9 @@ export class UIScene extends Phaser.Scene {
       });
       const left = s.cellsToday - total;
       const status = confirmUnused
-        ? `${left} spare cell${left > 1 ? 's' : ''}: run MOXIE with ${left > 1 ? 'them' : 'it'} today, or ${left > 1 ? 'they are' : 'it is'} wasted. Start again to go.`
-        : left > 0 ? `${left} cell${left > 1 ? 's' : ''} left · drag ⚡ into a row` : 'All cells placed!';
-      rows.add(text(this, x + 40, y + h - 66, status, 22, confirmUnused ? C.warn : left > 0 ? C.goldText : C.ok));
+        ? `${left} spare cell${left > 1 ? 's' : ''} for oxygen. Press Start again.`
+        : left > 0 ? `${left} cells left · Spare cells can make oxygen.` : 'All cells placed!';
+      rows.add(text(this, x + 40, y + h - 66, status, 17, confirmUnused ? C.warn : left > 0 ? C.goldText : C.ok));
       rows.add(text(this, x + 40, y + h - 34, 'Keys: ↑↓ pick a row · Left/Right remove/add · Enter starts the day', 14, C.dim));
       addPowerCells(this, rows, {
         rowX: x + 40, rowW: w - 80, rowY: (i) => rowTop + i * 76, rowH: 66,
@@ -544,11 +571,13 @@ export class UIScene extends Phaser.Scene {
     const x = 220, y = 30, w = W - 440, h = 660;
     c.add(this.add.rectangle(0, 0, W, H, 0x05070f, 0.75).setOrigin(0).setInteractive());
     c.add(panel(this, x, y, w, h, C.panelDark));
-    c.add(text(this, W / 2, y + 26, `Night falls on sol ${r.sol}`, 32, C.goldText, { fontStyle: 'bold' }).setOrigin(0.5, 0));
+    c.add(text(this, W / 2, y + 26, `Night falls on ${store.world.dayLabel.toLowerCase()} ${r.sol}`, 32, C.goldText, { fontStyle: 'bold' }).setOrigin(0.5, 0));
     const lines = [
       `🫁 Air: ${Math.round(r.air[0])} -> ${Math.round(r.air[1])}    🥕 Food: ${Math.round(r.food[0])} -> ${Math.round(r.food[1])}`,
       r.blackout ? '⚡ The storm knocked out the grow lights today. Nothing grew.' :
-        !r.warm ? `❄️ Too cold (${r.minC}°C) and no heater: the plants took a sol off.` :
+        !r.warm ? store.worldId === 'moon'
+          ? `🌘 Thermal control was insufficient (${r.minC}°C in the simulated environment); plants took a day off.`
+          : `❄ Too cold (${r.minC}°C) and no heater: the plants took a sol off.` :
         `🌱 ${r.litPlots} plant${r.litPlots === 1 ? '' : 's'} got light; ${r.grownPlots} grew a step.`,
     ];
     if (r.snacked) lines.push(`🥗 The crew was hungry and ate ${r.snacked} raw crop${r.snacked > 1 ? 's' : ''} from the pantry.`);
@@ -556,7 +585,7 @@ export class UIScene extends Phaser.Scene {
     if (r.roverCalledHome) lines.push('🚙 Bolt was still driving, so the crew called the rover home with its cargo.');
     if (r.outcome === 'rescue') lines.push('⚠️ Supplies ran out. Time to call for help.');
     if (r.outcome === 'debrief') lines.push('🚀 That was the final sol!');
-    lines.push(`Schedule: ${SCHEDULE.map((st) => `${st.icon} ${r.schedule[st.id] ? '✅' : '⬜'}`).join('  ')}`);
+    lines.push(`Schedule: ${scheduleForWorld(store.worldId).map((st) => `${st.icon} ${r.schedule[st.id] ? '✅' : '⬜'}`).join('  ')}`);
     const body = text(this, x + 40, y + 80, lines.join('\n'), 20, C.text, { lineSpacing: 8, wordWrap: { width: w - 80 } });
     c.add(body);
     const journal = text(this, x + 40, body.y + body.height + 12, `📓 Mission journal\n${r.journal}`, 18, C.goldText, { lineSpacing: 4, wordWrap: { width: w - 80 } });
@@ -581,7 +610,9 @@ export class UIScene extends Phaser.Scene {
 
   openPetQuiz() {
     if (this.current) return;
-    this.enqueue({ build: () => this.buildQuiz(store.state.sol, loadAstronaut().pet), pause: true });
+    const quizWorld = store.worldId;
+    const quizSol = store.state.sol;
+    this.enqueue({ build: () => this.buildQuiz(quizSol, loadAstronaut().pet, quizWorld), pause: true });
   }
 
   /**
@@ -589,8 +620,9 @@ export class UIScene extends Phaser.Scene {
    * the topic asks it; during the day the pet brings it, and a right answer wins the sol's Wiz Card
    * (the lesson's sourced fact) plus the pet's reward.
    */
-  private buildQuiz(sol: number, pet: PetKind = 'none') {
-    const l = lessonFor(sol)!;
+  private buildQuiz(sol: number, pet: PetKind = 'none', quizWorld: WorldId = store.worldId) {
+    const l = lessonFor(sol, quizWorld);
+    if (!l) return null;
     const byPet = pet !== 'none';
     const trick = byPet ? PET_TRICKS[pet] : null;
     const sp = SPEAKERS[l.who];
@@ -601,8 +633,11 @@ export class UIScene extends Phaser.Scene {
     c.add(this.add.rectangle(x + 90, y + 90, 120, 120, 0x2a3247).setStrokeStyle(3, C.frameDark));
     const portrait = byPet ? `pet-${pet}-0` : sp.portrait;
     if (this.textures.exists(portrait)) c.add(this.add.image(x + 90, y + 96, portrait).setScale(byPet ? 3.2 : 1.7));
-    c.add(text(this, x + 170, y + 30, byPet ? `Your ${trick!.name} brings you a quiz card!` : `${sp.name} asks`, 20, byPet ? C.goldText : sp.color, { fontStyle: 'bold' }));
-    c.add(text(this, x + 170, y + 62, byPet ? 'Answer right to win a Wiz Card and a pet reward. One try per sol.' : 'Say it! One quick question about today\'s lesson.', 16, C.dim));
+    const petName = byPet && pet === 'alien' && quizWorld === 'moon' ? 'alien visitor' : trick?.name;
+    const period = quizWorld === 'moon' ? 'day' : 'sol';
+    const alreadyCopy = quizWorld === 'moon' ? `Your ${petName} already helped today. Try again tomorrow.` : trick?.already;
+    c.add(text(this, x + 170, y + 30, byPet ? `Your ${petName} brings you a quiz card!` : `${sp.name} asks`, 20, byPet ? C.goldText : sp.color, { fontStyle: 'bold' }));
+    c.add(text(this, x + 170, y + 62, byPet ? `Answer right to win a Wiz Card and a pet reward. One try per ${period}.` : 'Say it! One quick question about today\'s lesson.', 16, C.dim));
     c.add(text(this, x + 170, y + 96, l.question, 26, C.text, { fontStyle: 'bold', wordWrap: { width: w - 210 } }));
     const choices = this.add.container(0, 0);
     c.add(choices);
@@ -616,22 +651,28 @@ export class UIScene extends Phaser.Scene {
       let correct: boolean;
       let reward = '';
       if (byPet) {
-        const res = store.petQuiz(i, trick!);
+        const res = store.petQuiz(i, trick!, quizWorld, sol);
         if (!res.ok) {
           this.close();
-          if (res.reason) this.toast(res.reason === 'already' ? trick!.already : res.reason, C.warn);
+          if (res.reason) this.toast(res.reason === 'already' ? alreadyCopy! : res.reason, C.warn);
           return;
         }
         correct = res.correct;
-        reward = res.cleaned ? `Reward: your ${trick!.name} swept the dust off the solar panel! +1 spare cell.` : `Reward: ${trick!.line}`;
-      } else correct = store.answerLesson(sol, i).correct;
+        const gift = `${trick!.amount} ${trick!.item === 'seed' ? `seed${trick!.amount === 1 ? '' : 's'}` : trick!.item}`;
+        reward = res.cleaned ? quizWorld === 'moon'
+          ? `Reward: your ${petName} brushed lunar dust away. Power returns tomorrow.`
+          : `Reward: your ${petName} swept the dust off the solar panel! +1 spare cell today.`
+          : quizWorld === 'moon'
+            ? `Reward: your ${petName} brought ${gift} from the habitat's collected supplies.`
+            : `Reward: ${trick!.line}`;
+      } else correct = store.answerLesson(sol, i, quizWorld).correct;
       sfx(correct ? 'confirm' : 'click');
       choices.removeAll(true);
-      if (correct && byPet) this.addWizCard(choices, x + 40, y + 160, w - 80, sol, reward);
+      if (correct && byPet) this.addWizCard(choices, x + 40, y + 160, w - 80, sol, reward, quizWorld);
       else {
         const msg = correct
           ? `🌟 That's right!\n${l.goal}`
-          : `Good try! The answer is: ${l.choices[l.answer]}.\n${l.goal}${byPet ? `\nYour ${trick!.name} will bring a new card tomorrow.` : ''}`;
+          : `Good try! The answer is: ${l.choices[l.answer]}.\n${l.goal}${byPet ? `\nYour ${petName} will bring a new card tomorrow.` : ''}`;
         choices.add(text(this, x + 60, y + 200, msg, 22, correct ? C.ok : C.goldText, { lineSpacing: 8, wordWrap: { width: w - 120 } }));
       }
       choices.add(text(this, x + 60, y + h - 110, `Lessons answered right: ${store.lessonsCorrect()} · Wiz Cards: ${store.meta.wizCards.length}`, 18, C.dim));
@@ -653,11 +694,11 @@ export class UIScene extends Phaser.Scene {
   }
 
   /** The Wiz Card: the lesson's sourced fact, kept for the mission, plus the pet's reward. */
-  private addWizCard(c: Phaser.GameObjects.Container, cx: number, cy: number, cw: number, sol: number, reward: string) {
-    const l = lessonFor(sol)!;
-    const card = store.lessonCard(sol);
+  private addWizCard(c: Phaser.GameObjects.Container, cx: number, cy: number, cw: number, sol: number, reward: string, worldId: WorldId = store.worldId) {
+    const l = lessonFor(sol, worldId)!;
+    const card = store.lessonCard(sol, worldId);
     c.add(this.add.rectangle(cx, cy, cw, 250, 0x2a2440).setOrigin(0).setStrokeStyle(4, C.gold));
-    c.add(text(this, cx + 20, cy + 14, `🃏 Wiz Card · sol ${sol}`, 22, C.goldText, { fontStyle: 'bold' }));
+    c.add(text(this, cx + 20, cy + 14, `🃏 Wiz Card · ${worldId === 'moon' ? 'day' : 'sol'} ${sol}`, 22, C.goldText, { fontStyle: 'bold' }));
     c.add(text(this, cx + cw - 20, cy + 18, '🌟 That\'s right!', 18, C.ok).setOrigin(1, 0));
     c.add(text(this, cx + 20, cy + 50, l.goal, 20, C.text, { fontStyle: 'bold', wordWrap: { width: cw - 40 } }));
     if (card) {
@@ -706,8 +747,31 @@ export class UIScene extends Phaser.Scene {
     const x = 140, y = 50, w = W - 280, h = 620;
     c.add(this.add.rectangle(0, 0, W, H, 0x000000, 0.5).setOrigin(0).setInteractive().on('pointerdown', () => this.close()));
     c.add(panel(this, x, y, w, h));
-    c.add(text(this, x + 32, y + 22, '☀️ Space Weather Board', 30, C.goldText, { fontStyle: 'bold' }));
-    c.add(text(this, x + 32, y + 62, `Scenario: ${week.label} · real events from ${week.realWindow[0]} to ${week.realWindow[1]}, replayed over ${RULES.missionSols} sols.`, 17, C.dim, { wordWrap: { width: w - 64 } }));
+    if (store.worldId === 'moon') {
+      c.add(text(this, x + 32, y + 22, '☾ Lunar Environment', 30, C.goldText, { fontStyle: 'bold' }));
+      c.add(text(this, x + 32, y + 64,
+        `Simulated radiation alerts for this outpost. Moon has no wind or rain. Day ${s.sol} is ${store.isDaylight() ? 'sunlit' : 'dark'}; darkness lasts several game days in this compressed scenario.`,
+        17, C.dim, { wordWrap: { width: w - 64 } }));
+      let yy = y + 132;
+      for (const st of store.storms()) {
+        const event = st.event;
+        const warned = s.processedWarnings.includes(event.id);
+        const hit = s.processedStormHits.includes(event.id);
+        c.add(this.add.rectangle(x + 32, yy, w - 64, 112, 0x2a3247).setOrigin(0));
+        c.add(text(this, x + 52, yy + 16, `Radiation scenario · strength ${event.scenario.strength} · SIMULATED`, 21, C.text, { fontStyle: 'bold' }));
+        const status = hit ? 'Passed' : warned ? `Impact on day ${event.scenario.gameSol} · ${fmtMs(st.hitAtMs - s.missionElapsedMs)} remaining` : `Forecast expected two days before day ${event.scenario.gameSol}`;
+        c.add(text(this, x + 52, yy + 54, status, 17, hit ? C.ok : warned ? C.warn : C.dim));
+        c.add(text(this, x + 52, yy + 82, `Shelter cells + ${s.shield} shield layer(s) must reach strength ${event.scenario.strength}.`, 15, C.dim));
+        yy += 124;
+      }
+      c.add(text(this, x + 32, y + h - 78,
+        'Hazard timing and effects are game scenarios inspired by space radiation research; they are not records of radiation impacts observed on the Moon.',
+        15, C.sim, { wordWrap: { width: w - 64 } }));
+      c.add(text(this, x + w - 24, y + 20, '✕ TAB', 18, C.dim).setOrigin(1, 0));
+      return c;
+    }
+    c.add(text(this, x + 32, y + 22, '☀ Space Weather Board', 30, C.goldText, { fontStyle: 'bold' }));
+    c.add(text(this, x + 32, y + 62, `Scenario: ${week.label} · real events from ${week.realWindow[0]} to ${week.realWindow[1]}, replayed over ${store.rules.missionSols} sols.`, 17, C.dim, { wordWrap: { width: w - 64 } }));
     let yy = y + 104;
     for (const st of store.storms()) {
       const e = st.event;
@@ -753,7 +817,7 @@ export class UIScene extends Phaser.Scene {
     c.add(this.add.rectangle(0, 0, W, H, 0x000000, 0.5).setOrigin(0).setInteractive().on('pointerdown', () => this.close()));
     c.add(panel(this, x, y, w, h));
     c.add(text(this, x + 32, y + 22, 'How to play', 30, C.goldText, { fontStyle: 'bold' }));
-    const pages = createHelpPages(RULES.cellsPerSol, RULES.heaterNeededBelowC);
+    const pages = createHelpPages(store.rules.cellsPerSol, RULES.heaterNeededBelowC, store.worldId);
     let page = 0;
     let title: Phaser.GameObjects.Text | undefined;
     let body: Phaser.GameObjects.Text | undefined;
@@ -799,6 +863,76 @@ export class UIScene extends Phaser.Scene {
     return c;
   }
 
+  openWizCards() {
+    if (this.current) return;
+    this.enqueue({ build: () => this.buildWizCards(), pause: true });
+  }
+
+  /** Read-only collection view: archived facts resolve against their own world and storm week. */
+  private buildWizCards() {
+    const completed = store.campaign?.completed ?? [];
+    const worlds: { id: WorldId; result?: MissionResult; days: number[] }[] = [
+      ...completed.map((result) => ({ id: result.worldId, result, days: result.training?.wizCards ?? [] })),
+      { id: store.worldId, days: store.meta.wizCards },
+    ];
+    const c = this.add.container(0, 0);
+    const x = 100, y = 34, w = W - 200, h = H - 68;
+    c.add(this.add.rectangle(0, 0, W, H, 0x000000, 0.62).setOrigin(0).setInteractive());
+    c.add(panel(this, x, y, w, h));
+    let worldIndex = Math.max(0, worlds.length - 1);
+    let day = 0;
+    const title = text(this, x + 28, y + 18, '🃏 Wiz Card book', 28, C.goldText, { fontStyle: 'bold' });
+    c.add(title);
+    const tabs = this.add.container(0, 0);
+    c.add(tabs);
+    const subhead = this.add.container(0, 0);
+    c.add(subhead);
+    const detail = this.add.container(0, 0);
+    c.add(detail);
+    const render = () => {
+      tabs.removeAll(true);
+      subhead.removeAll(true);
+      detail.removeAll(true);
+      const selected = worlds[worldIndex];
+      const label = selected.id === 'moon' ? 'Moon days' : 'Mars sols';
+      subhead.add(text(this, x + 28, y + 58, `${selected.id === 'moon' ? 'Moon' : 'Mars'} collection · ${selected.days.length}/${lessonsForWorld(selected.id).length} cards`, 17, C.dim));
+      worlds.forEach((world, i) => {
+        const tab = button(this, x + w - 355 + i * 155, y + 35, world.id === 'moon' ? 'Moon' : 'Mars', () => {
+          worldIndex = i;
+          day = 0;
+          render();
+        }, 140, 38, i === worldIndex ? C.gold : C.frame);
+        tabs.add(tab);
+        if (world.result) tabs.add(text(this, tab.x, tab.y + 20, 'completed', 11, C.dim).setOrigin(0.5, 0));
+      });
+      selected.days.forEach((d, i) => {
+        const col = i % 5, row = Math.floor(i / 5);
+        const b = button(this, x + 100 + col * 215, y + 122 + row * 58, `${label.slice(0, -1)} ${d}`, () => {
+          day = d;
+          render();
+        }, 190, 44, day === d ? C.gold : C.frame);
+        detail.add(b);
+      });
+      if (!selected.days.length) {
+        detail.add(text(this, W / 2, y + 240, 'No cards collected on this mission yet. Answer a pet quiz correctly to earn one.', 21, C.dim, { wordWrap: { width: w - 100 }, align: 'center' }).setOrigin(0.5, 0));
+      } else {
+        const lesson = lessonFor(day || selected.days[0], selected.id);
+        const card = store.lessonCard(lesson!.sol, selected.id, selected.result?.stormWeekId);
+        detail.add(text(this, x + 42, y + 248, `${selected.id === 'moon' ? 'Lunar day' : 'Mars sol'} ${lesson!.sol} · ${SPEAKERS[lesson!.who].name}`, 25, C.goldText, { fontStyle: 'bold' }));
+        detail.add(text(this, x + 42, y + 292, lesson!.goal, 21, C.text, { fontStyle: 'bold', wordWrap: { width: w - 84 } }));
+        if (card) {
+          detail.add(text(this, x + 42, y + 348, card.text, 18, C.text, { wordWrap: { width: w - 84 }, lineSpacing: 5 }));
+          const src = text(this, x + 42, y + h - 104, `Source: ${card.source.replace(/^https?:\/\//, '').slice(0, 96)} »`, 15, C.teal).setInteractive({ useHandCursor: true });
+          src.on('pointerdown', () => window.open(card.source, '_blank', 'noopener'));
+          detail.add(src);
+        }
+      }
+      detail.add(text(this, x + 28, y + h - 66, 'Esc to close', 15, C.dim));
+    };
+    render();
+    return c;
+  }
+
   // ---------- photos ----------
 
   private queueNewPhotos() {
@@ -806,14 +940,15 @@ export class UIScene extends Phaser.Scene {
     const fresh = earned.slice(this.photosShown);
     this.photosShown = earned.length;
     if (!fresh.length) {
-      this.toast(`Album full: you have all ${getData().photos.photos.length} NASA photos! Samples still count for science.`, C.teal);
+      this.toast(`Album full: you have all ${getAllWorldData().flatMap((d) => d.photos.photos).length} NASA photos! Samples still count for science.`, C.teal);
       return;
     }
     for (const id of fresh) this.enqueue({ build: () => this.buildPhoto(id), pause: true });
   }
 
   private buildPhoto(nasaId: string) {
-    const p = getData().photos.photos.find((x) => x.nasaId === nasaId)!;
+    const p = getAllWorldData().flatMap((d) => d.photos.photos).find((x) => x.nasaId === nasaId);
+    if (!p) return this.add.container(0, 0);
     const c = this.add.container(0, 0);
     const x = 260, y = 70, w = W - 520, h = 580;
     c.add(this.add.rectangle(0, 0, W, H, 0x000000, 0.6).setOrigin(0).setInteractive());
@@ -855,11 +990,16 @@ export class UIScene extends Phaser.Scene {
   openAlbum() {
     if (this.current) return;
     const earned = store.meta.photosEarned;
-    if (!earned.length) {
-      this.say([{ who: 'bolt', text: 'Our photo album is empty. Bring rock samples home with the rover and Mission Control sends a real NASA photo for each one!' }]);
+    const photos = getAllWorldData().flatMap((d) => d.photos.photos);
+    const available = earned.filter((id) => photos.some((p) => p.nasaId === id));
+    if (!available.length) {
+      const textLine = store.worldId === 'moon'
+        ? 'The Moon mission has no photo cards yet. Bring a sample home to see what is available for this world.'
+        : 'Our photo album is empty. Bring rock samples home with the rover and Mission Control sends a real NASA photo for each one!';
+      this.say([{ who: 'bolt', text: textLine }]);
       return;
     }
-    for (const id of earned) this.enqueue({ build: () => this.buildPhoto(id), pause: true });
+    for (const id of available) this.enqueue({ build: () => this.buildPhoto(id), pause: true });
   }
 
   private toDebrief() {

@@ -5,10 +5,11 @@ import { petSound, sfx } from '../core/audio';
 import { RULES } from '../core/rules';
 import { settings } from '../core/settings';
 import { loadAstronaut, PET_TRICKS, type PetKind } from '../farm/look';
-import { cropById, getData } from '../data/loaders';
+import { cropById } from '../data/loaders';
 import { cropStage } from '../farm/art';
-import { CHAT, EGGS, REACT, type Line } from '../story/script';
+import { adaptWorldLines, CHAT, EGGS, REACT, type Line } from '../story/script';
 import { TOOLS } from '../ui/UIScene';
+import { advanceHopClock, beginHop, moveSwept, type HopClock } from '../core/movement';
 
 // The greenhouse dome: walk around, farm the 12 plots, use machines, chat with the crew.
 
@@ -60,6 +61,10 @@ export class FarmScene extends Phaser.Scene {
   private unsub: (() => void)[] = [];
   /** Tap/click-to-walk target (for touch screens), and the tile to use on arrival. */
   private walkTarget: { x: number; y: number; tile: [number, number]; stuckMs: number } | null = null;
+  private hopClock: HopClock = { elapsedMs: null, cooldownMs: 0 };
+  private hopStart: { x: number; y: number } | null = null;
+  private hopDirection = { x: 0, y: 0 };
+  private hopShadow!: Phaser.GameObjects.Ellipse;
 
   constructor() {
     super('Farm');
@@ -77,29 +82,37 @@ export class FarmScene extends Phaser.Scene {
     this.counters = {};
     this.unsub = [];
     this.walkTarget = null;
+    this.hopClock = { elapsedMs: null, cooldownMs: 0 };
+    this.hopStart = null;
     this.buildMap();
     this.buildThings();
     this.buildCrew();
 
     this.player = this.add.sprite(12 * T + T / 2, 4 * T + T / 2, 'player-down-0').setDepth(5);
     this.buildPet();
+    this.hopShadow = this.add.ellipse(this.player.x, this.player.y + 12, 16, 6, 0x000000, 0.35).setDepth(4);
     this.cursor = this.add.rectangle(0, 0, T, T).setStrokeStyle(2, 0xffd166, 0.9).setDepth(4);
 
     const cam = this.cameras.main;
     cam.setZoom(2);
     cam.setBounds(0, -HUD_TOP_PAD, MAP_W * T, MAP_H * T + HUD_TOP_PAD + HUD_BOTTOM_PAD);
     cam.startFollow(this.player, true, 0.15, 0.15);
-    cam.setBackgroundColor('#8f3d22');
+    cam.setBackgroundColor(store.worldId === 'moon' ? '#555b64' : '#8f3d22');
     cam.fadeIn(300);
 
     const kb = this.input.keyboard!;
-    this.keys = kb.addKeys('UP,DOWN,LEFT,RIGHT,W,A,S,D,SPACE,E') as Record<string, Phaser.Input.Keyboard.Key>;
+    this.keys = kb.addKeys('UP,DOWN,LEFT,RIGHT,W,A,S,D,SPACE,E,SHIFT') as Record<string, Phaser.Input.Keyboard.Key>;
     kb.on('keydown-SPACE', () => this.act());
     kb.on('keydown-E', () => this.act());
+    kb.on('keydown-SHIFT', () => this.startHop());
+    const onHop = () => this.startHop();
+    bus.on('ui:hop', onHop);
+    this.unsub.push(() => bus.off('ui:hop', onHop));
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
       if (store.paused) return;
       const tx = Math.floor(p.worldX / T);
       const ty = Math.floor(p.worldY / T);
+      if (this.hopStart) return;
       if (this.inReach(tx, ty)) this.actOn(tx, ty);
       else this.walkTarget = { x: tx * T + T / 2, y: ty * T + T / 2, tile: [tx, ty], stuckMs: 0 };
     });
@@ -124,9 +137,9 @@ export class FarmScene extends Phaser.Scene {
         const wallBottom = y === MAP_H - 2 && x >= 1 && x <= MAP_W - 2;
         const wallSide = (x === 1 || x === MAP_W - 2) && y >= 1 && y <= MAP_H - 2;
         let key = 'floor';
-        if (outside) key = 'mars';
-        else if (wallSide) key = 'wall-side';
-        else if (wallTop || wallBottom) key = 'wall';
+        if (outside) key = store.worldId === 'moon' ? 'moon' : 'mars';
+        else if (wallSide) key = store.worldId === 'moon' ? 'moon-wall-side' : 'wall-side';
+        else if (wallTop || wallBottom) key = store.worldId === 'moon' ? 'moon-wall' : 'wall';
         else if (x >= 3 && x <= 11 && y >= 5 && y <= 11) key = 'mat';
         const img = this.add.image(x * T, y * T, key).setOrigin(0);
         if (wallBottom) img.setFlipY(true);
@@ -253,21 +266,48 @@ export class FarmScene extends Phaser.Scene {
     if (!s) return;
     this.movePlayer(delta);
     this.movePet(delta);
+    const ground = this.hopStart ?? this.player;
+    const reducedHopMotion = store.worldId === 'moon' && settings.reducedMotion;
+    this.hopShadow.setPosition(ground.x, ground.y + 12)
+      .setScale(this.hopStart && !reducedHopMotion ? 0.65 : 1)
+      .setAlpha(this.hopStart && !reducedHopMotion ? 0.22 : 0.35)
+      .setVisible(!reducedHopMotion || !this.hopStart);
     this.refreshPlots();
     this.bolt.setVisible(s.rover.status === 'home' || s.rover.status === 'repairing');
     const tree = store.meta.storySeen.find((x) => x.startsWith('mystery-planted@'));
     this.eggTree?.setVisible(!!tree && s.sol > Number(tree.split('@')[1]));
-    this.panelSprite?.setTexture(store.meta.dusty ? 'm-panel-dusty' : 'm-panel');
+    const panelDusty = store.panelsNeedCleaning();
+    this.panelSprite?.setTexture(panelDusty ? 'm-panel-dusty' : 'm-panel')
+      .setTint(panelDusty && store.worldId === 'moon' ? 0xc6c6c6 : 0xffffff);
     const [fx, fy] = this.facingTile();
     this.cursor.setPosition(fx * T + T / 2, fy * T + T / 2).setVisible(!store.paused);
   }
 
   private movePlayer(delta: number) {
-    if (this.exercising) return;
-    if (store.paused) {
+    const reducedHopMotion = store.worldId === 'moon' && settings.reducedMotion;
+    if (this.exercising || store.paused || store.state.phase !== 'day') {
       this.player.stop();
+      this.cancelHop();
       return;
     }
+    if (this.hopStart) {
+      const clock = advanceHopClock(this.hopClock, delta, true);
+      this.hopClock = clock.clock;
+      const stepMs = clock.movedMs;
+      const amount = 110 * 1.6 * 0.25 * (stepMs / 250);
+      const moved = moveSwept(this.hopStart, {
+        x: this.hopDirection.x * amount,
+        y: this.hopDirection.y * amount,
+      }, (x, y) => this.blocked(x, y) || this.isPlot(Math.floor(x / T), Math.floor((y + 8) / T)), 4);
+      this.hopStart = moved;
+      if (clock.complete) this.cancelHop();
+      else {
+        const arc = reducedHopMotion ? 0 : Math.sin((Math.PI * (this.hopClock.elapsedMs ?? 0)) / 250) * 12;
+        this.player.setPosition(moved.x, moved.y - arc).setScale(reducedHopMotion ? 1 : 1.12);
+      }
+      return;
+    }
+    this.hopClock = advanceHopClock(this.hopClock, delta, true).clock;
     const k = this.keys;
     let dx = 0;
     let dy = 0;
@@ -338,6 +378,33 @@ export class FarmScene extends Phaser.Scene {
     return this.things.some((t) => t.x === x && t.y === y);
   }
 
+  private startHop() {
+    if (!store.world.hopEnabled || store.paused || store.state.phase !== 'day' || this.hopStart) return;
+    const nextClock = beginHop(this.hopClock, true);
+    if (!nextClock) return;
+    let dx = 0;
+    let dy = 0;
+    if (this.keys.LEFT.isDown || this.keys.A.isDown) dx -= 1;
+    if (this.keys.RIGHT.isDown || this.keys.D.isDown) dx += 1;
+    if (this.keys.UP.isDown || this.keys.W.isDown) dy -= 1;
+    if (this.keys.DOWN.isDown || this.keys.S.isDown) dy += 1;
+    if (!dx && !dy) {
+      const facing: Record<Dir, [number, number]> = { down: [0, 1], up: [0, -1], left: [-1, 0], right: [1, 0] };
+      [dx, dy] = facing[this.facing];
+    }
+    const length = Math.hypot(dx, dy) || 1;
+    this.hopDirection = { x: dx / length, y: dy / length };
+    this.hopClock = nextClock;
+    this.hopStart = { x: this.player.x, y: this.player.y };
+  }
+
+  private cancelHop() {
+    if (this.hopStart && this.player?.active) this.player.setPosition(this.hopStart.x, this.hopStart.y);
+    this.hopStart = null;
+    this.hopClock = { ...this.hopClock, elapsedMs: null };
+    if (this.player?.active) this.player.setScale(1);
+  }
+
   private blocked(px: number, py: number) {
     // Small foot box so the player can slip between things.
     const pts = [[px - 9, py + 4], [px + 9, py + 4], [px - 9, py + 14], [px + 9, py + 14]];
@@ -355,7 +422,7 @@ export class FarmScene extends Phaser.Scene {
     const s = store.state;
     s.plots.forEach((p, i) => {
       this.plotTiles[i].setTexture(p.wateredToday ? 'plot-wet' : 'plot-dry');
-      const crop = cropById(p.cropId);
+      const crop = cropById(p.cropId, store.worldId);
       const img = this.plotCrops[i];
       if (!crop) {
         img.setVisible(false);
@@ -371,13 +438,13 @@ export class FarmScene extends Phaser.Scene {
   // ---------- actions ----------
 
   private act() {
-    if (store.paused) return;
+    if (store.paused || this.hopStart) return;
     const [x, y] = this.facingTile();
     this.actOn(x, y);
   }
 
   private say(lines: Line[]) {
-    bus.emit('ui:say', lines);
+    bus.emit('ui:say', adaptWorldLines(lines, store.worldId));
   }
 
   private hint(t: string) {
@@ -392,7 +459,7 @@ export class FarmScene extends Phaser.Scene {
   }
 
   private actOn(x: number, y: number) {
-    if (store.paused) return;
+    if (store.paused || this.hopStart) return;
     const s = store.state;
     const pi = this.plotIndex(x, y);
     if (pi >= 0) return this.usePlot(pi, x, y);
@@ -409,6 +476,12 @@ export class FarmScene extends Phaser.Scene {
     switch (thing.kind) {
       case 'door':
         if (s.phase !== 'day') return this.hint('Start the day first!');
+        if (store.worldId === 'moon' && s.dustLevel > 0 && s.dustCleanedSol !== s.sol) {
+          const clean = store.cleanDust();
+          if (clean.ok) return this.hint(`Airlock cleaned. Tomorrow's power budget returns to ${store.nextDayCells()} cells.`);
+          return this.report(clean);
+        }
+        this.cancelHop();
         this.cameras.main.fadeOut(200);
         this.time.delayedCall(220, () => {
           this.scene.sleep();
@@ -425,7 +498,7 @@ export class FarmScene extends Phaser.Scene {
         bus.emit('ui:open', 'kitchen');
         return;
       case 'console':
-        return this.say([{ who: 'priya', text: `Today's power: ${s.split.growLights} grow lights, ${s.split.heater} heater, ${s.split.shelter} shelter, ${s.split.rover} rover. The split is locked until tomorrow morning.` }]);
+        return this.say([{ who: 'priya', text: `Today's power: ${s.split.growLights} grow lights, ${s.split.heater} ${store.worldId === 'moon' ? 'thermal control' : 'heater'}, ${s.split.shelter} shelter, ${s.split.rover} rover. The split is locked until tomorrow morning.` }]);
       case 'melter':
         return this.report(store.convertIce(), () => {
           sfx('melter');
@@ -437,22 +510,25 @@ export class FarmScene extends Phaser.Scene {
           this.puff(x, y, 0xb5532f);
         });
       case 'tank':
-        return this.hint(`Water tank: ${s.inventory.water} water. Each plant drinks 1 per sol.`);
+        return this.hint(`Water tank: ${s.inventory.water} water. Plants need water when planted and while growing.`);
       case 'shelter':
         return this.hint(`Storm shelter. Today: ${s.split.shelter} cell(s) + ${s.shield} shield layer(s) of protection.`);
       case 'bed':
         return this.useBed();
       case 'moxie':
-        return this.report(store.runMoxie(), () => {
+        return this.report(store.runOxygenMaker(), () => {
           sfx('melter', -300);
           this.puff(x, y, 0xcfe9f5);
-          this.firstTime('moxie-intro', [{ who: 'priya', text: '{fact:moxie-oxygen} Our MOXIE is a game version: each spare power cell makes a little air.' }]);
+          this.firstTime(`oxygen-maker-intro-${store.worldId}`, [{ who: 'priya', text: store.worldId === 'moon'
+            ? 'The water oxygen maker uses water and a spare power cell to make breathable air. This is our game adaptation of water recovery and electrolysis work on the space station.'
+            : '{fact:moxie-oxygen} Our MOXIE is a game version: each spare power cell makes a little air.' }]);
         });
       case 'panel':
-        if (!store.meta.dusty) return this.hint(`Solar panel: clean. It makes our ${RULES.cellsPerSol} power cells every morning.`);
+        if (!store.panelsNeedCleaning()) return this.hint(`Solar panel: clean. It makes our ${store.rules.cellsPerSol} power cells every morning.`);
         return this.report(store.cleanPanels(), () => {
           sfx('clear');
           this.puff(x, y, 0xb5793f);
+          if (store.worldId === 'moon') this.hint('Lunar dust brushed away. Power returns to the panel tomorrow morning.');
         });
       case 'treadmill':
         return this.useTreadmill(x, y);
@@ -475,10 +551,10 @@ export class FarmScene extends Phaser.Scene {
     const s = store.state;
     const p = s.plots[pi];
     const tool = TOOLS[(this.registry.get('tool') as number) ?? 0];
-    const crop = cropById(p.cropId);
+    const crop = cropById(p.cropId, store.worldId);
     if (!crop) {
       if (!tool.startsWith('seed:')) return this.hint('Choose a seed with keys 1–5, then plant.');
-      const pick = getData().crops.crops[Number(tool.slice(5))];
+      const pick = store.data.crops.crops[Number(tool.slice(5))];
       return this.report(store.plant(pi, pick.id), () => {
         sfx('plant');
         this.puff(x, y, 0x9a6a45);
@@ -494,7 +570,7 @@ export class FarmScene extends Phaser.Scene {
       return this.report(store.harvest(pi), () => {
         sfx('harvest');
         this.puff(x, y, 0xfff3b0);
-        if (crop.food === 0 && !store.meta.storySeen.includes('zinnia')) {
+        if (store.worldId === 'mars' && crop.id === 'zinnia' && !store.meta.storySeen.includes('zinnia')) {
           store.meta.storySeen.push('zinnia');
           this.say([REACT.zinnia]);
         } else if (!store.meta.storySeen.includes('first-harvest')) {
@@ -509,7 +585,8 @@ export class FarmScene extends Phaser.Scene {
         this.puff(x, y, 0x5aa9e6);
       });
     }
-    return this.hint(`${crop.name}: ${p.growthSols}/${crop.growSols} sols of growth. Watered today.`);
+    const oxygen = crop.oxygenPerDay ?? 3;
+    return this.hint(`${crop.name}: ${p.growthSols}/${crop.growSols} ${store.world.dayLabel.toLowerCase()}s of growth · ${oxygen} air per day. Watered today.`);
   }
 
   private talk(name: string) {
@@ -565,7 +642,9 @@ export class FarmScene extends Phaser.Scene {
         sfx('confirm');
         this.puff(x, y, 0x7ee081);
         store.log('Exercise done! Strong muscles and bones.');
-        this.firstTime('exercise-intro', [{ who: 'rosa', text: '{fact:iss-exercise} On Mars there is some gravity, but we still train every day.' }]);
+        this.firstTime(`exercise-intro-${store.worldId}`, [{ who: 'rosa', text: store.worldId === 'moon'
+          ? '{fact:iss-exercise} Astronauts exercise during spaceflight to help maintain strength in microgravity. Our lunar habitat uses a treadmill too.'
+          : '{fact:iss-exercise} On Mars there is some gravity, but we still train every day.' }]);
       });
     });
   }
@@ -586,7 +665,7 @@ export class FarmScene extends Phaser.Scene {
     const intro = `pet-intro-${this.petKind}`;
     if (!store.meta.storySeen.includes(intro)) {
       store.meta.storySeen.push(intro);
-      store.log(`Your ${PET_TRICKS[this.petKind].name} follows you around. Use it once a sol for a helpful trick!`);
+      store.log(`Your ${this.petDisplayName(this.petKind)} follows you around. Use it once a ${store.world.dayLabel.toLowerCase()} for a helpful trick!`);
     }
   }
 
@@ -625,8 +704,14 @@ export class FarmScene extends Phaser.Scene {
     this.hearts(pet.x, pet.y - 12);
     const s = store.state;
     if (s.phase !== 'day') return this.hint('Start the day first!');
-    if (store.petUsedToday()) return this.hint(PET_TRICKS[kind].already);
+    if (store.petUsedToday()) return this.hint(store.worldId === 'moon'
+      ? `Your ${this.petDisplayName(kind)} already helped today. Try again tomorrow!`
+      : PET_TRICKS[kind].already);
     bus.emit('ui:open', 'petquiz');
+  }
+
+  private petDisplayName(kind: Exclude<PetKind, 'none'>) {
+    return store.worldId === 'moon' && kind === 'alien' ? 'alien visitor' : PET_TRICKS[kind].name;
   }
 
   private hearts(x: number, y: number) {
@@ -647,8 +732,10 @@ export class FarmScene extends Phaser.Scene {
       this.sleepAskedAt = this.time.now;
       const storm = store.pendingStorms().some((st) => st.hitAtMs <= store.dayEndMs());
       return this.hint(storm
-        ? 'A storm hits before tonight! Sleep anyway? Use the bed again to sleep until night.'
-        : 'Sleep until night? The rest of the sol passes. Use the bed again to sleep.');
+        ? store.worldId === 'moon'
+          ? 'A simulated radiation alert is due before tonight! Sleep anyway? Use the bed again to sleep until night.'
+          : 'A storm hits before tonight! Sleep anyway? Use the bed again to sleep until night.'
+        : `Sleep until night? The rest of the ${store.world.dayLabel.toLowerCase()} passes. Use the bed again to sleep.`);
     }
     this.sleepAskedAt = -Infinity;
     store.pause('sleep');

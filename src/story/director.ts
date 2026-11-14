@@ -2,7 +2,7 @@ import { store } from '../core/store';
 import { getData } from '../data/loaders';
 import { fillScienceTokens } from '../data/science';
 import type { ItemId } from '../core/types';
-import { INTRO, TUTORIAL, SOL_BEATS, RADIO_LETTERS, REACT, RESCUE, VICTORY, EGGS, type Line } from './script';
+import { introForWorld, tutorialForWorld, dayBeatsForWorld, radioLettersForWorld, adaptWorldLines, REACT, RESCUE, VICTORY, EGGS, type Line } from './script';
 
 // Decides which story lines play when. Remembers what was already shown (store.meta.storySeen)
 // so reloading a save never replays a scene.
@@ -22,7 +22,7 @@ export class Director {
   }
 
   fill(t: string, items = '') {
-    const data = getData();
+    const data = getData(store.worldId);
     const d = data.delay;
     return fillScienceTokens(t, data)
       .replace(/\{delay\}/g, String(Math.round(d.oneWayMinutes)))
@@ -31,9 +31,12 @@ export class Director {
   }
 
   morning(sol: number) {
-    if (sol === 1 && this.once('intro')) this.say([...INTRO, ...TUTORIAL]);
-    if (SOL_BEATS[sol] && this.once(`beat-${sol}`)) this.say(SOL_BEATS[sol]);
-    if (RADIO_LETTERS[sol] && this.once(`radio-${sol}`)) store.queueRadioMessage(this.fill(RADIO_LETTERS[sol]));
+    const world = store.worldId;
+    const dayBeats = dayBeatsForWorld(world);
+    const letters = radioLettersForWorld(world);
+    if (sol === 1 && this.once('intro')) this.say([...introForWorld(world), ...tutorialForWorld(world)]);
+    if (dayBeats[sol] && this.once(`beat-${sol}`)) this.say(dayBeats[sol]);
+    if (letters[sol] && this.once(`radio-${sol}`)) store.queueRadioMessage(this.fill(letters[sol]));
     store.save();
   }
 
@@ -42,18 +45,19 @@ export class Director {
     if (!st) return;
     const e = st.event;
     const date = new Date(e.realTime).toUTCString().slice(5, 16);
-    store.queueRadioMessage(
-      `Space weather alert! This scenario is based on a real solar event NASA recorded on ${date}. In the game it reaches you on sol ${e.scenario.gameSol} with strength ${e.scenario.strength}. Put enough cells in the SHELTER that morning.`,
-    );
+    const world = store.worldId;
+    store.queueRadioMessage(world === 'moon'
+      ? `Radiation alert! This is a simulated lunar hazard scenario, not a recorded Moon weather event. In the game it reaches you on day ${e.scenario.gameSol} with strength ${e.scenario.strength}. Plan shelter and shielding.`
+      : `Space weather alert! This scenario is based on a real solar event NASA recorded on ${date}. In the game it reaches you on sol ${e.scenario.gameSol} with strength ${e.scenario.strength}. Put enough cells in the SHELTER that morning.`);
     if (this.once('first-warning')) this.say([REACT.stormWarningBolt]);
   }
 
   stormHit(safe: boolean) {
-    this.say([safe ? REACT.stormSafe : REACT.stormUnsafe]);
+    this.say(adaptWorldLines([safe ? REACT.stormSafe : REACT.stormUnsafe], store.worldId));
   }
 
   roverDamaged(reason: string) {
-    this.say([reason === 'storm' ? REACT.roverStorm : REACT.roverBattery]);
+    this.say(adaptWorldLines([reason === 'storm' ? REACT.roverStorm : REACT.roverBattery], store.worldId));
   }
 
   roverHome(items: Record<ItemId, number>) {
@@ -63,12 +67,12 @@ export class Director {
   }
 
   propeller() {
-    const t = getData().trivia.trivia.find((x) => x.id === 'wright');
+    const t = getData(store.worldId).trivia.trivia.find((x) => x.id === 'wright');
     this.say([EGGS.propeller, ...(t ? [{ who: 'bolt' as const, text: `REAL FACT: ${t.fact}` }] : [])]);
   }
 
   ending(win: boolean, then: () => void) {
-    this.say(win ? VICTORY : RESCUE);
+    this.say(adaptWorldLines(win ? VICTORY : RESCUE, store.worldId));
     then();
   }
 }

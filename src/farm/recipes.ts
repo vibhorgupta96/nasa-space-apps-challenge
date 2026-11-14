@@ -30,4 +30,12 @@ export const RECIPES: Recipe[] = [
   },
 ];
 
-export const recipeById = (id: string) => RECIPES.find((r) => r.id === id) ?? null;
+export const MOON_RECIPES: Recipe[] = [
+  { id: 'moon-pea-soup', name: 'Pea and Potato Soup', needs: { 'moon-potato': 1, 'moon-pea': 1 }, food: 45, seeds: 0, text: 'A warm meal from potatoes and peas.' },
+  { id: 'moon-tomato-stew', name: 'Tomato and Wheat Stew', needs: { 'moon-tomato': 1, 'moon-wheat': 1 }, food: 55, seeds: 0, text: 'A hearty tomato and wheat stew.' },
+  { id: 'moon-harvest-bowl', name: 'Lunar Harvest Bowl', needs: { 'moon-potato': 1, 'moon-tomato': 1, 'moon-pea': 1 }, food: 95, seeds: 0, text: 'A mixed harvest for the whole crew.' },
+  { id: 'moon-research-seeds', name: 'Save Research Seeds', needs: { 'moon-arabidopsis': 1 }, food: 0, seeds: 3, text: 'Save seeds from a research plant for another experiment.' },
+];
+
+export const recipesForWorld = (world: 'mars' | 'moon' = 'mars'): Recipe[] => world === 'moon' ? MOON_RECIPES : RECIPES;
+export const recipeById = (id: string, world: 'mars' | 'moon' = 'mars') => recipesForWorld(world).find((r) => r.id === id) ?? null;

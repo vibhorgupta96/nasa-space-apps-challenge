@@ -1,0 +1,70 @@
+{
+  "fetched": "2026-11-14",
+  "mock": false,
+  "source": [
+    "https://api.nasa.gov/DONKI/CME",
+    "https://api.nasa.gov/DONKI/SEP",
+    "https://api.nasa.gov/DONKI/GST",
+    "https://ccmc.gsfc.nasa.gov/tools/DONKI/",
+    "https://ccmc.gsfc.nasa.gov/DONKI/guide/data-reference/"
+  ],
+  "note": "Historical solar events inspire the simulated lunar schedule and strength; no Moon impact is claimed.",
+  "weeks": [
+    {
+      "id": "moon-radiation",
+      "label": "Lunar radiation scenario",
+      "realWindow": [
+        "2024-05-08",
+        "2024-05-14"
+      ],
+      "events": [
+        {
+          "id": "moon-2024-05-08T05:36:00-CME-001",
+          "type": "CME",
+          "realTime": "2024-05-08T05:36Z",
+          "link": "https://ccmc.gsfc.nasa.gov/DONKI/view/CME/30589/-1",
+          "observedTarget": "unknown",
+          "observation": {
+            "instruments": [
+              "SOHO: LASCO/C2",
+              "SOHO: LASCO/C3",
+              "STEREO A: SECCHI/COR2"
+            ]
+          },
+          "scenario": {
+            "strength": 1,
+            "gameSol": 3,
+            "hitOffsetMs": 60000,
+            "warningSols": 2,
+            "label": "Simulated lunar radiation scenario; not an observed Moon impact"
+          },
+          "marsArrival": null
+        },
+        {
+          "id": "moon-2024-05-09T13:59:00-SEP-001",
+          "type": "SEP",
+          "realTime": "2024-05-09T13:59Z",
+          "link": "https://ccmc.gsfc.nasa.gov/DONKI/view/SEP/30609/-1",
+          "observedTarget": "unknown",
+          "observation": {
+            "instruments": [
+              "MODEL: REleASE:ACE/EPAM 15.8-39.8 MeV"
+            ],
+            "linkedEvents": [
+              "2024-05-09T08:45:00-FLR-001"
+            ]
+          },
+          "scenario": {
+            "strength": 2,
+            "gameSol": 7,
+            "hitOffsetMs": 60000,
+            "warningSols": 2,
+            "label": "Simulated lunar radiation scenario; not an observed Moon impact"
+          },
+          "marsArrival": null
+        }
+      ],
+      "earthContext": []
+    }
+  ]
+}

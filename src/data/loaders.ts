@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import type { ItemId } from '../core/types';
+import type { ItemId, WorldId } from '../core/types';
 
 // Shapes of the files in public/data (PLAN.md section 7).
 interface Sourced {
@@ -37,6 +37,8 @@ export interface Crop {
   fact: string;
   factSource: string;
   sourceTitle?: string;
+  waterPerDay?: number;
+  oxygenPerDay?: number;
 }
 
 export interface WeatherSol {
@@ -107,20 +109,33 @@ export const DATA_FILES = ['storms', 'weather', 'crops', 'delay', 'photos', 'tri
 
 export function queueDataFiles(scene: Phaser.Scene) {
   for (const name of DATA_FILES) scene.load.json(`data:${name}`, `data/${name}.json`);
+  for (const name of DATA_FILES) scene.load.json(`data:moon:${name}`, `data/moon/${name}.json`);
 }
 
-let data: GameData | null = null;
+let data: Record<WorldId, GameData> | null = null;
 
 export function collectData(scene: Phaser.Scene): GameData {
-  const out: Record<string, unknown> = {};
-  for (const name of DATA_FILES) out[name] = scene.cache.json.get(`data:${name}`);
-  data = out as unknown as GameData;
-  return data;
+  const worlds = {} as Record<WorldId, GameData>;
+  for (const world of ['mars', 'moon'] as const) {
+    const out: Record<string, unknown> = {};
+    for (const name of DATA_FILES) {
+      const value = scene.cache.json.get(world === 'mars' ? `data:${name}` : `data:moon:${name}`);
+      if (!value) throw new Error(`Missing ${world} data: ${name}`);
+      out[name] = value;
+    }
+    worlds[world] = out as unknown as GameData;
+  }
+  data = worlds;
+  return worlds.mars;
 }
 
-export function getData(): GameData {
+export function getData(worldId: WorldId = 'mars'): GameData {
   if (!data) throw new Error('Game data not loaded yet');
-  return data;
+  return data[worldId];
+}
+
+export function getAllWorldData(): GameData[] {
+  return [getData('mars'), getData('moon')];
 }
 
 /** Names of any data files that are still mock placeholders. The UI shows a MOCK DATA badge for these. */
@@ -128,6 +143,6 @@ export function mockFiles(d: GameData = getData()): string[] {
   return DATA_FILES.filter((n) => (d[n] as Sourced).mock);
 }
 
-export function cropById(id: string | null): Crop | undefined {
-  return id ? getData().crops.crops.find((c) => c.id === id) : undefined;
+export function cropById(id: string | null, worldId: WorldId = 'mars'): Crop | undefined {
+  return id ? getData(worldId).crops.crops.find((c) => c.id === id) : undefined;
 }

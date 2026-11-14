@@ -301,7 +301,7 @@ export async function runPlaytests(only?: string[]): Promise<{ ok: boolean; resu
       const c = scenes.getScene('Customize') as unknown as { set(a: object): void; start(): void };
       c.set({ suit: ['#e05050', '#5aa9e6', '#6aa84f'][store.state.sol % 3] });
       c.start();
-    } else if (!clickButton(title, 'Continue mission')) note('no Continue mission button on the title');
+    } else if (!clickButton(title, 'Continue campaign')) note('no Continue campaign button on the title');
     await pump(10);
   };
   // Junior Astronaut training: MOXIE, the dusty panel, the treadmill and crew requests.

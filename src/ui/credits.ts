@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import { getData, mockFiles } from '../data/loaders';
+import { getAllWorldData, getData, mockFiles } from '../data/loaders';
+import { store } from '../core/store';
 import { C, H, W, button, panel, text } from './theme';
 import { collectSourceLinks, sourceLabel } from './source-list.mjs';
 
@@ -7,7 +8,7 @@ const SOURCES_PER_PAGE = 8;
 
 // “NASA Data We Used” lists every unique source URL attached to the loaded data.
 export function showCredits(scene: Phaser.Scene) {
-  const d = getData();
+  const datasets = store.state ? [getData(store.worldId)] : getAllWorldData();
   const c = scene.add.container(0, 0).setDepth(500);
   c.add(scene.add.rectangle(0, 0, W, H, 0x000000, 0.7).setOrigin(0).setInteractive());
   c.add(panel(scene, 70, 30, W - 140, H - 60));
@@ -16,7 +17,7 @@ export function showCredits(scene: Phaser.Scene) {
     'Every linked source in the loaded game data. Storm timing, strength, and outpost effects are simulated.',
     16, C.dim, { wordWrap: { width: W - 220 } }));
 
-  const links = collectSourceLinks(d);
+  const links = [...new Set(datasets.flatMap((d) => collectSourceLinks(d)))];
   const pageCount = Math.max(1, Math.ceil(links.length / SOURCES_PER_PAGE));
   let page = 0;
   let rows: Phaser.GameObjects.Container | null = null;
@@ -55,7 +56,7 @@ export function showCredits(scene: Phaser.Scene) {
     renderPage();
   }, 170, 42, C.frame));
 
-  const mockNames = mockFiles(d);
+  const mockNames = [...new Set(datasets.flatMap((d) => mockFiles(d)))];
   const mockNote = mockNames.length ? ` MOCK DATA: ${mockNames.join(', ')}.` : '';
   c.add(text(scene, 100, 570,
     `NASA facts link to their sources. Storm effects and game balance are simulations.${mockNote}\n` +
