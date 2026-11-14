@@ -126,7 +126,7 @@ export const VICTORY: Line[] = [
 // ---------- easter eggs ----------
 export const EGGS = {
   total: 6,
-  bed: { who: 'you', text: 'You lie down. Mars does not wait for anyone. The day keeps going. You get up again, a bit more rested and a lot more dusty.' } as Line,
+  bed: { who: 'you', text: 'You lie down. The crew is still waiting for the morning power plan, so you get up again, a bit more rested and a lot more dusty. (Once the day starts, a bed lets you sleep until night.)' } as Line,
   earth: [
     { who: 'you', text: 'That little blue dot is Earth, painted on the wall.' },
     { who: 'bolt', text: 'I check on the Earth picture every hour. It has never moved. I find that suspicious.' },

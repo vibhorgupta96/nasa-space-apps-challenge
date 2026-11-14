@@ -116,6 +116,17 @@
         "disclosure": "each fact links its NASA source"
       }
     ],
-    "generatedImagesVideoAudio": []
+    "generatedImagesVideoAudio": [
+      {
+        "files": [
+          "public/audio/mars-morning.mp3"
+        ],
+        "tool": "Suno",
+        "media": "audio",
+        "role": "background music loop",
+        "humanEdits": "none; chosen and supplied by Muskan",
+        "disclosure": "docs/AI_USAGE.md, docs/ASSETS.md"
+      }
+    ]
   }
 }

@@ -28,6 +28,8 @@ export interface NightReport {
   grownPlots: number;
   blackout: boolean;
   roverRecovered: boolean;
+  /** Bolt was still driving when the mission ended; the crew brought the rover and its cargo in. */
+  roverCalledHome: boolean;
   outcome: 'next' | 'rescue' | 'debrief';
   card: { text: string; source: string } | null;
 }
@@ -290,6 +292,12 @@ export class Store {
     return SLOTS.reduce((n, k) => n + split[k], 0);
   }
 
+  /** Whether Bolt can drive at all today (home and not in repair); used by the morning plan. */
+  roverDrivableToday() {
+    const r = this.state.rover;
+    return r.status === 'home' && this.state.sol >= r.availableSol;
+  }
+
   roverCanLaunch(): Result {
     const s = this.state;
     const r = s.rover;
@@ -343,6 +351,27 @@ export class Store {
     this.log(`Sol ${s.sol} begins.`);
     this.save();
     bus.emit(UI_EV.PHASE_CHANGED, { phase: s.phase });
+    return OK;
+  }
+
+  /** The pet's once-a-sol trick adds a small gift to the home inventory. */
+  petTrick(item: ItemId, amount: number): Result {
+    const s = this.state;
+    if (s.phase !== 'day') return fail('Start the day first!');
+    const tag = `pet-trick@${s.sol}`;
+    if (this.meta.storySeen.includes(tag)) return fail('already');
+    this.meta.storySeen.push(tag);
+    s.inventory[item] += amount;
+    this.save();
+    return OK;
+  }
+
+  /** Sleep through the rest of the day: everything still due today happens in order, then the sol ends. */
+  sleepNow(): Result {
+    if (this.state.phase !== 'day') return fail('Start the day first!');
+    if (this.paused) return fail('Finish what you are doing first.');
+    this.advanceTo(this.dayEndMs());
+    this.endDay();
     return OK;
   }
 
@@ -469,7 +498,8 @@ export class Store {
 
   private collectRoverFind(x: number, y: number) {
     const r = this.state.rover;
-    for (const f of [...getData().terrain.finds, ...getActiveFindsForSol(getData().terrain, this.state.stormWeekId, this.state.sol)]) {
+    // Use the finds of the sol Bolt launched on, so a trip that runs past midnight keeps its map.
+    for (const f of [...getData().terrain.finds, ...getActiveFindsForSol(getData().terrain, this.state.stormWeekId, r.lastLaunchSol)]) {
       if (f.x !== x || f.y !== y || r.collectedFindIds.includes(f.id)) continue;
       r.collectedFindIds.push(f.id);
       r.cargo[f.item] += f.amount;
@@ -668,10 +698,18 @@ export class Store {
     if (s.air <= RULES.rescueAt || s.food <= RULES.rescueAt) outcome = 'rescue';
     else if (sol >= RULES.missionSols) outcome = 'debrief';
 
+    // The mission is over: don't leave Bolt (or the cargo) out on the plain.
+    let roverCalledHome = false;
+    if (outcome !== 'next' && r.status === 'out') {
+      for (const k of ITEMS) s.inventory[k] += r.cargo[k];
+      Object.assign(r, { status: 'home', expeditionId: null, route: [], nextRouteIndex: 0, routeStartedAtMs: null, cargo: zeroItems() });
+      roverCalledHome = true;
+    }
+
     const card = this.pickScienceCard();
     this.lastNight = {
       sol, air: [air0, s.air], food: [food0, s.food], warm, minC: this.weather(sol).minC, litPlots: lit, grownPlots: grown,
-      blackout, roverRecovered, outcome, card,
+      blackout, roverRecovered, roverCalledHome, outcome, card,
     };
 
     if (outcome === 'next') {

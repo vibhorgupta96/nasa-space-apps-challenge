@@ -35,6 +35,10 @@ export function addPowerCells(
 
   const move = (from: PowerSlot | null, to: PowerSlot | null) => {
     if (from === to) return;
+    if (to === 'rover' && !store.roverDrivableToday()) {
+      onError('Bolt can\'t drive today, so rover cells would be wasted.');
+      return;
+    }
     const split = { ...s.split };
     if (from) split[from] -= 1;
     if (to) split[to] += 1;

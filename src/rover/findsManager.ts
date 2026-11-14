@@ -6,7 +6,8 @@ export function getActiveFindsForSol(terrain: Terrain, week: string, sol: number
   for (const c of `${week}:sol-${sol}`) seed = Math.imul(seed ^ c.charCodeAt(0), 16777619) >>> 0;
   const random = () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 4294967296);
   const taken = new Set([terrain.dome.join(','), ...terrain.finds.map(f => `${f.x},${f.y}`)]);
-  const items = ['ice', 'regolith', 'parts', 'sample'] as const;
+  // One rock sample per sol (photos are limited) and a supply drop of seeds; no 'parts', which have no use.
+  const items = ['ice', 'regolith', 'seed', 'ice', 'regolith', 'sample', 'ice', 'regolith'] as const;
   const finds: Find[] = [];
   for (let attempts = 0; finds.length < 8 && attempts < 500; attempts++) {
     const radius = finds.length < 4 ? 7 : 15;
@@ -18,7 +19,7 @@ export function getActiveFindsForSol(terrain: Terrain, week: string, sol: number
         (finds.length < 4 && terrain.cost[y][x] > 2)) continue;
     taken.add(key);
     const item = items[finds.length % items.length];
-    finds.push({ id: `find:${week}:s${sol}:${finds.length}`, item, amount: item === 'regolith' ? 2 : 1, x, y });
+    finds.push({ id: `find:${week}:s${sol}:${finds.length}`, item, amount: item === 'regolith' || item === 'seed' ? 2 : 1, x, y });
   }
   const seen = new Set(collected);
   return finds.filter(f => !seen.has(f.id));

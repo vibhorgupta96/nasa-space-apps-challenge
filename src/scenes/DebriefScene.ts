@@ -27,11 +27,11 @@ export class DebriefScene extends Phaser.Scene {
     const harvests = Object.values(m.harvests).reduce((a, b) => a + b, 0);
     const stats = [
       `🥕 Harvests: ${harvests}`,
-      `☀ Storms: ${m.stormsSurvived} safe, ${m.stormsTaken} rough`,
+      `☀️ Storms: ${m.stormsSurvived} safe, ${m.stormsTaken} rough`,
       `🚙 Rover trips: ${m.trips}`,
       `📷 Photos earned: ${m.photosEarned.length}`,
       `🫁 Final air ${Math.round(s.air)} · food ${Math.round(s.food)}`,
-      `★ Secrets: ${m.eggs.length}/${EGGS.total}`,
+      `⭐ Secrets: ${m.eggs.length}/${EGGS.total}`,
     ];
     stats.forEach((t, i) => text(this, 110 + (i % 3) * 360, 156 + Math.floor(i / 3) * 36, t, 20, C.text));
 
@@ -40,8 +40,8 @@ export class DebriefScene extends Phaser.Scene {
     let y = 290;
     for (const e of week.events) {
       const date = new Date(e.realTime).toUTCString().replace(' GMT', ' UTC').slice(5);
-      const kind = e.type === 'CME' ? 'Coronal mass ejection' : e.type === 'SEP' ? 'Solar energetic particle event' : e.type;
-      const line = text(this, 110, y, `• ${kind}, recorded ${date} → game sol ${e.scenario.gameSol}, simulated strength ${e.scenario.strength}  ↗`, 18, C.text).setInteractive({ useHandCursor: true });
+      const kind = e.type === 'CME' ? 'Coronal mass ejection' : e.type === 'SEP' ? 'Solar energetic particle event' : e.type === 'GST' ? 'Geomagnetic storm at Earth' : e.type;
+      const line = text(this, 110, y, `• ${kind}, recorded ${date} -> game sol ${e.scenario.gameSol}, simulated strength ${e.scenario.strength}   »`, 18, C.text).setInteractive({ useHandCursor: true });
       line.on('pointerdown', () => window.open(e.link, '_blank', 'noopener'));
       y += 34;
     }

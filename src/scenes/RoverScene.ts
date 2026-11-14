@@ -29,6 +29,7 @@ export class RoverScene extends Phaser.Scene {
   private showCost = true;
   private lastAngle = 0;
   private findsKey = '';
+  private lastStatus = '';
 
   constructor() {
     super('Rover');
@@ -67,7 +68,7 @@ export class RoverScene extends Phaser.Scene {
       this.hover.setPosition(x * cell + cell / 2, y * cell + cell / 2);
     });
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
-      if (store.paused || p.y > 600) return;
+      if (store.paused || p.y > 570) return; // the info panel and its credit line start here
       if (p.rightButtonDown()) return this.undo();
       this.extendTo(this.cellAt(p));
     });
@@ -79,10 +80,14 @@ export class RoverScene extends Phaser.Scene {
       this.drawCost();
     });
     kb.on('keydown-ESC', () => this.leave());
-    this.events.on('wake', () => {
+    // Scene events outlive a restart, so remove this listener again on shutdown.
+    const onWake = () => {
       this.cameras.main.fadeIn(250);
       this.resetRoute();
-    });
+    };
+    this.events.on('wake', onWake);
+    this.events.once('shutdown', () => this.events.off('wake', onWake));
+    this.lastStatus = store.state.rover.status;
   }
 
   private refreshFinds() {
@@ -90,8 +95,9 @@ export class RoverScene extends Phaser.Scene {
     this.findIcons.clear();
     const t = getData().terrain;
     const cell = t.cell;
-    this.findsKey = `${store.state.stormWeekId}:${store.state.sol}`;
-    for (const f of [...t.finds, ...getActiveFindsForSol(t, store.state.stormWeekId, store.state.sol)]) {
+    const sol = this.findsSol();
+    this.findsKey = `${store.state.stormWeekId}:${sol}`;
+    for (const f of [...t.finds, ...getActiveFindsForSol(t, store.state.stormWeekId, sol)]) {
       const c = this.add.container(f.x * cell + cell / 2, f.y * cell + cell / 2).setDepth(4);
       const glow = this.add.image(0, 0, 'find-glow').setAlpha(0.8);
       this.tweens.add({ targets: glow, alpha: 0.2, scale: 1.2, yoyo: true, repeat: -1, duration: 900 });
@@ -99,6 +105,12 @@ export class RoverScene extends Phaser.Scene {
       c.add([glow, icon]);
       this.findIcons.set(f.id, c);
     }
+  }
+
+  /** While Bolt is out, keep showing the finds of the sol the trip started on (matches the store). */
+  private findsSol() {
+    const r = store.state.rover;
+    return r.status === 'out' || r.status === 'stranded' ? r.lastLaunchSol : store.state.sol;
   }
 
   private cellAt(p: Phaser.Input.Pointer): Cell {
@@ -215,14 +227,21 @@ export class RoverScene extends Phaser.Scene {
     this.info = text(this, 36, 622, '', 18, C.text, { lineSpacing: 6, wordWrap: { width: 640 } });
     ui.add(this.info);
     this.planUi = this.add.container(0, 0);
-    this.planUi.add(button(this, 760, 658, '↩ Undo', () => this.undo(), 110, 44, 0x9aa3b0));
+    this.planUi.add(button(this, 760, 658, '« Undo', () => this.undo(), 110, 44, 0x9aa3b0));
     this.planUi.add(button(this, 884, 658, '🏠 Return', () => this.returnHome(), 130, 44, 0x9aa3b0));
-    this.sendBtn = button(this, 1034, 658, 'Send Bolt ▶', () => this.send(), 150, 50, 0xffd166);
+    this.sendBtn = button(this, 1034, 658, 'Send Bolt »', () => this.send(), 150, 50, 0xffd166);
     this.planUi.add(this.sendBtn);
     ui.add(this.planUi);
     ui.add(button(this, 1190, 658, 'Inside', () => this.leave(), 110, 44, C.frame));
-    const credit = text(this, 1252, 600, `NASA Mars Trek · Viking colour mosaic · ${getData().terrain.site.name} · 1 square ≈ ${getData().terrain.kmPerCell} km · C: toggle rough ground`, 14, C.dim, { backgroundColor: '#141927cc', padding: { x: 8, y: 4 } }).setOrigin(1, 1);
+    const credit = text(this, 1252, 600, `NASA Mars Trek · Viking colour mosaic · ${getData().terrain.site.name} · 1 square is about ${getData().terrain.kmPerCell} km · C: toggle rough ground`, 14, C.dim, { backgroundColor: '#141927cc', padding: { x: 8, y: 4 } }).setOrigin(1, 1);
     ui.add(credit);
+    // Input hit-tests use each object's own scroll factor, not the container's, so pin every
+    // descendant to the screen. Without this the buttons only work when the map isn't scrolled.
+    const pin = (o: Phaser.GameObjects.GameObject) => {
+      (o as unknown as Phaser.GameObjects.Components.ScrollFactor).setScrollFactor?.(0);
+      if (o instanceof Phaser.GameObjects.Container) o.list.forEach(pin);
+    };
+    pin(ui);
   }
 
   update() {
@@ -231,7 +250,12 @@ export class RoverScene extends Phaser.Scene {
     const t = getData().terrain;
     const cell = t.cell;
     const r = s.rover;
-    if (this.findsKey !== `${s.stormWeekId}:${s.sol}`) this.refreshFinds();
+    if (this.findsKey !== `${s.stormWeekId}:${this.findsSol()}`) this.refreshFinds();
+    // Bolt just got home (or out of repair): clear the finished route so it isn't re-sent.
+    if (r.status !== this.lastStatus) {
+      if (r.status === 'home') this.resetRoute();
+      this.lastStatus = r.status;
+    }
 
     for (const [id, c] of this.findIcons) c.setVisible(!r.collectedFindIds.includes(id));
 
@@ -279,8 +303,9 @@ export class RoverScene extends Phaser.Scene {
     // Info text.
     this.planUi.setVisible(planning);
     const dayLeft = store.dayEndMs() - s.missionElapsedMs;
-    const storm = getActiveStormWarnings(s, getData().storms.weeks)[0];
-    const stormLine = storm ? `\n⚠ Storm hits in ${fmtMs(storm.hitAtMs - s.missionElapsedMs)} of daytime. Be home before it!` : '';
+    const stormLine = getActiveStormWarnings(s, getData().storms.weeks)
+      .map((st) => `\n⚠️ Sol ${st.event.scenario.gameSol} storm hits in ${fmtMs(st.hitAtMs - s.missionElapsedMs)} of daytime. Be home before it!`)
+      .join('');
     if (planning) {
       const can = store.roverCanLaunch();
       const cost = evaluateRoute(this.route, t, s.split.rover).totalBatteryCost;
@@ -290,7 +315,7 @@ export class RoverScene extends Phaser.Scene {
         (can.ok ? `Plan a drive: click the map to add stops, then 🏠 Return.  Battery: ${s.split.rover} cell(s)\n` : `${can.reason}\n`) +
           `Route: ${tiles} squares · needs ${cost.toFixed(1)} cells · takes ${fmtMs(tiles * RULES.roverMsPerTile)} (day left ${fmtMs(dayLeft)})` +
           (tiles && !home ? ' · must end at the dome' : '') +
-          (cost > s.split.rover + 1e-9 ? ' · ⚠ not enough battery!' : '') +
+          (cost > s.split.rover + 1e-9 ? ' · ⚠️ not enough battery!' : '') +
           stormLine,
       );
       this.info.setColor(can.ok ? C.text : C.warn);

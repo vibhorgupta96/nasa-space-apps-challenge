@@ -128,55 +128,79 @@ function observationSummary(record, type) {
   };
 }
 
-/** Convert DONKI CME/SEP/GST response arrays into sourced records and separate game adaptations. */
-export function normalizeStorms(responses, fetched) {
-  const types = ['CME', 'SEP', 'GST'];
-  const available = [];
-  for (const type of types) {
-    const records = responses[type];
-    if (!Array.isArray(records)) throw new Error(`DONKI ${type} response must be an array`);
-    const selected = records
-      .filter((record) => {
-        if (!record || typeof getRecordId(record, type) !== 'string' || typeof getObservationTime(record, type) !== 'string' || !recordLink(record, type)) return false;
-        const observedAt = Date.parse(getObservationTime(record, type));
-        return Number.isFinite(observedAt) && observedAt >= Date.parse('2024-05-08T00:00:00Z') && observedAt < Date.parse('2024-05-15T00:00:00Z');
-      })
-      .sort((a, b) => getObservationTime(a, type).localeCompare(getObservationTime(b, type)))
-      .slice(0, 1);
-    for (const record of selected) available.push({ type, record, time: getObservationTime(record, type) });
-  }
-  available.sort((a, b) => a.time.localeCompare(b.time));
-  const selected = available.slice(0, 3);
-  if (selected.length === 0) throw new Error('DONKI returned no usable CME, SEP, or GST records for May 8–14, 2024');
-  if (new Set(selected.map(({ type, record }) => getRecordId(record, type))).size !== selected.length) {
-    throw new Error('DONKI returned duplicate source record IDs');
-  }
+/** Historical windows replayed as storm weeks. Each new mission rotates to the next one. */
+export const STORM_WEEKS = [
+  { id: '2024-05', label: 'May 2024 historical scenario', start: '2024-05-08', end: '2024-05-14' },
+  { id: '2024-10', label: 'October 2024 historical scenario', start: '2024-10-03', end: '2024-10-10' },
+  { id: '2017-09', label: 'September 2017 historical scenario', start: '2017-09-04', end: '2017-09-10' },
+];
 
-  const events = selected.map(({ type, record, time }, index) => {
-    const id = getRecordId(record, type);
-    const simulatedStrength = [3, 2, 1][index];
-    return {
-      id,
+function inWindow(time, week) {
+  const at = Date.parse(time);
+  return Number.isFinite(at) && at >= Date.parse(`${week.start}T00:00:00Z`) && at < Date.parse(`${week.end}T00:00:00Z`) + 86_400_000;
+}
+
+function usable(records, type, week) {
+  if (!Array.isArray(records)) throw new Error(`DONKI ${type} response must be an array`);
+  return records
+    .filter((record) => record && typeof getRecordId(record, type) === 'string' && typeof getObservationTime(record, type) === 'string'
+      && recordLink(record, type) && inWindow(getObservationTime(record, type), week))
+    .sort((a, b) => getObservationTime(a, type).localeCompare(getObservationTime(b, type)));
+}
+
+function maxKp(record) {
+  const values = Array.isArray(record.allKpIndex) ? record.allKpIndex.map((item) => finite(item?.kpIndex)).filter((v) => v !== null) : [];
+  return values.length ? Math.max(...values) : null;
+}
+
+/**
+ * Convert DONKI responses into storm weeks. Only CME and SEP records become outpost storm
+ * scenarios; GST records are Earth geomagnetic storms and stay as Earth context (PLAN.md 4C).
+ * `responsesByWeek` maps a STORM_WEEKS id to `{ CME, SEP, GST }` response arrays.
+ */
+export function normalizeStorms(responsesByWeek, fetched, weeks = STORM_WEEKS) {
+  const out = [];
+  for (const week of weeks) {
+    const responses = responsesByWeek[week.id];
+    if (!responses) continue;
+    const cmes = usable(responses.CME, 'CME', week).map((record) => ({ type: 'CME', record }));
+    const seps = usable(responses.SEP, 'SEP', week).map((record) => ({ type: 'SEP', record }));
+    const gsts = usable(responses.GST ?? [], 'GST', week);
+    // Up to three storms: the first CME and first SEP, then the next earliest of either.
+    const picked = [cmes[0], seps[0]].filter(Boolean);
+    const rest = [...cmes.slice(1), ...seps.slice(1)]
+      .sort((a, b) => getObservationTime(a.record, a.type).localeCompare(getObservationTime(b.record, b.type)));
+    while (picked.length < 3 && rest.length) picked.push(rest.shift());
+    picked.sort((a, b) => getObservationTime(a.record, a.type).localeCompare(getObservationTime(b.record, b.type)));
+    if (picked.length === 0) continue;
+    if (new Set(picked.map(({ type, record }) => getRecordId(record, type))).size !== picked.length) {
+      throw new Error('DONKI returned duplicate source record IDs');
+    }
+    const events = picked.map(({ type, record }, index) => ({
+      id: getRecordId(record, type),
       type,
-      realTime: time,
+      realTime: getObservationTime(record, type),
       link: recordLink(record, type),
       observedTarget: 'unknown',
       marsArrival: null,
       observation: observationSummary(record, type),
       scenario: {
-        strength: simulatedStrength,
+        strength: [3, 2, 1][index],
         gameSol: [3, 6, 9][index],
         hitOffsetMs: 60_000,
         warningSols: 2,
-        label: type === 'GST'
-          ? 'Earth geomagnetic record adapted to a simulated Mars-outpost game effect'
-          : 'Simulated Mars-outpost effect (game scenario, not a measured Mars impact)',
+        label: 'Simulated Mars-outpost effect (game scenario, not a measured Mars impact)',
       },
-    };
-  });
+    }));
+    const earthContext = gsts
+      .map((record) => ({ id: getRecordId(record, 'GST'), startTime: getObservationTime(record, 'GST'), maxKp: maxKp(record), link: recordLink(record, 'GST') }))
+      .filter((g) => g.maxKp !== null);
+    out.push({ id: week.id, label: week.label, realWindow: [week.start, week.end], events, earthContext });
+  }
+  if (!out.some((week) => week.id === '2024-05')) throw new Error('DONKI returned no usable CME or SEP records for May 8–14, 2024');
   return dataFile(fetched, NASA_SOURCES.storms, {
-    query: { startDate: '2024-05-08', endDate: '2024-05-14', types: ['CME', 'SEP', 'GST'] },
-    weeks: [{ id: '2024-05', label: 'May 2024 historical scenario', realWindow: ['2024-05-08', '2024-05-14'], events, earthContext: [] }],
+    query: { weeks: weeks.map(({ id, start, end }) => ({ id, startDate: start, endDate: end })), types: ['CME', 'SEP', 'GST'] },
+    weeks: out,
   });
 }
 
@@ -390,13 +414,16 @@ async function readApiKey() {
 }
 
 async function fetchStorms(apiKey, fetched, fetchImpl) {
-  const params = { startDate: '2024-05-08', endDate: '2024-05-14' };
-  const responses = {};
-  for (const type of ['CME', 'SEP', 'GST']) {
-    const url = addKey(endpoint(`https://api.nasa.gov/DONKI/${type}`, params), apiKey);
-    responses[type] = await fetchJson(url, { fetchImpl, apiKey });
+  const responsesByWeek = {};
+  for (const week of STORM_WEEKS) {
+    const params = { startDate: week.start, endDate: week.end };
+    responsesByWeek[week.id] = {};
+    for (const type of ['CME', 'SEP', 'GST']) {
+      const url = addKey(endpoint(`https://api.nasa.gov/DONKI/${type}`, params), apiKey);
+      responsesByWeek[week.id][type] = await fetchJson(url, { fetchImpl, apiKey });
+    }
   }
-  return normalizeStorms(responses, fetched);
+  return normalizeStorms(responsesByWeek, fetched);
 }
 
 async function fetchWeather(apiKey, fetched, fetchImpl) {

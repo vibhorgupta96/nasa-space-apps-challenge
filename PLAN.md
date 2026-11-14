@@ -202,7 +202,7 @@ export const RULES = {
   airPerHealthyLitCrop: 3,
   foodLossPerSol: 8,
   stormAirLoss: 15,
-  heaterNeededBelowC: -70, // game threshold applied to the sourced InSight minimum
+  heaterNeededBelowC: -97, // game threshold applied to the sourced InSight minimum; picked so only some sols need it
   icePerWaterConversion: 1,
   waterPerIceConversion: 2,
   waterPerPlant: 1,
@@ -345,7 +345,7 @@ Style: 32×32 pixel art, warm cozy palette with dusty Mars reds and soft greenho
 | 32 | Tense loop (storm race) | ~30 s | C | | | | ☐ |
 | 33 | SFX: plant, water, harvest, pickup, alarm, rover hum, button click, radio beep | 8 clips | C | | | | ☐ |
 | **Font** |
-| 34 | Pixel font with an open licence (e.g., Pixelify Sans or Press Start 2P, both OFL) | — | C | | | | ☐ |
+| 34 | Pixel font with an open licence (using DotGothic16, OFL; Pixelify Sans was too hard to read) | — | C | | | | ☐ |
 
 **Placeholder rule:** until real art exists, use coloured rectangles with text labels. Never block code on art.
 

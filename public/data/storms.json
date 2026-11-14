@@ -66,39 +66,6 @@
             "label": "Simulated Mars-outpost effect (game scenario, not a measured Mars impact)"
           },
           "marsArrival": null
-        },
-        {
-          "id": "2024-05-10T15:00:00-GST-001",
-          "type": "GST",
-          "realTime": "2024-05-10T15:00Z",
-          "link": "https://ccmc.gsfc.nasa.gov/DONKI/view/GST/30693/-1",
-          "observedTarget": "unknown",
-          "observation": {
-            "source": [
-              "NOAA",
-              "NOAA",
-              "NOAA",
-              "NOAA",
-              "NOAA",
-              "NOAA",
-              "NOAA",
-              "NOAA",
-              "NOAA",
-              "NOAA",
-              "NOAA",
-              "NOAA",
-              "NOAA"
-            ],
-            "kpIndexCount": 13
-          },
-          "scenario": {
-            "strength": 1,
-            "gameSol": 9,
-            "hitOffsetMs": 60000,
-            "warningSols": 2,
-            "label": "Earth geomagnetic record adapted to a simulated Mars-outpost game effect"
-          },
-          "marsArrival": null
         }
       ],
       "realWindow": [
@@ -107,5 +74,6 @@
       ],
       "earthContext": []
     }
-  ]
+  ],
+  "note": "GST (Earth geomagnetic) records are Earth context only, not outpost storms. Run npm run fetch-data with a personal NASA key to add the 2024-10 and 2017-09 weeks and Earth Kp context."
 }

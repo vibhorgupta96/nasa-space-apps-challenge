@@ -1,5 +1,49 @@
 # Bugs and plan gaps
 
+## Fix status — 14 Nov 2026 (branch `a/farm`)
+
+Fixed on `a/farm` after merging `main` at 807b460. **Verified** = checked in the local dev build (in-app browser, real clicks/keys where it says so) or by the self-test; *code* = fixed but only typecheck/build-checked.
+
+| Bug | Fix | Files (owner) | Verified |
+|---|---|---|---|
+| B1 crew traps player | Crew avoid every tile the player's body/feet touch. | `FarmScene.ts` (A) | Player at (14,6) lower half: (14,7) now off-limits to crew |
+| B2 morning panel needs a mouse | ↑↓ (or W/S) pick a row, ←→ (A/D, −/+) remove/add, Enter/Space/E start the day; on-panel key hint. | `UIScene.ts` (C) | Keys alone set the split and started sol 1 |
+| B3 no touch/tablet play | Tap anywhere to walk there; tap a plot, machine or crew member to walk up and use it. Help screen 1 mentions tapping. | `FarmScene.ts` (A), `help-pages.mjs` (C) | Real click walked the player to tile (16,7) |
+| B4 photos repeat | Only newly earned photos are shown; when the album is full, a toast says so. Per-sol finds now hold 1 sample, not 2. | `UIScene.ts` (C), `findsManager.ts` (B) | *code* (find mix checked) |
+| B5 board says 1:00 pm | Board uses the same clock as the HUD (2:00 pm). | `UIScene.ts` (C) | *code* |
+| B6 useless "parts" | Per-sol finds no longer drop parts (only the propeller egg does); text reads "1 mystery part(s)". | `findsManager.ts` (B), `director.ts` (C) | Find mix: ice, regolith, seed, ice, regolith, sample, ice, regolith |
+| B7 no seed drops | Each sol has a 2-seed supply drop near the dome. | `findsManager.ts` (B) | Same as B6 |
+| B8 stale route after return | Route clears when Bolt gets home. | `RoverScene.ts` (B) | Route back to 1 square after return |
+| B9 finds vanish overnight | A trip uses, and the map shows, the finds of the sol Bolt launched on. | `store.ts` (A), `RoverScene.ts` (B) | *code* |
+| B10 rover lost at mission end | The crew calls Bolt home with the cargo; the night report says so. | `store.ts` (A), `UIScene.ts` (C) | Launched on sol 10 at dusk → debrief with Bolt home, `roverCalledHome` true |
+| B11 wasted cells | Starting with unused cells needs a second press ("N cells unused! Start again…"); rover cells are refused when Bolt can't drive. | `UIScene.ts` (C), `PowerPanel.ts` (A), `store.ts` (A) | First Enter warned, second started |
+| B12 only first storm shown | HUD and rover map list every pending storm. | `UIScene.ts` (C), `RoverScene.ts` (B) | *code* |
+| B13 wake listeners pile up | Listeners removed on shutdown. | `FarmScene.ts` (A), `RoverScene.ts` (B) | *code* |
+| B14 HUD click-through | Invisible blockers over the HUD panels and hotbar (hotbar blocker and slots switch off on the rover map). | `UIScene.ts` (C) | Real click on HUD hit the blocker; farm got nothing |
+| B15 credit line adds stops | Map clicks ignored below y 570. | `RoverScene.ts` (B) | *code* |
+| B16 science context lost on reload | Already fixed by Vibhor on `main` (`scienceContext` in the save). | — | Vibhor's self-test checks |
+| B17 heater never optional | `heaterNeededBelowC` −70 → −97 °C (PLAN.md section 6 updated): now only sols 3, 4 and 10 need it. Self-test check 1 finds a cold sol instead of assuming sol 1. | `rules.ts` (A), PLAN.md | Self-test 13/13 |
+| B20 GST shown as raw "GST" | Board and debrief say "Geomagnetic storm at Earth (GST)". | `UIScene.ts`, `DebriefScene.ts` (C) | *code* |
+| B21 rover buttons dead | Root cause: the panel container had scroll factor 0 but its buttons didn't, so their hit areas moved with the scrolled map. Every panel object is now pinned to the screen. | `RoverScene.ts` (B) | Real clicks: Undo, Return and Send all work |
+| B22 radio overflow | Delay rounded to 0.1 minute; long dialogue lines shrink (down to 16 px) to fit the box. | `UIScene.ts` (C) | Long storm radio line fits at 18 px |
+| B23 HUD hides the room | The farm camera can scroll 96 px above and 64 px below the map, so the top machines and bottom beds move out from under the HUD and hotbar. | `FarmScene.ts` (A) | Camera view top at y −36 near the top wall |
+
+**Data bugs (second pass):**
+
+| Bug | Fix | Files (owner) | Verified |
+|---|---|---|---|
+| B18 weather sols repeat | NASA's InSight API only serves 7 archived sols, so more real sols can't be fetched. From sol 8 the morning panel now says the game is replaying NASA's 7 sols instead of repeating them silently. | `UIScene.ts` (C) | *code* |
+| B19 one storm week | `fetch-nasa-data.mjs` now fetches three historical weeks (May 2024, October 2024, September 2017), so each new mission rotates to a different one. **The data file still has one week until someone runs the fetch with a personal NASA key** (the shared `DEMO_KEY` was out of quota, and the keyless DONKI host isn't reachable from here). | `fetch-nasa-data.mjs`, its test (C) | Script tests 14/14, incl. a new two-week case |
+| B20 GST used as a storm | The script never turns GST records into outpost storms; they go to `earthContext` with their max Kp. In today's `storms.json` the GST event was removed, so May 2024 has 2 real storms (CME sol 3, SEP sol 6); nothing was invented to replace it. | `fetch-nasa-data.mjs` (C), `public/data/storms.json` (C) | Self-test 13/13 on the new file |
+
+**To finish B19:** get a free key at <https://api.nasa.gov>, put `NASA_API_KEY=...` in `.env` (ignored by git), then run `npm run fetch-data -- --only storms`.
+
+**Part 2 plan gaps** (G1–G19) are unchanged except G3 (done) and G9 (heater, done via B17).
+
+Cross-folder edits in this fix (PLAN.md section 13 asks owners to review): `UIScene.ts`, `DebriefScene.ts`, `director.ts`, `help-pages.mjs` (C); `RoverScene.ts`, `findsManager.ts` (B).
+
+---
+
 ## Current browser playtest — 14 Nov 2026
 
 Tested the deployed game at <https://vibhorgupta96.github.io/nasa-space-apps-challenge/> in the in-app browser (747 × 987 viewport). This verifies current deployed behavior; the tested deployment revision was not identified, so it is not claimed to match local `e97aec46657223a75e63d88f7697081d51e96805`.

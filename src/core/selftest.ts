@@ -70,19 +70,25 @@ export async function runSelfTest() {
 
   try {
     check('1. Cold sol without heater pauses growth and air', () => {
-      expect(fresh().needsHeater(1), 'sol 1 is not cold in this data; check needs a cold sol');
-      const cold = fresh();
-      start(cold, { growLights: 6 });
-      cold.plant(0, 'red-romaine');
-      finishDay(cold);
+      const coldSol = Array.from({ length: RULES.missionSols }, (_, i) => i + 1).find((sol) => fresh().needsHeater(sol));
+      expect(coldSol !== undefined, 'no cold sol in this data; check needs one');
+      const shelterFor = (t: Store, sol: number) => t.storms().find((x) => x.event.scenario.gameSol === sol)?.event.scenario.strength ?? 0;
+      const playColdSol = (heater: number) => {
+        const t = fresh();
+        while (t.state.sol < coldSol!) skipSol(t, { heater: 1, shelter: shelterFor(t, t.state.sol) });
+        const shelter = shelterFor(t, coldSol!);
+        start(t, { heater, shelter, growLights: RULES.cellsPerSol - shelter - heater });
+        expect(t.plant(0, 'red-romaine').ok, 'plant failed');
+        finishDay(t);
+        return t;
+      };
+      const cold = playColdSol(0);
       expect(cold.state.plots[0].growthSols === 0, `grew to ${cold.state.plots[0].growthSols} without a heater`);
-      expect(cold.state.air === RULES.initialAir - RULES.airLossPerSol, `air ${cold.state.air}, expected no crop air`);
-      const warm = fresh();
-      start(warm, { growLights: 5, heater: 1 });
-      warm.plant(0, 'red-romaine');
-      finishDay(warm);
+      const [airBefore, airAfter] = cold.lastNight!.air;
+      expect(airAfter === Math.max(0, airBefore - RULES.airLossPerSol), `air ${airBefore} → ${airAfter}, expected no crop air`);
+      const warm = playColdSol(1);
       expect(warm.state.plots[0].growthSols === 1, 'did not grow even with a heater');
-      return `no heater: growth 0, air ${cold.state.air}; heater: growth 1, air ${warm.state.air}`;
+      return `cold sol ${coldSol}: no heater → growth 0, air ${airAfter}; heater → growth 1`;
     });
 
     check('2. Safe shielded storm costs regolith only when crafted', () => {
@@ -231,6 +237,29 @@ export async function runSelfTest() {
       }
       expect(t.state.phase === 'debrief', `ended in ${t.state.phase}`);
       return `air ${t.state.air}, food ${t.state.food}, water left ${t.state.inventory.water}`;
+    });
+
+    check('Farm: sleeping ends the sol after resolving the rest of the day', () => {
+      const t = fresh();
+      expect(!t.sleepNow().ok, 'slept before the day started');
+      start(t, { heater: 1, growLights: 1 });
+      expect(t.sleepNow().ok, 'could not sleep during the day');
+      expect(t.state.sol === 2 && t.state.phase === 'planning', `sol ${t.state.sol}, ${t.state.phase}`);
+      expect(t.lastNight?.sol === 1, 'no night report for sol 1');
+      return 'sol 1 → night report → sol 2 morning';
+    });
+
+    check('Farm: the pet helps once per sol', () => {
+      const t = fresh();
+      start(t, { heater: 1, growLights: 1 });
+      const ice = t.state.inventory.ice;
+      expect(t.petTrick('ice', 1).ok, 'first trick refused');
+      expect(!t.petTrick('ice', 1).ok, 'second trick allowed on the same sol');
+      expect(t.state.inventory.ice === ice + 1, `ice ${ice} → ${t.state.inventory.ice}`);
+      t.sleepNow();
+      start(t, { heater: 1, growLights: 1 });
+      expect(t.petTrick('ice', 1).ok, 'trick refused on the next sol');
+      return '+1 ice on sol 1, again on sol 2';
     });
 
     check('Farm: unsafe storm wilts a plot, which can be cleared and replanted', () => {

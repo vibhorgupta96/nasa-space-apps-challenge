@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { BootScene } from './scenes/BootScene';
 import { TitleScene } from './scenes/TitleScene';
+import { CustomizeScene } from './scenes/CustomizeScene';
 import { FarmScene } from './scenes/FarmScene';
 import { RoverScene } from './scenes/RoverScene';
 import { DebriefScene } from './scenes/DebriefScene';
@@ -18,7 +19,20 @@ const game = new Phaser.Game({
   backgroundColor: '#0b1026',
   pixelArt: true,
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
-  scene: [BootScene, TitleScene, FarmScene, RoverScene, DebriefScene, UIScene],
+  scene: [BootScene, TitleScene, CustomizeScene, FarmScene, RoverScene, DebriefScene, UIScene],
+});
+
+// `pixelArt` scales the canvas with nearest-neighbour. That keeps pixels crisp when the window is
+// bigger than 1280×720, but when it is smaller it drops whole pixel columns and thin letter
+// strokes vanish ("Continue" reads "OOntinue"). Smooth the canvas whenever it is shrunk.
+const fitCanvas = () => {
+  const shownPx = game.canvas.getBoundingClientRect().width * window.devicePixelRatio;
+  game.canvas.style.imageRendering = shownPx < game.canvas.width ? 'auto' : 'pixelated';
+};
+game.events.once(Phaser.Core.Events.READY, () => {
+  fitCanvas();
+  game.scale.on(Phaser.Scale.Events.RESIZE, fitCanvas);
+  window.addEventListener('resize', fitCanvas);
 });
 
 // Handy for debugging in the browser console during development. `await selftest()` runs the

@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import { store, type Result } from '../core/store';
 import { bus, EV } from '../core/events';
+import { sfx } from '../core/audio';
+import { loadAstronaut, PET_TRICKS, type PetKind } from '../farm/look';
 import { cropById, getData } from '../data/loaders';
 import { cropStage } from '../farm/art';
 import { CHAT, EGGS, REACT, type Line } from '../story/script';
@@ -20,12 +22,24 @@ interface Thing {
   sprite?: Phaser.GameObjects.Image | Phaser.GameObjects.Sprite;
 }
 
+// The HUD covers the top corners and the hotbar the bottom of the screen; let the camera scroll
+// this far past the map edges (world px) so nothing in the room stays hidden under them.
+const HUD_TOP_PAD = 96;
+const HUD_BOTTOM_PAD = 64;
+const REACH = 1.8; // tiles
+
 const PLOT_XS = [4, 6, 8, 10];
 const PLOT_YS = [6, 8, 10];
 
 export class FarmScene extends Phaser.Scene {
   private player!: Phaser.GameObjects.Sprite;
   private facing: Dir = 'down';
+  private stepMs = 0;
+  private stepLeft = true;
+  private sleepAskedAt = -Infinity;
+  private pet: Phaser.GameObjects.Sprite | null = null;
+  private petKind: PetKind = 'none';
+  private petHopping = false;
   private solid = new Set<string>();
   private things: Thing[] = [];
   private plotTiles: Phaser.GameObjects.Image[] = [];
@@ -40,6 +54,8 @@ export class FarmScene extends Phaser.Scene {
   private eggTree?: Phaser.GameObjects.Image;
   private counters: Record<string, number> = {};
   private unsub: (() => void)[] = [];
+  /** Tap/click-to-walk target (for touch screens), and the tile to use on arrival. */
+  private walkTarget: { x: number; y: number; tile: [number, number]; stuckMs: number } | null = null;
 
   constructor() {
     super('Farm');
@@ -56,16 +72,18 @@ export class FarmScene extends Phaser.Scene {
     this.chatIndex = {};
     this.counters = {};
     this.unsub = [];
+    this.walkTarget = null;
     this.buildMap();
     this.buildThings();
     this.buildCrew();
 
     this.player = this.add.sprite(12 * T + T / 2, 4 * T + T / 2, 'player-down-0').setDepth(5);
+    this.buildPet();
     this.cursor = this.add.rectangle(0, 0, T, T).setStrokeStyle(2, 0xffd166, 0.9).setDepth(4);
 
     const cam = this.cameras.main;
     cam.setZoom(2);
-    cam.setBounds(0, 0, MAP_W * T, MAP_H * T);
+    cam.setBounds(0, -HUD_TOP_PAD, MAP_W * T, MAP_H * T + HUD_TOP_PAD + HUD_BOTTOM_PAD);
     cam.startFollow(this.player, true, 0.15, 0.15);
     cam.setBackgroundColor('#8f3d22');
     cam.fadeIn(300);
@@ -75,18 +93,20 @@ export class FarmScene extends Phaser.Scene {
     kb.on('keydown-SPACE', () => this.act());
     kb.on('keydown-E', () => this.act());
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      if (store.paused) return;
       const tx = Math.floor(p.worldX / T);
       const ty = Math.floor(p.worldY / T);
-      const px = this.player.x / T - 0.5;
-      const py = this.player.y / T - 0.5;
-      if (Math.hypot(tx - px, ty - py) <= 1.8) this.actOn(tx, ty);
-      else this.hint('Walk closer to use that.');
+      if (this.inReach(tx, ty)) this.actOn(tx, ty);
+      else this.walkTarget = { x: tx * T + T / 2, y: ty * T + T / 2, tile: [tx, ty], stuckMs: 0 };
     });
 
     const onHit = () => this.cameras.main.shake(400, 0.004);
     bus.on(EV.STORM_HIT, onHit);
     this.unsub.push(() => bus.off(EV.STORM_HIT, onHit));
-    this.events.on('wake', () => this.cameras.main.fadeIn(250));
+    // Scene events outlive a restart, so remove this listener again on shutdown.
+    const onWake = () => this.cameras.main.fadeIn(250);
+    this.events.on('wake', onWake);
+    this.unsub.push(() => this.events.off('wake', onWake));
     this.events.once('shutdown', () => this.unsub.forEach((f) => f()));
   }
 
@@ -144,8 +164,8 @@ export class FarmScene extends Phaser.Scene {
     this.place('pot', 10, 2, 'm-plant').setTint(0x8a7a6a);
     // Bottom of the dome.
     this.place('shelter', 16, 12, 'm-shelter');
-    this.place('bed', 19, 12, 'm-bed');
-    this.place('bed', 20, 12, 'm-bed');
+    // One bed each for you, Rosa, Theo and Priya (Bolt recharges instead).
+    for (const x of [18, 19, 20, 21]) this.place('bed', x, 12, 'm-bed');
     this.eggTree = this.add.image(10 * T, 2 * T - 12, 'egg-tree').setOrigin(0).setDepth(3).setVisible(false);
   }
 
@@ -174,9 +194,7 @@ export class FarmScene extends Phaser.Scene {
     const [dx, dy, dir] = dirs[Math.floor(Math.random() * 4)];
     const nx = x + dx;
     const ny = y + dy;
-    const px = Math.floor(this.player.x / T);
-    const py = Math.floor(this.player.y / T);
-    if (this.solid.has(`${nx},${ny}`) || (nx === px && ny === py) || this.isPlot(nx, ny) || ny < 3 || ny > 12) {
+    if (this.solid.has(`${nx},${ny}`) || this.playerTiles().has(`${nx},${ny}`) || this.isPlot(nx, ny) || ny < 3 || ny > 12) {
       s.setTexture(`${name}-${dir}-0`);
       return;
     }
@@ -198,6 +216,18 @@ export class FarmScene extends Phaser.Scene {
     s.setTexture(`${name}-${dirs[Math.floor(Math.random() * dirs.length)]}-0`);
   }
 
+  /** Every tile the player's body or feet touch, so the crew never steps onto them. */
+  private playerTiles() {
+    const { x, y } = this.player;
+    const out = new Set<string>();
+    for (const [px, py] of [[x - 9, y - 8], [x + 9, y - 8], [x - 9, y + 14], [x + 9, y + 14]]) out.add(`${Math.floor(px / T)},${Math.floor(py / T)}`);
+    return out;
+  }
+
+  private inReach(tx: number, ty: number) {
+    return Math.hypot(tx - (this.player.x / T - 0.5), ty - (this.player.y / T - 0.5)) <= REACH;
+  }
+
   private isPlot(x: number, y: number) {
     return PLOT_XS.includes(x) && PLOT_YS.includes(y);
   }
@@ -214,6 +244,7 @@ export class FarmScene extends Phaser.Scene {
     const s = store.state;
     if (!s) return;
     this.movePlayer(delta);
+    this.movePet(delta);
     this.refreshPlots();
     this.bolt.setVisible(s.rover.status === 'home' || s.rover.status === 'repairing');
     const tree = store.meta.storySeen.find((x) => x.startsWith('mystery-planted@'));
@@ -234,6 +265,24 @@ export class FarmScene extends Phaser.Scene {
     if (k.RIGHT.isDown || k.D.isDown) dx += 1;
     if (k.UP.isDown || k.W.isDown) dy -= 1;
     if (k.DOWN.isDown || k.S.isDown) dy += 1;
+    const target = this.walkTarget;
+    if (dx || dy) this.walkTarget = null; // keys always win over a tap
+    else if (target) {
+      const [tx, ty] = target.tile;
+      if (this.inReach(tx, ty) && this.hasUse(tx, ty)) {
+        this.walkTarget = null;
+        this.facing = this.directionTo(target.x, target.y);
+        this.actOn(tx, ty);
+        return;
+      }
+      const ex = target.x - this.player.x;
+      const ey = target.y - 8 - this.player.y;
+      if (Math.abs(ex) < 3 && Math.abs(ey) < 3) this.walkTarget = null;
+      else {
+        dx = Math.abs(ex) >= 3 ? Math.sign(ex) : 0;
+        dy = Math.abs(ey) >= 3 ? Math.sign(ey) : 0;
+      }
+    }
     if (!dx && !dy) {
       this.player.stop();
       this.player.setTexture(`player-${this.facing}-0`);
@@ -242,12 +291,41 @@ export class FarmScene extends Phaser.Scene {
     const dir: Dir = dx < 0 ? 'left' : dx > 0 ? 'right' : dy < 0 ? 'up' : 'down';
     if (dir !== this.facing || !this.player.anims.isPlaying) this.player.play(`player-walk-${dir}`);
     this.facing = dir;
+    this.stepMs -= delta;
+    if (this.stepMs <= 0) {
+      this.stepMs = 320;
+      sfx(this.stepLeft ? 'step-1' : 'step-2');
+      this.stepLeft = !this.stepLeft;
+    }
     const speed = (110 * delta) / 1000;
     const len = Math.hypot(dx, dy);
     const nx = this.player.x + (dx / len) * speed;
     const ny = this.player.y + (dy / len) * speed;
+    const [x0, y0] = [this.player.x, this.player.y];
     if (!this.blocked(nx, this.player.y)) this.player.x = nx;
     if (!this.blocked(this.player.x, ny)) this.player.y = ny;
+    // A tap target behind a wall or machine: give up instead of pushing forever.
+    if (this.walkTarget && this.player.x === x0 && this.player.y === y0) {
+      this.walkTarget.stuckMs += delta;
+      if (this.walkTarget.stuckMs > 400) {
+        this.walkTarget = null;
+        this.hint('Can\'t walk straight there. Try another way!');
+      }
+    }
+  }
+
+  private directionTo(x: number, y: number): Dir {
+    const dx = x - this.player.x;
+    const dy = y - this.player.y;
+    return Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : dy > 0 ? 'down' : 'up';
+  }
+
+  /** True when tapping this tile should do something once the player gets close. */
+  private hasUse(x: number, y: number) {
+    if (this.plotIndex(x, y) >= 0) return true;
+    if (Object.values(this.crew).some((c) => Math.floor(c.x / T) === x && Math.floor(c.y / T) === y)) return true;
+    if (this.bolt.visible && x === 4 && y === 3) return true;
+    return this.things.some((t) => t.x === x && t.y === y);
   }
 
   private blocked(px: number, py: number) {
@@ -297,8 +375,10 @@ export class FarmScene extends Phaser.Scene {
   }
 
   private report(r: Result, success?: () => void) {
-    if (!r.ok) this.hint(r.reason);
-    else success?.();
+    if (!r.ok) {
+      sfx('error');
+      this.hint(r.reason);
+    } else success?.();
   }
 
   private actOn(x: number, y: number) {
@@ -306,6 +386,8 @@ export class FarmScene extends Phaser.Scene {
     const s = store.state;
     const pi = this.plotIndex(x, y);
     if (pi >= 0) return this.usePlot(pi, x, y);
+
+    if (this.pet && Math.hypot(this.pet.x - (x * T + T / 2), this.pet.y - (y * T + T / 2)) < 22) return this.usePet();
 
     for (const [name, sprite] of Object.entries(this.crew)) {
       if (Math.floor(sprite.x / T) === x && Math.floor(sprite.y / T) === y) return this.talk(name);
@@ -331,15 +413,21 @@ export class FarmScene extends Phaser.Scene {
       case 'console':
         return this.say([{ who: 'priya', text: `Today's power: ${s.split.growLights} grow lights, ${s.split.heater} heater, ${s.split.shelter} shelter, ${s.split.rover} rover. The split is locked until tomorrow morning.` }]);
       case 'melter':
-        return this.report(store.convertIce(), () => this.puff(x, y, 0x8fd3ff));
+        return this.report(store.convertIce(), () => {
+          sfx('melter');
+          this.puff(x, y, 0x8fd3ff);
+        });
       case 'bench':
-        return this.report(store.craftShield(), () => this.puff(x, y, 0xb5532f));
+        return this.report(store.craftShield(), () => {
+          sfx('craft');
+          this.puff(x, y, 0xb5532f);
+        });
       case 'tank':
         return this.hint(`Water tank: ${s.inventory.water} water. Each plant drinks 1 per sol.`);
       case 'shelter':
         return this.hint(`Storm shelter. Today: ${s.split.shelter} cell(s) + ${s.shield} shield layer(s) of protection.`);
       case 'bed':
-        return this.egg('egg-bed', [EGGS.bed]);
+        return this.useBed();
       case 'earth':
         this.counters.earth = (this.counters.earth || 0) + 1;
         if (this.counters.earth >= 3) return this.egg('egg-earth', EGGS.earth);
@@ -363,11 +451,20 @@ export class FarmScene extends Phaser.Scene {
     if (!crop) {
       if (!tool.startsWith('seed:')) return this.hint('Choose a seed with keys 1–5, then plant.');
       const pick = getData().crops.crops[Number(tool.slice(5))];
-      return this.report(store.plant(pi, pick.id), () => this.puff(x, y, 0x9a6a45));
+      return this.report(store.plant(pi, pick.id), () => {
+        sfx('plant');
+        this.puff(x, y, 0x9a6a45);
+      });
     }
-    if (p.condition === 'wilted') return this.report(store.clearPlot(pi), () => this.puff(x, y, 0x8a7a5a));
+    if (p.condition === 'wilted') {
+      return this.report(store.clearPlot(pi), () => {
+        sfx('clear');
+        this.puff(x, y, 0x8a7a5a);
+      });
+    }
     if (p.growthSols >= crop.growSols) {
       return this.report(store.harvest(pi), () => {
+        sfx('harvest');
         this.puff(x, y, 0xfff3b0);
         if (crop.food === 0 && !store.meta.storySeen.includes('zinnia')) {
           store.meta.storySeen.push('zinnia');
@@ -378,7 +475,12 @@ export class FarmScene extends Phaser.Scene {
         }
       });
     }
-    if (!p.wateredToday) return this.report(store.water(pi), () => this.puff(x, y, 0x5aa9e6));
+    if (!p.wateredToday) {
+      return this.report(store.water(pi), () => {
+        sfx('water');
+        this.puff(x, y, 0x5aa9e6);
+      });
+    }
     return this.hint(`${crop.name}: ${p.growthSols}/${crop.growSols} sols of growth. Watered today.`);
   }
 
@@ -397,6 +499,76 @@ export class FarmScene extends Phaser.Scene {
       sprite.setTexture(`${name}-${Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : dy > 0 ? 'down' : 'up'}-0`);
     }
     this.say([lines[i]]);
+  }
+
+  // ---------- pet ----------
+
+  private buildPet() {
+    this.petKind = loadAstronaut().pet;
+    this.pet = null;
+    if (this.petKind === 'none') return;
+    this.pet = this.add.sprite(this.player.x - 26, this.player.y + 6, `pet-${this.petKind}-0`).setDepth(5);
+    const intro = `pet-intro-${this.petKind}`;
+    if (!store.meta.storySeen.includes(intro)) {
+      store.meta.storySeen.push(intro);
+      store.log(`Your ${PET_TRICKS[this.petKind].name} follows you around. Use it once a sol for a helpful trick!`);
+    }
+  }
+
+  /** Trot after the player and sit down nearby, so turning to face the pet doesn't chase it off. */
+  private movePet(delta: number) {
+    const pet = this.pet;
+    if (!pet || this.petHopping) return;
+    const dx = this.player.x - pet.x;
+    const dy = this.player.y + 6 - pet.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist < 34 || store.paused) {
+      pet.stop();
+      pet.setTexture(`pet-${this.petKind}-0`);
+      return;
+    }
+    const step = Math.min(dist - 30, ((dist > 120 ? 180 : 100) * delta) / 1000);
+    pet.x += (dx / dist) * step;
+    pet.y += (dy / dist) * step;
+    if (Math.abs(dx) > 1) pet.setFlipX(dx < 0);
+    if (!pet.anims.isPlaying) pet.play(`pet-${this.petKind}-walk`);
+  }
+
+
+  private usePet() {
+    const pet = this.pet;
+    if (!pet || this.petKind === 'none') return;
+    const trick = PET_TRICKS[this.petKind];
+    this.petHopping = true;
+    pet.stop();
+    this.tweens.add({ targets: pet, y: pet.y - 10, yoyo: true, duration: 160, repeat: 1, onComplete: () => (this.petHopping = false) });
+    const r = store.petTrick(trick.item, trick.amount);
+    if (!r.ok) return this.hint(r.reason === 'already' ? trick.already : r.reason);
+    sfx('found');
+    this.puff(Math.floor(pet.x / T), Math.floor(pet.y / T), 0xffd166);
+    this.say([{ who: 'you', text: trick.line }]);
+  }
+
+  /** During the day a bed sleeps until night (asks once first); before the day it's a secret. */
+  private useBed() {
+    const s = store.state;
+    if (s.phase !== 'day') return this.egg('egg-bed', [EGGS.bed]);
+    if (this.time.now - this.sleepAskedAt > 4000) {
+      this.sleepAskedAt = this.time.now;
+      const storm = store.pendingStorms().some((st) => st.hitAtMs <= store.dayEndMs());
+      return this.hint(storm
+        ? 'A storm hits before tonight! Sleep anyway? Use the bed again to sleep until night.'
+        : 'Sleep until night? The rest of the sol passes. Use the bed again to sleep.');
+    }
+    this.sleepAskedAt = -Infinity;
+    store.pause('sleep');
+    const cam = this.cameras.main;
+    cam.fadeOut(600, 11, 16, 38);
+    cam.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => {
+      store.resume('sleep');
+      this.report(store.sleepNow());
+      cam.fadeIn(600, 11, 16, 38);
+    });
   }
 
   private useCrate() {
@@ -421,7 +593,7 @@ export class FarmScene extends Phaser.Scene {
   private egg(id: string, lines: Line[]) {
     const isNew = store.findEgg(id);
     this.say(lines);
-    if (isNew) store.log(`★ Secret found! (${store.meta.eggs.length}/${EGGS.total})`);
+    if (isNew) store.log(`⭐ Secret found! (${store.meta.eggs.length}/${EGGS.total})`);
   }
 
   private puff(x: number, y: number, color: number) {

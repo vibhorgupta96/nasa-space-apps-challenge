@@ -4,7 +4,7 @@ export function createHelpPages(cellsPerSol, heaterNeededBelowC) {
     {
       title: '1 · Plant and care for crops',
       lines: [
-        'Move with the arrow keys or WASD. Stand by a plot and press SPACE.',
+        'Move with the arrow keys or WASD, or tap where to go. Next to a plot, press SPACE or tap it.',
         'Keys 1–5 choose seeds. Planting uses one seed and one water.',
         'Key 6 waters your crops. Key 7 harvests ripe plants or clears a wilted plot.',
       ],
@@ -20,7 +20,7 @@ export function createHelpPages(cellsPerSol, heaterNeededBelowC) {
     {
       title: '3 · Watch storms and plan rover trips',
       lines: [
-        'Press TAB for the storm board. Strength and effects at the dome are game simulations.',
+        'Press TAB for the storm board (M mutes sound). Strength and effects at the dome are game simulations.',
         'Shelter cells plus shield layers must reach the storm’s simulated strength.',
         'Use the top airlock to plan a route that returns to the dome. Bring ice home to make water.',
       ],

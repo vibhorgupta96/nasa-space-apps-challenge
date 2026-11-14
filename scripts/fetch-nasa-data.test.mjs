@@ -18,7 +18,7 @@ const fetched = '2026-11-14';
 const donki = {
   CME: [{ activityID: 'cme-1', startTime: '2024-05-08T05:36:00Z', link: 'https://api.nasa.gov/DONKI/CME/view/cme-1', instruments: [{ displayName: 'SOHO' }] }],
   SEP: [{ sepID: 'sep-1', eventTime: '2024-05-09T13:59:00Z', link: 'https://api.nasa.gov/DONKI/SEP/view/sep-1', instruments: [{ displayName: 'ACE' }] }],
-  GST: [{ gstID: 'gst-1', startTime: '2024-05-10T15:00:00Z', link: 'https://api.nasa.gov/DONKI/GST/view/gst-1', allKpIndex: [{ source: 'NOAA' }] }],
+  GST: [{ gstID: 'gst-1', startTime: '2024-05-10T15:00:00Z', link: 'https://api.nasa.gov/DONKI/GST/view/gst-1', allKpIndex: [{ source: 'NOAA', kpIndex: 9 }] }],
 };
 
 function jsonResponse(body, status = 200) {
@@ -26,18 +26,33 @@ function jsonResponse(body, status = 200) {
 }
 
 test('normalizes only sourced DONKI records in the historical window and labels scenarios separately', () => {
-  const result = normalizeStorms(donki, fetched);
-  const events = result.weeks[0].events;
+  const result = normalizeStorms({ '2024-05': donki }, fetched);
+  const week = result.weeks[0];
+  const events = week.events;
   assert.equal(result.mock, false);
-  assert.deepEqual(events.map((event) => event.type), ['CME', 'SEP', 'GST']);
-  assert.deepEqual(events.map((event) => event.observedTarget), ['unknown', 'unknown', 'unknown']);
-  assert(events.every((event) => event.scenario.label.includes('Simulated') || event.scenario.label.includes('simulated')));
-  assert.match(events[2].scenario.label, /Earth geomagnetic/);
-  assert.deepEqual(new Set(events.map((event) => event.id)).size, 3);
-  assert.equal(result.query.startDate, '2024-05-08');
-  assert.deepEqual(result.weeks[0].realWindow, ['2024-05-08', '2024-05-14']);
-  assert.deepEqual(result.weeks[0].earthContext, []);
+  assert.deepEqual(events.map((event) => event.type), ['CME', 'SEP']);
+  assert.deepEqual(events.map((event) => event.observedTarget), ['unknown', 'unknown']);
+  assert(events.every((event) => /simulated/i.test(event.scenario.label)));
+  assert.equal(new Set(events.map((event) => event.id)).size, 2);
+  assert.deepEqual(week.realWindow, ['2024-05-08', '2024-05-14']);
+  assert.deepEqual(week.earthContext, [{ id: 'gst-1', startTime: '2024-05-10T15:00:00Z', maxKp: 9, link: 'https://api.nasa.gov/DONKI/GST/view/gst-1' }]);
   assert(events.every((event) => event.marsArrival === null));
+});
+
+test('GST records never become outpost storms, and several weeks are kept', () => {
+  const october = {
+    CME: [
+      { activityID: 'cme-oct-1', startTime: '2024-10-03T12:48:00Z', link: 'https://api.nasa.gov/DONKI/CME/view/cme-oct-1' },
+      { activityID: 'cme-oct-2', startTime: '2024-10-09T01:48:00Z', link: 'https://api.nasa.gov/DONKI/CME/view/cme-oct-2' },
+    ],
+    SEP: [],
+    GST: [{ gstID: 'gst-oct', startTime: '2024-10-10T15:00:00Z', link: 'https://api.nasa.gov/DONKI/GST/view/gst-oct', allKpIndex: [{ kpIndex: 8.67 }] }],
+  };
+  const result = normalizeStorms({ '2024-05': donki, '2024-10': october }, fetched);
+  assert.deepEqual(result.weeks.map((week) => week.id), ['2024-05', '2024-10']);
+  assert(result.weeks.every((week) => week.events.every((event) => event.type !== 'GST')));
+  assert.deepEqual(result.weeks[1].events.map((event) => [event.id, event.scenario.gameSol, event.scenario.strength]), [['cme-oct-1', 3, 3], ['cme-oct-2', 6, 2]]);
+  assert.equal(result.weeks[1].earthContext[0].maxKp, 8.67);
 });
 
 test('crops retain the existing game IDs, colors, and balance values', () => {
@@ -55,8 +70,9 @@ test('crops retain the existing game IDs, colors, and balance values', () => {
 });
 
 test('rejects DONKI rows outside the sourced dates and malformed response types', () => {
-  assert.throws(() => normalizeStorms({ CME: [{ ...donki.CME[0], startTime: '2024-05-07T23:59:59Z' }], SEP: [], GST: [] }, fetched), /no usable/);
-  assert.throws(() => normalizeStorms({ CME: {}, SEP: [], GST: [] }, fetched), /must be an array/);
+  assert.throws(() => normalizeStorms({ '2024-05': { CME: [{ ...donki.CME[0], startTime: '2024-05-07T23:59:59Z' }], SEP: [], GST: [] } }, fetched), /no usable/);
+  assert.throws(() => normalizeStorms({ '2024-05': { CME: {}, SEP: [], GST: [] } }, fetched), /must be an array/);
+  assert.throws(() => normalizeStorms({ '2024-05': { CME: [], SEP: [], GST: donki.GST } }, fetched), /no usable/);
 });
 
 test('normalizes InSight readings with each row’s own UTC date and rejects null temperatures', () => {
@@ -132,7 +148,7 @@ test('does not replace existing files when one requested data source fails', asy
     await assert.rejects(run({ date: fetched, outputDir: directory, only: ['storms', 'weather'] }, {
       apiKey: 'test-key', fetchImpl, now: () => new Date('2026-11-14T12:00:00Z'), logger: { log() {} },
     }), /HTTP 403/);
-    assert.equal(requests, 4);
+    assert.equal(requests, 3 * 3 + 1); // three storm weeks × CME/SEP/GST, then the failing weather call
     assert.equal(await readFile(stormsPath, 'utf8'), '{"mock":true,"preserve":"storms"}\n');
     assert.equal(await readFile(weatherPath, 'utf8'), '{"mock":true,"preserve":"weather"}\n');
   } finally {
