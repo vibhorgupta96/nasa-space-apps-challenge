@@ -1,6 +1,30 @@
 # Bugs and plan gaps
 
-Review of `a/farm` at e50f55c (base game + Person A work + Shresth's rover commit from `main`), 14 Nov 2026.
+## Current browser playtest — 14 Nov 2026
+
+Tested the deployed game at <https://vibhorgupta96.github.io/nasa-space-apps-challenge/> in the in-app browser (747 × 987 viewport). This verifies current deployed behavior; the tested deployment revision was not identified, so it is not claimed to match local `e97aec46657223a75e63d88f7697081d51e96805`.
+
+**Reproduced:**
+
+- **B2 (high):** On the Sol 1 morning panel, keyboard Return, Space, Tab, and an arrow key did not allocate cells or start the day. The mouse `+` controls and “Start the day” button worked. This confirms the keyboard blocker described below.
+- **B14 (low):** Clicking the top-left weather/HUD panel during the day also triggered the farm action beneath it; the game logged “Walk closer to use that.”
+- **B11 (medium, clarify):** With 2 grow-light cells, 1 heater cell, and 1 rover cell allocated, the panel allowed the day to start with 2 cells unused. The panel does disclose that unused cells are wasted, so the issue is that starting with unused cells is permitted, not that the waste is undisclosed.
+- **B21 (high): Rover planning buttons do not respond.** Start a day with rover power, enter the rover map through the airlock, then click a map tile two squares from the dome. The route updates (2 squares, 0.2 cells, 0:08), but **Return** leaves it unchanged instead of routing back to the dome. Manually clicking the dome grows it to 4 squares; **Send Bolt** still leaves Bolt “ready · 1 cell”, and **Undo** does not remove the route. The buttons were tested at their visible centers, with no modal or other overlay; the result repeated after leaving and reopening the map. Expected: Return ends the route at the dome, Send launches, and Undo removes the last leg. **Where:** `src/scenes/RoverScene.ts` (`buildPanel`, `planUi`). Root cause not established.
+- **B22 (low): Radio dialogue overflows with an unrounded delay.** During the first storm warning/radio delivery, the dialogue included `11.018003348094977` light-minutes. The footer wrapped below the dialogue panel into the hotbar area. Expected: a readable rounded delay that fits inside the dialogue. **Where:** `src/ui/UIScene.ts` (`RADIO_MESSAGE` handler, raw `delayMinutes`).
+
+**User-reported follow-up:**
+
+- **B23 (medium): The status HUDs obscure the room while moving.** Walk around the upper part of the farm beneath the top-left and top-right HUDs. The user reports that the room area beneath those panels cannot be seen while moving. Expected: the room remains visible and usable around the HUDs, for example by adjusting HUD placement or the camera's visible area. **Where:** `src/ui/UIScene.ts` (`buildHud`, fixed top-corner panels); `src/scenes/FarmScene.ts` (zoomed camera follows the player). This is a visual occlusion report, separate from B14's click-through behavior. The HUD and camera layout in source support the report; it was not separately reproduced in this browser session.
+
+**Also exercised successfully:** mission start and dialogue dismissal, WASD movement, planting (seed 24→23 and water 48→47), keyboard Return advancing the help pages, and reload/Continue restoring the planted crop, inventory, and mission day.
+
+**Coverage limits:** This was not a full 10-sol playthrough. Harvesting, storm impact, mobile/touch controls, mission ending, and a successful rover delivery were not verified. The automated build and regression suite passed locally: `npm run build` and `node --experimental-strip-types --test scripts/science.test.mjs scripts/fetch-nasa-data.test.mjs src/ui/source-list.test.mjs src/ui/help-pages.test.mjs` (21 tests).
+
+---
+
+## Historical review and plan gaps
+
+The entries below come from a review of `a/farm` at e50f55c (base game + Person A work + Shresth's rover commit from `main`), 14 Nov 2026. They are historical findings, not a claim that every listed item was revalidated in the current browser playtest.
 Updated after merging `main` with Vibhor's real NASA data (PR #1): see B4, B19, B20 and G3.
 
 **Owner** = workstream that owns the file (PLAN.md section 4). **Checked** = how it was confirmed:
@@ -31,7 +55,7 @@ Already fixed on `a/farm` and not listed below: pressing Escape on a dialogue li
 | B8 | **After Bolt gets home, the old route is still drawn as the new plan.** `send()` keeps `this.route`, so the map shows yesterday's path in yellow and "Send" would reuse it. It's only cleared when you leave and re-enter the map. | `src/scenes/RoverScene.ts:188` | B | read |
 | B9 | **Random finds vanish at midnight.** The per-sol finds are regenerated each sol, so a find that Bolt is driving toward overnight disappears, and the rover can pick up the next sol's finds on the same trip. | `src/rover/findsManager.ts`, `src/core/store.ts` (`collectRoverFind`) | B | read |
 | B10 | **A rover still out when the mission ends loses its cargo with no message.** If the last night (or a rescue) comes while Bolt is out, the cargo and the trip just disappear. | `src/core/store.ts:652` (`endDay`) | A | read |
-| B11 | **You can start the day with 0 cells placed, or put cells in the rover slot when Bolt can't drive.** Both waste the whole day's power with no warning. | `src/ui/UIScene.ts:435` | C | read |
+| B11 | **You can start the day with 0 cells placed, or put cells in the rover slot when Bolt can't drive.** The morning panel says unused cells are wasted, but still allows the day to start with unused cells; assigning rover power while Bolt cannot drive can also waste power. | `src/ui/UIScene.ts:392, 436` | C | ran: started day with 2 of 6 cells unallocated; panel disclosed waste |
 | B12 | **The HUD storm alert and rover screen only show the first pending storm.** The plan asks for a countdown for every pending warning. | `src/ui/UIScene.ts` (`update`), `src/scenes/RoverScene.ts:282` | C + B | read |
 
 ### Low: small or cosmetic
