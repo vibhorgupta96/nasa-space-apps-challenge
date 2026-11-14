@@ -337,7 +337,7 @@ export class Store {
       }
       if (state.processedWarnings.some((id: unknown) => typeof id !== 'string' || !eventIds.has(id)) || state.processedStormHits.some((id: unknown) => typeof id !== 'string' || !eventIds.has(id)) || state.log.some((x: unknown) => typeof x !== 'string') || state.radioQueue.some((m: any) => !m || typeof m.messageId !== 'string' || typeof m.text !== 'string' || !Number.isFinite(m.arrivesAtMs) || !Number.isFinite(m.delayMinutes))) return null;
       const r = state.rover;
-      if (!r || !['home','out','stranded','repairing'].includes(r.status) || !Number.isFinite(r.batteryCells) || !Array.isArray(r.route) || !Array.isArray(r.collectedFindIds) || !r.cargo || ITEMS.some(k => !Number.isFinite(r.cargo[k]) || r.cargo[k] < 0) || !Number.isInteger(r.nextRouteIndex) || r.nextRouteIndex < 0 || r.nextRouteIndex > r.route.length || r.route.some((xy: unknown) => !Array.isArray(xy) || xy.length !== 2 || !xy.every(Number.isInteger) || xy[0] < 0 || xy[0] >= data.terrain.width || xy[1] < 0 || xy[1] >= data.terrain.height) || !Number.isInteger(r.lastLaunchSol) || !Number.isInteger(r.availableSol) || !(r.routeStartedAtMs === null || Number.isFinite(r.routeStartedAtMs)) || !(r.expeditionId === null || typeof r.expeditionId === 'string') || r.collectedFindIds.some((id: unknown) => typeof id !== 'string') || (r.status === 'out' && (!r.expeditionId || r.routeStartedAtMs === null || r.nextRouteIndex < 1 || (r.mode === 'drive' ? r.nextRouteIndex > r.route.length : r.nextRouteIndex >= r.route.length))) || !(r.mode === undefined || r.mode === 'plan' || r.mode === 'drive')) return null;
+      if (!r || !['home','out','stranded','repairing'].includes(r.status) || !Number.isFinite(r.batteryCells) || !Array.isArray(r.route) || !Array.isArray(r.collectedFindIds) || !r.cargo || ITEMS.some(k => !Number.isFinite(r.cargo[k]) || r.cargo[k] < 0) || !Number.isInteger(r.nextRouteIndex) || r.nextRouteIndex < 0 || r.nextRouteIndex > r.route.length || r.route.some((xy: unknown) => !Array.isArray(xy) || xy.length !== 2 || !xy.every(Number.isInteger) || xy[0] < 0 || xy[0] >= data.terrain.width || xy[1] < 0 || xy[1] >= data.terrain.height) || !Number.isInteger(r.lastLaunchSol) || !Number.isInteger(r.availableSol) || !(r.routeStartedAtMs === null || Number.isFinite(r.routeStartedAtMs)) || !(r.expeditionId === null || typeof r.expeditionId === 'string') || r.collectedFindIds.some((id: unknown) => typeof id !== 'string') || (r.status === 'out' && (!r.expeditionId || r.routeStartedAtMs === null || r.nextRouteIndex < 1 || r.nextRouteIndex >= r.route.length))) return null;
       const rawMeta = parsed.meta && typeof parsed.meta === 'object' ? parsed.meta : {};
       if (rawMeta.quiz !== undefined && (!rawMeta.quiz || typeof rawMeta.quiz !== 'object' || Array.isArray(rawMeta.quiz))) return null;
       const defaults = freshMeta();
@@ -537,20 +537,9 @@ export class Store {
     const from = r.route[i - 1];
     const to = r.route[i];
     if (!to || r.routeStartedAtMs === null) return { x: from[0], y: from[1], moving: false };
-    const legStart = r.routeStartedAtMs + (i - 1) * this.roverLegMs();
-    const t = Math.max(0, Math.min(1, (this.state.missionElapsedMs - legStart) / this.roverLegMs()));
+    const legStart = r.routeStartedAtMs + (i - 1) * this.rules.roverMsPerTile;
+    const t = Math.max(0, Math.min(1, (this.state.missionElapsedMs - legStart) / this.rules.roverMsPerTile));
     return { x: from[0] + (to[0] - from[0]) * t, y: from[1] + (to[1] - from[1]) * t, moving: true };
-  }
-
-  /** How long one square takes: steering Bolt yourself is quicker than a planned drive (game rule). */
-  roverLegMs() {
-    return this.state.rover.mode === 'drive' ? this.rules.roverDriveMsPerTile : this.rules.roverMsPerTile;
-  }
-
-  /** Bolt is out in drive mode and has stopped, waiting for the next square. */
-  roverWaiting() {
-    const r = this.state.rover;
-    return r.status === 'out' && r.mode === 'drive' && r.nextRouteIndex >= r.route.length;
   }
 
   tileCost(x: number, y: number) {
@@ -750,6 +739,7 @@ export class Store {
     if (!g.ok) return g;
     const can = this.roverCanLaunch();
     if (!can.ok) return can;
+    const s = this.state;
     const t = this.data.terrain;
     const [dx, dy] = t.dome;
     if (route.length < 3) return fail('Plan a longer route.');
@@ -761,52 +751,8 @@ export class Store {
       if (Math.abs(ax - bx) + Math.abs(ay - by) !== 1) return fail('Routes move one square at a time.');
       if (bx < 0 || by < 0 || bx >= t.width || by >= t.height) return fail('That route leaves the map.');
     }
-    this.startTrip(route, 'plan');
-    this.log('Bolt drives out of the airlock.');
-    return OK;
-  }
-
-  /** Take the controls: Bolt leaves the airlock and waits for you to steer, one square at a time. */
-  driveRover(): Result {
-    const g = this.dayCommand();
-    if (!g.ok) return g;
-    const can = this.roverCanLaunch();
-    if (!can.ok) return can;
-    this.startTrip([this.data.terrain.dome], 'drive');
-    this.log('You take the controls. Bolt rolls out of the airlock.');
-    return OK;
-  }
-
-  /**
-   * Steer Bolt one square (drive mode). One square can be queued while Bolt is still moving, so
-   * holding a key drives smoothly. Driving back onto the dome ends the trip.
-   */
-  driveStep(dx: number, dy: number): Result {
-    const s = this.state;
-    const r = s.rover;
-    if (this.paused) return fail('The game is paused.');
-    const g = this.dayCommand();
-    if (!g.ok) return g;
-    if (r.status !== 'out' || r.mode !== 'drive' || r.routeStartedAtMs === null) return fail('Bolt is not out driving.');
-    if (Math.abs(dx) + Math.abs(dy) !== 1) return fail('Bolt moves one square at a time.');
-    if (r.route.length - r.nextRouteIndex > 1) return fail('Bolt is still moving.');
-    const t = this.data.terrain;
-    const [ex, ey] = r.route[r.route.length - 1];
-    const nx = ex + dx, ny = ey + dy;
-    if (nx < 0 || ny < 0 || nx >= t.width || ny >= t.height) return fail('That is the edge of the map.');
-    if (this.roverWaiting()) {
-      // Restart the clock so the new square starts now, not when Bolt last stopped.
-      r.routeStartedAtMs = s.missionElapsedMs - (r.route.length - 1) * this.roverLegMs();
-    }
-    r.route.push([nx, ny]);
-    return OK;
-  }
-
-  private startTrip(route: [number, number][], mode: 'plan' | 'drive') {
-    const s = this.state;
     const r = s.rover;
     r.status = 'out';
-    r.mode = mode;
     r.batteryCells = s.split.rover;
     r.expeditionId = `exp-${s.sol}-${s.missionElapsedMs}`;
     r.lastLaunchSol = s.sol;
@@ -816,7 +762,9 @@ export class Store {
     r.cargo = zeroItems();
     this.today.roverTrip = true;
     this.meta.trips += 1;
+    this.log('Bolt drives out of the airlock.');
     bus.emit(EV.ROVER_DEPART, { expeditionId: r.expeditionId, batteryCells: r.batteryCells });
+    return OK;
   }
 
   private collectRoverFind(x: number, y: number) {
@@ -840,7 +788,7 @@ export class Store {
     const delivered = { ...r.cargo };
     for (const k of ITEMS) this.state.inventory[k] += r.cargo[k];
     const expeditionId = r.expeditionId;
-    Object.assign(r, { status: 'home', expeditionId: null, route: [], nextRouteIndex: 0, routeStartedAtMs: null, mode: undefined, cargo: zeroItems() });
+    Object.assign(r, { status: 'home', expeditionId: null, route: [], nextRouteIndex: 0, routeStartedAtMs: null, cargo: zeroItems() });
     if (this.worldId === 'moon') this.state.dustLevel = Math.min(2, this.state.dustLevel + 1);
     if (delivered.sample > 0) this.awardPhotos(delivered.sample);
     this.today.roverHome = true;
@@ -1255,7 +1203,7 @@ export class Store {
     }
     const r = s.rover;
     if (r.status === 'out' && r.routeStartedAtMs !== null && r.nextRouteIndex < r.route.length) {
-      const at = r.routeStartedAtMs + r.nextRouteIndex * this.roverLegMs();
+      const at = r.routeStartedAtMs + r.nextRouteIndex * this.rules.roverMsPerTile;
       if (at <= target) due.push({ at, prio: 1, run: () => this.roverStep() });
     }
     for (const m of s.radioQueue) {
@@ -1315,11 +1263,7 @@ export class Store {
     r.batteryCells = round1(r.batteryCells - need);
     r.nextRouteIndex = i + 1;
     this.collectRoverFind(x, y);
-    const [dx, dy] = this.data.terrain.dome;
-    if (r.mode === 'drive' && x === dx && y === dy) {
-      r.route.length = r.nextRouteIndex; // drop a queued square: Bolt parks in the airlock
-      this.returnRover();
-    } else if (r.nextRouteIndex >= r.route.length && r.mode !== 'drive') this.returnRover();
+    if (r.nextRouteIndex >= r.route.length) this.returnRover();
   }
 
   private deliverRadio(messageId: string) {
@@ -1337,7 +1281,7 @@ export class Store {
     const r = s.rover;
     let roverRecovered = false;
     if (r.status === 'stranded') {
-      Object.assign(r, { status: 'repairing', expeditionId: null, route: [], nextRouteIndex: 0, routeStartedAtMs: null, mode: undefined, cargo: zeroItems(), batteryCells: 0 });
+      Object.assign(r, { status: 'repairing', expeditionId: null, route: [], nextRouteIndex: 0, routeStartedAtMs: null, cargo: zeroItems(), batteryCells: 0 });
       roverRecovered = true;
     }
     const air0 = s.air;
@@ -1381,7 +1325,7 @@ export class Store {
     let roverCalledHome = false;
     if (outcome !== 'next' && r.status === 'out') {
       for (const k of ITEMS) s.inventory[k] += r.cargo[k];
-      Object.assign(r, { status: 'home', expeditionId: null, route: [], nextRouteIndex: 0, routeStartedAtMs: null, mode: undefined, cargo: zeroItems() });
+      Object.assign(r, { status: 'home', expeditionId: null, route: [], nextRouteIndex: 0, routeStartedAtMs: null, cargo: zeroItems() });
       roverCalledHome = true;
     }
 

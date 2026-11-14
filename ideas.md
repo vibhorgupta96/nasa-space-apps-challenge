@@ -20,8 +20,6 @@ This adds hands-on exploration while preserving the choice to let Bolt handle a 
 
 **Smallest useful version:** drive to one nearby find and return. **Effort: L.**
 
-**Started on `a/farm`:** 🎮 Drive it on the rover map lets you steer Bolt square by square (arrows, WASD or on-screen arrows), with a battery-to-get-home readout and a 🏠 Drive home autopilot. It shares the planned trip's battery, find, storm and stranding rules; driving yourself is quicker per square (1.2 s on Mars, 1.5 s on the Moon, a game rule). A crewed rover and crew jobs are still open.
-
 ## 3. Explore meaningful sites
 
 Make map stops feel like destinations, with a clear reason to visit: a rock sample, an ice clue, a terrain feature, or a photograph. At a few stops, offer a tiny activity such as photographing a feature or matching a sample to a sourced fact.
