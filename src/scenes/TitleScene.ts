@@ -46,7 +46,6 @@ export class TitleScene extends Phaser.Scene {
 
     text(this, W / 2, 64, 'SOL SPROUTS', 80, C.goldText, { fontStyle: 'bold', stroke: '#2b1d2a', strokeThickness: 9 }).setOrigin(0.5);
     text(this, W / 2, 132, 'A two-world greenhouse campaign', 25, C.text).setOrigin(0.5);
-    text(this, W / 2, 172, 'Choose Mars or the Moon. Finish one mission, then travel to the other world.', 18, C.dim).setOrigin(0.5);
 
     let y = 230;
     if (store.hasSave()) {
