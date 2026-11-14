@@ -129,6 +129,18 @@
         "role": "Person A Junior Astronaut training layer (lessons, badges, journal, schedule, MOXIE, dusty panels, crew requests, kitchen) written by Claude in Claude Code, directed by Muskan; three new science facts checked against the linked NASA pages",
         "humanEdits": "pending team review",
         "disclosure": "docs/AI_USAGE.md"
+      },
+      {
+        "files": [
+          "src/farm/moonwalk.ts",
+          "src/farm/MoonwalkPanel.ts",
+          "src/core/store.ts",
+          "src/farm/art.ts"
+        ],
+        "media": "code, pixel art and text",
+        "role": "Person A Moonwalk for Moon missions (suit rack, EVA-suit sprite, three tasks with NASA facts) written by Claude in Claude Code at Muskan's request; facts checked against the linked NASA pages",
+        "humanEdits": "pending team review",
+        "disclosure": "docs/AI_USAGE.md"
       }
     ],
     "generatedImagesVideoAudio": [
@@ -148,7 +160,7 @@
         ],
         "tool": "AI music generator (confirm, e.g. Suno)",
         "media": "audio",
-        "role": "lunar theme loop for the planned Moon mode (not used in the game yet)",
+        "role": "background music loop during Moon missions",
         "humanEdits": "none; chosen and supplied by Muskan",
         "disclosure": "docs/AI_USAGE.md, docs/ASSETS.md"
       }

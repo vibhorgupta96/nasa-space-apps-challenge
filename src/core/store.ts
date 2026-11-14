@@ -9,6 +9,7 @@ import { recipeById } from '../farm/recipes';
 import {
   BADGES, DUST_SOLS, lessonFor, requestsForWorld, type BadgeId, type CrewRequest, type Lesson, type ScheduleId,
 } from './training';
+import { moonwalkTask, type MoonwalkInfo, type MoonwalkTask } from '../farm/moonwalk';
 
 // The single owner of GameState. Scenes read `store.state` and call commands; only the store
 // advances time, the rover route and the radio queue (PLAN.md sections 5–6).
@@ -90,11 +91,13 @@ interface Today {
   slept: boolean;
   request: boolean;
   roverHome: boolean;
+  moonwalk: MoonwalkTask | null;
 }
 
 const emptyToday = (): Today => ({
   harvested: [], planted: false, watered: false, roverTrip: false, storm: null, stormSafe: true, sample: false,
   cooked: [], moxie: 0, cleaned: false, exercised: false, slept: false, request: false, roverHome: false,
+  moonwalk: null,
 });
 
 interface SavedScienceContext {
@@ -943,6 +946,36 @@ export class Store {
     return r;
   }
 
+  /** True while a warned radiation event is still due today: nobody goes outside then. */
+  radiationAlertToday() {
+    const s = this.state;
+    return this.storms().some(({ event }) => event.scenario.gameSol === s.sol
+      && s.processedWarnings.includes(event.id) && !s.processedStormHits.includes(event.id));
+  }
+
+  moonwalkedToday() { return this.meta.storySeen.includes(`moonwalk@${this.state.sol}`); }
+
+  /** One Moonwalk a day on the Moon: costs suit air, brings back regolith, teaches one fact. */
+  moonwalk(task: MoonwalkTask): Result & { info?: MoonwalkInfo } {
+    if (this.worldId !== 'moon') return fail('Moonwalks happen on the Moon.');
+    if (this.hidden || [...this.pausedBy].some((reason) => reason !== 'modal')) return fail('Finish what you are doing first.');
+    const g = this.dayCommand();
+    if (!g.ok) return g;
+    const info = moonwalkTask(task);
+    if (!info) return fail('Pick a moonwalk task.');
+    const s = this.state;
+    if (this.moonwalkedToday()) return fail('One moonwalk a day. Your suit needs to recharge.');
+    if (this.radiationAlertToday()) return fail('Radiation alert today! Astronauts stay inside the shelter, so no moonwalk.');
+    if (s.air < RULES.moonwalkMinAir) return fail(`Air is too low (${s.air}) to fill a suit. Grow plants or make oxygen first.`);
+    this.meta.storySeen.push(`moonwalk@${s.sol}`);
+    s.air = clamp(s.air - RULES.moonwalkAirCost);
+    s.inventory.regolith += info.regolith;
+    this.today.moonwalk = task;
+    this.log(`🧑‍🚀 Moonwalk: ${info.label.toLowerCase()}. Suit used ${RULES.moonwalkAirCost} air, +${info.regolith} regolith.`);
+    this.save();
+    return { ok: true, info };
+  }
+
   exercise(): Result {
     const g = this.dayCommand();
     if (!g.ok) return g;
@@ -1090,7 +1123,7 @@ export class Store {
     return {
       farm: t.planted || t.watered || t.harvested.length > 0,
       exercise: t.exercised,
-      science: t.roverTrip || t.moxie > 0,
+      science: t.roverTrip || t.moxie > 0 || !!t.moonwalk,
       sleep: t.slept,
     };
   }
@@ -1108,6 +1141,8 @@ export class Store {
     else if (t.roverTrip) bits.push('Bolt went exploring.');
     if (t.moxie) bits.push(`${this.oxygenSystemLabel} made us some oxygen.`);
     if (t.cleaned) bits.push(this.worldId === 'moon' ? 'We cleaned lunar dust at the airlock.' : 'We cleaned dust off a solar panel.');
+    const walk = t.moonwalk && moonwalkTask(t.moonwalk);
+    if (walk) bits.push(walk.journal);
     if (t.exercised) bits.push('I exercised to keep strong.');
     const request = requestsForWorld(this.worldId)[sol];
     if (t.request) bits.push(`I helped ${request ? request.who[0].toUpperCase() + request.who.slice(1) : 'the crew'}.`);

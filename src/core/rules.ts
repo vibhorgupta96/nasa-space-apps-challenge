@@ -37,4 +37,6 @@ export const RULES = {
   lifeSupportAir: 70, // air at or above this at night counts towards the Life Support badge
   badgeSols: 3, // sols needed for the Life Support, Power Planner and Fit Astronaut badges
   scholarLessons: 7,
+  moonwalkAirCost: 4, // suit oxygen for one Moonwalk (game rule)
+  moonwalkMinAir: 20, // too little air in the habitat to fill a suit below this
 };

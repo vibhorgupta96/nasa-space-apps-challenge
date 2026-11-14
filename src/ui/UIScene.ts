@@ -9,6 +9,7 @@ import { SPEAKERS, type Line } from '../story/script';
 import { Director } from '../story/director';
 import { addPowerCells } from '../farm/PowerPanel';
 import { addKitchen, kitchenKey } from '../farm/KitchenPanel';
+import { addMoonwalk } from '../farm/MoonwalkPanel';
 import { createHelpPages } from './help-pages.mjs';
 import { settings } from '../core/settings';
 import { sfx } from '../core/audio';
@@ -144,6 +145,7 @@ export class UIScene extends Phaser.Scene {
       if (what === 'album') this.openAlbum();
       if (what === 'kitchen') this.openKitchen();
       if (what === 'petquiz') this.openPetQuiz();
+      if (what === 'moonwalk') this.openMoonwalk();
     });
 
     this.events.once('shutdown', () => {
@@ -716,6 +718,21 @@ export class UIScene extends Phaser.Scene {
   }
 
   // ---------- storm board ----------
+
+  openMoonwalk() {
+    if (this.current) return;
+    this.enqueue({ build: () => this.buildMoonwalk(), pause: true });
+  }
+
+  private buildMoonwalk() {
+    const c = this.add.container(0, 0);
+    c.add(this.add.rectangle(0, 0, W, H, 0x05070f, 0.7).setOrigin(0).setInteractive());
+    this.advance = null;
+    this.modalKey = addMoonwalk(this, c, 170, 40, W - 340, 640, () => this.close(), () => {
+      this.advance = () => this.close();
+    }, (reason) => this.toast(reason, C.warn));
+    return c;
+  }
 
   openKitchen() {
     if (this.current) return;

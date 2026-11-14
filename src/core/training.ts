@@ -178,7 +178,7 @@ export type ScheduleId = (typeof SCHEDULE)[number]['id'];
 const MOON_SCHEDULE = [
   { id: 'farm', icon: '🌱', label: 'Farm', how: 'plant, water or harvest' },
   { id: 'exercise', icon: '🏃', label: 'Exercise', how: 'use the treadmill' },
-  { id: 'science', icon: '🔬', label: 'Science', how: 'send the rover or run the water oxygen maker' },
+  { id: 'science', icon: '🔬', label: 'Science', how: 'send the rover, run the water oxygen maker or go on a moonwalk' },
   { id: 'sleep', icon: '😴', label: 'Sleep', how: 'end the day in your bed' },
 ] as const;
 

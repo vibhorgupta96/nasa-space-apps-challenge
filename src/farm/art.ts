@@ -391,6 +391,28 @@ const MACHINES: Record<string, { rows: string[]; pal: Palette }> = {
     rows: ['................', '.KKKKKKKKKKKKKK.', '.KBBLKBBLKBBBLK.', '.KBBBKBBBKBBBBK.', '.KKKKKKKKKKKKKK.', '.KBBLKBBLKBBBLK.', '.KBBBKBBBKBBBBK.', '.KKKKKKKKKKKKKK.', '.KBBLKBBLKBBBLK.', '.KBBBKBBBKBBBBK.', '.KKKKKKKKKKKKKK.', '.......KK.......', '.......KK.......', '.......KK.......', '.....KKKKKK.....', '.....KMMMMK.....'],
     pal: { K, B: '#2f5fa8', L: '#8fd3ff', M: '#8b94a3' },
   },
+  // A spacesuit hanging on its rack by the airlock (Moon missions).
+  suit: {
+    rows: [
+      '.KKKKKKKKKKKKKK.',
+      '.K....KKKK....K.',
+      '.K...KWWWWK...K.',
+      '.K..KWGGGGWK..K.',
+      '.K..KWGOGGWK..K.',
+      '.K...KWWWWK...K.',
+      '.K.KKWWWWWWKK.K.',
+      '.KKWWWBRWWWWWKK.',
+      '.KKWKWWWWWWKWKK.',
+      '.K.KKWWWWWWKK.K.',
+      '.K...KWWKWWK..K.',
+      '.K...KWWKWWK..K.',
+      '.K...KWWKWWK..K.',
+      '.K...KMMKMMK..K.',
+      '.KKKKKKKKKKKKKK.',
+      '..KK........KK..',
+    ],
+    pal: { K, W: '#f2f0e8', G: '#e0b44f', O: '#fff3b0', B: '#4a8fd6', R: '#e05050', M: '#8b94a3' },
+  },
   plant: {
     rows: ['................', '......L.L.......', '.....LLLLL......', '....LLDLLLL.....', '.....LLLDL......', '......LDL.......', '.......L........', '.....KKKKK......', '.....KPPPK......', '.....KPPPK......', '......KKK.......'],
     pal: { K, L: '#6aa84f', D: '#3d7a35', P: '#e07a3a' },

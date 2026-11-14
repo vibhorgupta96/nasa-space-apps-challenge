@@ -183,6 +183,7 @@ export class FarmScene extends Phaser.Scene {
     this.place('moxie', 21, 2, 'm-moxie');
     this.panelSprite = this.place('panel', 21, 7, 'm-panel');
     this.place('treadmill', 14, 12, 'm-treadmill');
+    if (store.worldId === 'moon') this.place('suit', 11, 2, 'm-suit');
     // Bottom of the dome.
     this.place('shelter', 16, 12, 'm-shelter');
     // One bed each for you, Rosa, Theo and Priya (Bolt recharges instead).
@@ -532,6 +533,11 @@ export class FarmScene extends Phaser.Scene {
         });
       case 'treadmill':
         return this.useTreadmill(x, y);
+      case 'suit':
+        if (s.phase !== 'day') return this.hint('Start the day first!');
+        if (store.moonwalkedToday()) return this.hint('You already went on a moonwalk today. The suit is recharging.');
+        if (store.radiationAlertToday()) return this.hint('Radiation alert today! Astronauts stay inside, so the suit stays on its rack.');
+        return bus.emit('ui:open', 'moonwalk');
       case 'earth':
         this.counters.earth = (this.counters.earth || 0) + 1;
         if (this.counters.earth >= 3) return this.egg('egg-earth', EGGS.earth);

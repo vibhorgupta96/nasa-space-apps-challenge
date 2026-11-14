@@ -318,6 +318,28 @@ export async function runSelfTest() {
       return 'sol 1 right → Wiz Card + 1 ice; sol 2 wrong → no reward';
     });
 
+    check('Moonwalk: once a day on the Moon; costs suit air, brings regolith, ticks science', () => {
+      const mars = fresh();
+      start(mars, { heater: 1 });
+      expect(!mars.moonwalk('samples').ok, 'moonwalk allowed on Mars');
+      const t = new Store(false);
+      t.save = () => {};
+      t.newGame('moon');
+      expect(!t.moonwalk('samples').ok, 'moonwalk before the day started');
+      start(t, { heater: 2 });
+      const air = t.state.air, rock = t.state.inventory.regolith;
+      const r = t.moonwalk('samples');
+      expect(r.ok && t.state.air === air - RULES.moonwalkAirCost && t.state.inventory.regolith === rock + 2, 'samples walk did not cost air or give regolith');
+      expect(!t.moonwalk('earth').ok, 'second moonwalk on the same day');
+      t.sleepNow();
+      const n = t.lastNight!;
+      expect(n.schedule.science && /moonwalk/.test(n.journal), `schedule ${JSON.stringify(n.schedule)}, journal "${n.journal}"`);
+      start(t, { heater: 2 });
+      t.state.air = RULES.moonwalkMinAir - 1;
+      expect(!t.moonwalk('earth').ok, 'moonwalk with too little air');
+      return `-${RULES.moonwalkAirCost} air, +2 regolith; journal "${n.journal}"`;
+    });
+
     check('Training: lessons, schedule, journal, requests and badges', () => {
       const t = fresh();
       expect(t.lessonCard(1)?.source.startsWith('http') === true, 'sol 1 lesson has no source');
