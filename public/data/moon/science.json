@@ -11,7 +11,8 @@
     "https://science.nasa.gov/moon/moon-water-and-ices/",
     "https://www.nasa.gov/reference/environmental-control-and-life-support-systems-eclss/",
     "https://www.nasa.gov/general/is-there-weather-on-the-moon-we-asked-a-nasa-scientist-episode-34/",
-    "https://www.nasa.gov/blogs/spacestation/2025/04/01/exercise-research-main-focus-aboard-station-on-tuesday/"
+    "https://www.nasa.gov/blogs/spacestation/2025/04/01/exercise-research-main-focus-aboard-station-on-tuesday/",
+    "https://www.nasa.gov/centers-and-facilities/johnson/artemis-ii-mission-milestones-an-image-and-video-recap/"
   ],
   "facts": [
     {
@@ -91,6 +92,12 @@
       "activity": "dialogue",
       "text": "Astronauts on the Space Station exercise every day, because living without gravity makes muscles and bones weaker.",
       "source": "https://www.nasa.gov/blogs/spacestation/2025/04/01/exercise-research-main-focus-aboard-station-on-tuesday/"
+    },
+    {
+      "id": "artemis-ii",
+      "activity": "dialogue",
+      "text": "On April 1, 2026, NASA's Artemis II launched four astronauts (NASA's Reid Wiseman, Victor Glover and Christina Koch, and the Canadian Space Agency's Jeremy Hansen) on a nearly 10-day trip around the Moon. They travelled 252,756 miles from Earth, the farthest humans have ever gone, and splashed down in the Pacific Ocean on April 10, 2026.",
+      "source": "https://www.nasa.gov/centers-and-facilities/johnson/artemis-ii-mission-milestones-an-image-and-video-recap/"
     }
   ]
 }

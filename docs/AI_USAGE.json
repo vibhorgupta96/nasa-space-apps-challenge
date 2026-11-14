@@ -146,7 +146,8 @@
         "files": [
           "src/farm/earthPhase.ts",
           "src/scenes/FarmScene.ts",
-          "src/story/script.ts"
+          "src/story/script.ts",
+          "public/data/moon/science.json"
         ],
         "media": "code, pixel drawing and text",
         "role": "Person A Moon extras (airlock dust visuals, Earth phases window, Artemis II radio letter) written by Claude in Claude Code at Muskan's request; Earth-phase and Artemis II facts checked against NASA pages",
