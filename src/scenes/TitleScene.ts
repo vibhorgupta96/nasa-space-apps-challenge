@@ -44,7 +44,7 @@ export class TitleScene extends Phaser.Scene {
     const bolt = this.add.image(W / 2 + 290, H - 190, 'bolt').setScale(2.5);
     this.tweens.add({ targets: bolt, y: bolt.y - 8, yoyo: true, repeat: -1, duration: 800, ease: 'Sine.inOut' });
 
-    text(this, W / 2, 64, 'SOL SPROUTS', 80, C.goldText, { fontStyle: 'bold', stroke: '#2b1d2a', strokeThickness: 9 }).setOrigin(0.5);
+    text(this, W / 2, 64, 'SPROUT STATION', 80, C.goldText, { fontStyle: 'bold', stroke: '#2b1d2a', strokeThickness: 9 }).setOrigin(0.5);
     text(this, W / 2, 132, 'A two-world greenhouse campaign', 25, C.text).setOrigin(0.5);
 
     let y = 230;

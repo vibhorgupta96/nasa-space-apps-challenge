@@ -1,6 +1,6 @@
 # Demo deck
 
-[`public/demo.pptx`](../public/demo.pptx) is the project’s seven-slide demo alternative; [`public/demo.pdf`](../public/demo.pdf) is a browser-friendly rendered copy. The deck introduces Sol Sprouts, explains a sample six-cell power decision, distinguishes sourced solar-event records from simulated Mars-outpost effects, and summarizes the data limits and mission loop. Text and the power-allocation diagram are editable in the PPTX. The NASA rover photographs are credited on their slides and cited in speaker notes.
+[`public/demo.pptx`](../public/demo.pptx) is the project’s seven-slide demo alternative; [`public/demo.pdf`](../public/demo.pdf) is a browser-friendly rendered copy. The deck introduces Sprout Station, explains a sample six-cell power decision, distinguishes sourced solar-event records from simulated Mars-outpost effects, and summarizes the data limits and mission loop. Text and the power-allocation diagram are editable in the PPTX. The NASA rover photographs are credited on their slides and cited in speaker notes.
 
 This is an illustrated presentation, not a recording or capture of the running game. Browser-based gameplay recording was unavailable under the environment’s administrator policy, so the deck does not claim to show playtested footage. The final slide links to the game, the public team page, and the source repository.
 

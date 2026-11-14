@@ -1,4 +1,4 @@
-# Sol Sprouts: Feature Ideas
+# Sprout Station: Feature Ideas
 
 This shortlist contains proposals, not implementation commitments. Effort tags are relative: **M** medium, **L** large.
 

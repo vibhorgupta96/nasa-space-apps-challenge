@@ -1,9 +1,9 @@
-# Sol Sprouts: feature roadmap to win
+# Sprout Station: feature roadmap to win
 
 > Challenge: **Build a Junior Astronaut Mission Trainer**. Judges score **Impact, Creativity, Validity, Relevance and Presentation** (PLAN.md section 11).
 > Deadline: **Sun Nov 15, 11:59 p.m. local**. Submit by 9 p.m. (PLAN.md section 8).
 >
-> **The pitch this list builds towards:** *"Sol Sprouts trains kids the way NASA trains astronauts: you practise one real mission skill each sol (life support, power, communication, radiation safety, teamwork), every skill is tied to a real NASA mission or dataset, and you finish with a training certificate."*
+> **The pitch this list builds towards:** *"Sprout Station trains kids the way NASA trains astronauts: you practise one real mission skill each sol (life support, power, communication, radiation safety, teamwork), every skill is tied to a real NASA mission or dataset, and you finish with a training certificate."*
 
 Folder ownership is the same as PLAN.md section 4. **A** = core, farm, `main.ts`. **B** = rover and Mars map. **C** = NASA data, UI, story, docs and submission. Every new fact goes in `public/data/` with a NASA source URL and a "real / game" label (PLAN.md design rule 3). Facts marked **(verify)** must be checked against the linked page before shipping.
 

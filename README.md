@@ -1,4 +1,4 @@
-# Sol Sprouts
+# Sprout Station
 
 A cozy pixel-art farming game for kids aged 7–12. Choose Mars or the Moon, keep its greenhouse alive through a 10-day mission, then travel to the other world for the campaign finale. NASA data supplies the historical science context; weather hazards, power cycles, crop yields, rover terrain, and game time are simulations. Built for **NASA Space Apps 2026: Build a Junior Astronaut Mission Trainer**.
 
@@ -72,4 +72,4 @@ Open the in-game **NASA data we used** screen for the sources included in the ga
 
 ## Deployment
 
-The reviewed build is live at [Sol Sprouts](https://vibhorgupta96.github.io/nasa-space-apps-challenge/). The seven-slide demo deck is available as [PDF](https://vibhorgupta96.github.io/nasa-space-apps-challenge/demo.pdf) and [PPTX](https://vibhorgupta96.github.io/nasa-space-apps-challenge/demo.pptx). GitHub Actions deployed revision `fee644e4c44a440c4f80ab27e9fd55511a17e9c8`; the workflow also publishes pushes to `main` and `codex/person-c-completion`. See [validation evidence](docs/VALIDATION.md) and [submission status](docs/SUBMISSION_STATUS.json).
+The reviewed build is live at [Sprout Station](https://vibhorgupta96.github.io/nasa-space-apps-challenge/). The seven-slide demo deck is available as [PDF](https://vibhorgupta96.github.io/nasa-space-apps-challenge/demo.pdf) and [PPTX](https://vibhorgupta96.github.io/nasa-space-apps-challenge/demo.pptx). GitHub Actions deployed revision `fee644e4c44a440c4f80ab27e9fd55511a17e9c8`; the workflow also publishes pushes to `main` and `codex/person-c-completion`. See [validation evidence](docs/VALIDATION.md) and [submission status](docs/SUBMISSION_STATUS.json).

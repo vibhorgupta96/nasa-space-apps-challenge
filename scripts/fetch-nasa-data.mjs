@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Build the committed, historical NASA data snapshots used by Sol Sprouts.
+ * Build the committed, historical NASA data snapshots used by Sprout Station.
  * This file is a Node-only build tool; importing it makes no network requests.
  */
 
