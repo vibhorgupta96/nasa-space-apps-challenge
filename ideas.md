@@ -10,7 +10,7 @@ Lunar play could make sunlight and deep shadow change power and heating choices.
 
 **Smallest useful version:** one lunar site, two light/shadow zones, one rover trip, and a debrief that separates sourced facts from simulated outcomes. **Effort: L.**
 
-**Music ready:** the lunar theme is `public/audio/moon-theme.mp3`, an upbeat 61-second AI-generated loop supplied by Muskan. It isn't used in the game yet; play it instead of "Mars Morning" when the player picks the Moon.
+**Music ready:** the lunar theme is `public/audio/moon-theme.mp3`, an upbeat 61-second AI-generated loop supplied by Muskan. It now plays instead of "Mars Morning" during Moon missions.
 
 ## 2. Drive a crewed rover
 

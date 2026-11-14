@@ -1,12 +1,14 @@
 import Phaser from 'phaser';
 import { bus, EV, UI_EV } from './events';
 import { onSettingsChange, settings } from './settings';
+import { store } from './store';
+import type { WorldId } from './types';
 
-// Background music and sound effects. The music is "Mars Morning" (see docs/AI_USAGE.md); the
-// effects are CC0 clips from Kenney's Interface, Sci-Fi and RPG audio packs (docs/ASSETS.md).
+// Background music and sound effects. The music is "Mars Morning" on Mars and the lunar theme on
+// the Moon (see docs/AI_USAGE.md); the effects are CC0 clips from Kenney's Interface, Sci-Fi and RPG audio packs (docs/ASSETS.md).
 // Everything listens to the bus, so gameplay code only calls sfx() for actions with no event.
 
-const MUSIC = 'music-mars-morning';
+const MUSIC: Record<WorldId, string> = { mars: 'music-mars-morning', moon: 'music-moon-theme' };
 const MUSIC_VOLUME = 0.35;
 const SFX = [
   'click', 'confirm', 'found', 'error', 'harvest', 'storm-warning', 'new-sol', 'water', 'melter', 'craft',
@@ -25,7 +27,8 @@ let muted = false;
 
 /** Queue the music and effects. A missing or unsupported file is skipped, not fatal. */
 export function queueAudio(scene: Phaser.Scene) {
-  scene.load.audio(MUSIC, 'audio/mars-morning.mp3');
+  scene.load.audio(MUSIC.mars, 'audio/mars-morning.mp3');
+  scene.load.audio(MUSIC.moon, 'audio/moon-theme.mp3');
   for (const name of SFX) scene.load.audio(`sfx-${name}`, `audio/${name}.ogg`);
 }
 
@@ -148,14 +151,20 @@ export function startAudio(g: Phaser.Game) {
   muted = readMuted();
   g.sound.mute = muted;
 
-  // Browsers block audio until the first click or key press; Phaser unlocks on that gesture.
+  // One loop per world. Every scene start checks the current world, so starting or travelling
+  // to the Moon swaps the track. Browsers block audio until the first click or key press;
+  // Phaser unlocks on that gesture.
   const music = () => {
-    if (!g.cache.audio.exists(MUSIC) || g.sound.get(MUSIC)) return;
-    g.sound.add(MUSIC, { loop: true, volume: MUSIC_VOLUME * settings.musicVolume }).play();
+    if (g.sound.locked) return;
+    const want = MUSIC[store.state ? store.worldId : 'mars'];
+    for (const key of Object.values(MUSIC)) if (key !== want) g.sound.get(key)?.destroy();
+    if (!g.cache.audio.exists(want) || g.sound.get(want)) return;
+    g.sound.add(want, { loop: true, volume: MUSIC_VOLUME * settings.musicVolume }).play();
   };
   onSettingsChange((st) => {
-    const m = g.sound.get(MUSIC) as Phaser.Sound.WebAudioSound | null;
-    m?.setVolume(MUSIC_VOLUME * st.musicVolume);
+    for (const key of Object.values(MUSIC)) {
+      (g.sound.get(key) as Phaser.Sound.WebAudioSound | null)?.setVolume(MUSIC_VOLUME * st.musicVolume);
+    }
   });
   if (g.sound.locked) g.sound.once(Phaser.Sound.Events.UNLOCKED, music);
   else music();
@@ -178,6 +187,7 @@ export function startAudio(g: Phaser.Game) {
   // listeners on shutdown, so re-adding on each start doesn't double up.
   for (const scene of g.scene.scenes) {
     scene.sys.events.on(Phaser.Scenes.Events.START, () => {
+      music();
       scene.input.on(Phaser.Input.Events.GAMEOBJECT_DOWN, () => sfx('click'));
     });
   }

@@ -9,7 +9,7 @@
 | DotGothic16 font (Fontworks) | Google Fonts stylesheet referenced in `index.html` | Verify current font license metadata before redistribution | See [References](REFERENCES.md) |
 | Phaser 3.80.1 | npm package metadata in `package-lock.json` | MIT per lockfile | See [References](REFERENCES.md) |
 | Vite 5.4.10, TypeScript 5.6.3 | npm package metadata in `package-lock.json` | MIT and Apache-2.0 per lockfile | Build tools; see [References](REFERENCES.md) |
-| Lunar theme (`public/audio/moon-theme.mp3`) | Upbeat 61 s instrumental loop supplied by Muskan, AI-generated (confirm the tool, e.g. Suno, before submission) | AI-generated; follow the generator's terms for the account plan it was made on | For the planned Moon mode (ideas.md #1); not played in the game yet |
+| Lunar theme (`public/audio/moon-theme.mp3`) | Upbeat 61 s instrumental loop supplied by Muskan, AI-generated (confirm the tool, e.g. Suno, before submission) | AI-generated; follow the generator's terms for the account plan it was made on | Background music on Moon missions (Mars missions keep "Mars Morning") |
 | Background music (`public/audio/mars-morning.mp3`) | "Mars Morning", a 45 s loop supplied by Muskan, made with the Suno AI music generator | AI-generated; follow Suno's terms for the account plan it was made on | Disclosed in AI_USAGE.md/.json; loops quietly from the first click or key press |
 | Sound effects (`public/audio/*.ogg`, 19 clips) | Kenney: [Interface Sounds](https://kenney.nl/assets/interface-sounds), [Sci-fi Sounds](https://kenney.nl/assets/sci-fi-sounds), [RPG Audio](https://kenney.nl/assets/rpg-audio) | CC0 1.0 (public domain); credit optional | Renamed by use (e.g. `water.ogg` = Sci-fi `slime_000`); full mapping below |
 
