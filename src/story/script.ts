@@ -107,8 +107,8 @@ export const REACT = {
   roverBattery: { who: 'bolt', text: 'My battery ran flat. I am now a very expensive garden ornament. The crew will tow me home tonight.', mood: 'worried' } as Line,
   roverHome: { who: 'bolt', text: 'Home! I brought presents: {items}.', mood: 'happy' } as Line,
   roverEmpty: { who: 'bolt', text: 'Home! I brought back nothing but stories. And a little dust. Mostly dust.' } as Line,
-  firstHarvest: { who: 'theo', text: 'Our first harvest! I would like to thank the plant, the water, the light, and you. In that order.' } as Line,
-  zinnia: { who: 'rosa', text: 'A flower. On Mars. Put it on the table, please. That is an order.' } as Line,
+  firstHarvest: { who: 'theo', text: 'Our first harvest! I would like to thank the plant, the water, the light, and you. In that order. It\'s in the kitchen now: mix two crops into a recipe and it feeds us more!' } as Line,
+  zinnia: { who: 'rosa', text: 'A flower. On Mars. Put it on the table, please. That is an order. Later, the kitchen can save its seeds.' } as Line,
   noRoverPower: { who: 'priya', text: 'The rover battery is empty today. Put a cell in the ROVER slot tomorrow morning if you want Bolt to drive.' } as Line,
 };
 

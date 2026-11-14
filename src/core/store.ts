@@ -4,6 +4,7 @@ import type { GameState, ItemId, Plot, PowerSlot } from './types';
 import { cropById, getData, type StormEvent, type WeatherSol } from '../data/loaders';
 import { selectScienceCard } from '../data/science';
 import { getActiveFindsForSol } from '../rover/findsManager';
+import { recipeById } from '../farm/recipes';
 
 // The single owner of GameState. Scenes read `store.state` and call commands; only the store
 // advances time, the rover route and the radio queue (PLAN.md sections 5–6).
@@ -30,6 +31,8 @@ export interface NightReport {
   roverRecovered: boolean;
   /** Bolt was still driving when the mission ended; the crew brought the rover and its cargo in. */
   roverCalledHome: boolean;
+  /** Raw pantry crops the crew ate at night because food was low. */
+  snacked: number;
   outcome: 'next' | 'rescue' | 'debrief';
   card: { text: string; source: string } | null;
 }
@@ -46,6 +49,7 @@ export interface Meta {
   stormsSurvived: number;
   stormsTaken: number;
   trips: number;
+  mealsCooked: number;
 }
 
 interface Today {
@@ -88,7 +92,7 @@ function safeStorage(): Storage | null {
 function freshMeta(): Meta {
   return {
     radioCounter: 0, weekCursor: 0, storySeen: [], eggs: [], boltTalks: 0, photosEarned: [],
-    harvests: {}, stormsSurvived: 0, stormsTaken: 0, trips: 0,
+    harvests: {}, stormsSurvived: 0, stormsTaken: 0, trips: 0, mealsCooked: 0,
   };
 }
 
@@ -138,6 +142,7 @@ export class Store {
       food: RULES.initialFood,
       shield: RULES.initialShields,
       inventory,
+      pantry: {},
       plots,
       stormWeekId: week.id,
       stormBlackoutSol: null,
@@ -195,6 +200,7 @@ export class Store {
       if (!parsed?.state?.plots) return false;
       if (parsed.state.phase !== 'planning' && parsed.state.phase !== 'day') return false;
       this.state = parsed.state;
+      this.state.pantry ??= {}; // saves from before the kitchen
       this.lastAutosaveMs = parsed.state.missionElapsedMs;
       this.meta = { ...freshMeta(), ...(parsed.meta || {}) };
       this.resetToday();
@@ -422,12 +428,61 @@ export class Store {
     if (!p || !crop) return fail('Nothing to harvest.');
     if (p.condition === 'wilted') return fail('This plant wilted. Clear the plot instead.');
     if (p.growthSols < crop.growSols) return fail(`Not ready yet (${p.growthSols}/${crop.growSols} sols of growth).`);
-    s.food = clamp(s.food + crop.food);
+    s.pantry[crop.id] = (s.pantry[crop.id] || 0) + 1;
     Object.assign(p, { cropId: null, growthSols: 0, condition: 'healthy', wateredToday: false });
     this.today.harvested.push(crop.id);
     this.meta.harvests[crop.id] = (this.meta.harvests[crop.id] || 0) + 1;
-    this.log(crop.food > 0 ? `Harvested ${crop.name}: +${crop.food} food.` : `Picked a ${crop.name}. The crew smiles.`);
+    this.log(`Harvested ${crop.name}. It's in the kitchen pantry.`);
     return OK;
+  }
+
+  /** Cook a recipe from pantry crops. */
+  cook(recipeId: string): Result {
+    const g = this.dayCommand();
+    if (!g.ok) return g;
+    const s = this.state;
+    const r = recipeById(recipeId);
+    if (!r) return fail('Unknown recipe.');
+    const missing = Object.entries(r.needs).find(([id, n]) => (s.pantry[id] || 0) < n);
+    if (missing) return fail(`You need ${cropById(missing[0])?.name ?? missing[0]} for ${r.name}.`);
+    for (const [id, n] of Object.entries(r.needs)) s.pantry[id] -= n;
+    s.food = clamp(s.food + r.food);
+    s.inventory.seed += r.seeds;
+    this.meta.mealsCooked = (this.meta.mealsCooked || 0) + 1;
+    this.log(r.food > 0 ? `Cooked ${r.name}: +${r.food} food!` : `${r.name}: +${r.seeds} seeds.`);
+    this.save();
+    return OK;
+  }
+
+  /** Eat one pantry crop as it is. */
+  eatRaw(cropId: string): Result {
+    const g = this.dayCommand();
+    if (!g.ok) return g;
+    const s = this.state;
+    const crop = cropById(cropId);
+    if (!crop || !(s.pantry[cropId] > 0)) return fail('That crop isn\'t in the pantry.');
+    if (crop.food === 0) return fail(`${crop.name} isn't food. Save its seeds instead!`);
+    s.pantry[cropId] -= 1;
+    s.food = clamp(s.food + crop.food);
+    this.log(`Ate ${crop.name}: +${crop.food} food.`);
+    this.save();
+    return OK;
+  }
+
+  /** At night a hungry crew eats raw pantry crops, biggest first, until food is back up. */
+  private snackFromPantry(): number {
+    const s = this.state;
+    let eaten = 0;
+    while (s.food < RULES.snackBelowFood) {
+      const best = Object.keys(s.pantry)
+        .filter((id) => s.pantry[id] > 0 && (cropById(id)?.food ?? 0) > 0)
+        .sort((a, b) => (cropById(b)!.food - cropById(a)!.food))[0];
+      if (!best) break;
+      s.pantry[best] -= 1;
+      s.food = clamp(s.food + cropById(best)!.food);
+      eaten += 1;
+    }
+    return eaten;
   }
 
   clearPlot(plotId: number): Result {
@@ -673,6 +728,7 @@ export class Store {
     const food0 = s.food;
     s.air = clamp(s.air - RULES.airLossPerSol);
     s.food = clamp(s.food - RULES.foodLossPerSol);
+    const snacked = this.snackFromPantry();
 
     const warm = !this.needsHeater(sol) || s.split.heater >= 1;
     const blackout = s.stormBlackoutSol === sol;
@@ -709,7 +765,7 @@ export class Store {
     const card = this.pickScienceCard();
     this.lastNight = {
       sol, air: [air0, s.air], food: [food0, s.food], warm, minC: this.weather(sol).minC, litPlots: lit, grownPlots: grown,
-      blackout, roverRecovered, roverCalledHome, outcome, card,
+      blackout, roverRecovered, roverCalledHome, snacked, outcome, card,
     };
 
     if (outcome === 'next') {

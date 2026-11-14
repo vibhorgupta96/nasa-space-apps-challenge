@@ -39,5 +39,7 @@ game.events.once(Phaser.Core.Events.READY, () => {
 // PLAN.md section 6 play checks against a throwaway store.
 if (import.meta.env.DEV) {
   const selftest = () => import('./core/selftest').then((m) => m.runSelfTest());
-  Object.assign(window, { game, store, selftest });
+  // `await playtest()` plays 15 whole missions with different strategies (src/core/playtest.ts).
+  const playtest = (only?: string[]) => import('./core/playtest').then((m) => m.runPlaytests(only));
+  Object.assign(window, { game, store, selftest, playtest });
 }

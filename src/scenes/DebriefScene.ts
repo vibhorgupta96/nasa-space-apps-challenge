@@ -29,15 +29,16 @@ export class DebriefScene extends Phaser.Scene {
       `🥕 Harvests: ${harvests}`,
       `☀️ Storms: ${m.stormsSurvived} safe, ${m.stormsTaken} rough`,
       `🚙 Rover trips: ${m.trips}`,
+      `🍲 Meals cooked: ${m.mealsCooked}`,
       `📷 Photos earned: ${m.photosEarned.length}`,
       `🫁 Final air ${Math.round(s.air)} · food ${Math.round(s.food)}`,
       `⭐ Secrets: ${m.eggs.length}/${EGGS.total}`,
     ];
     stats.forEach((t, i) => text(this, 110 + (i % 3) * 360, 156 + Math.floor(i / 3) * 36, t, 20, C.text));
 
-    text(this, 110, 250, 'The real NASA events behind your storms', 24, C.teal, { fontStyle: 'bold' });
+    text(this, 110, 268, 'The real NASA events behind your storms', 24, C.teal, { fontStyle: 'bold' });
     const week = store.week();
-    let y = 290;
+    let y = 306;
     for (const e of week.events) {
       const date = new Date(e.realTime).toUTCString().replace(' GMT', ' UTC').slice(5);
       const kind = e.type === 'CME' ? 'Coronal mass ejection' : e.type === 'SEP' ? 'Solar energetic particle event' : e.type === 'GST' ? 'Geomagnetic storm at Earth' : e.type;

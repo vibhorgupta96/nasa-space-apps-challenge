@@ -6,7 +6,7 @@ export function createHelpPages(cellsPerSol, heaterNeededBelowC) {
       lines: [
         'Move with the arrow keys or WASD, or tap where to go. Next to a plot, press SPACE or tap it.',
         'Keys 1–5 choose seeds. Planting uses one seed and one water.',
-        'Key 6 waters your crops. Key 7 harvests ripe plants or clears a wilted plot.',
+        'Key 6 waters, key 7 harvests or clears. Cook harvests in the kitchen: recipes mix crops for more food.',
       ],
     },
     {

@@ -14,6 +14,7 @@ export interface GameState {
   food: number; // 0–100
   shield: number; // starts at 0; 0–3 permanent layers
   inventory: Record<ItemId, number>; // home inventory only
+  pantry: Record<string, number>; // harvested crops (crop id → count) waiting in the kitchen
   plots: Plot[]; // exactly 12, ordered by id
   stormWeekId: string;
   stormBlackoutSol: number | null;

@@ -160,6 +160,7 @@ export class FarmScene extends Phaser.Scene {
     this.place('bench', 19, 2, 'm-bench');
     this.place('tank', 20, 2, 'm-tank');
     this.place('crate', 8, 2, 'm-crate');
+    this.place('kitchen', 6, 2, 'm-kitchen');
     this.place('gerald', 13, 2, 'm-plant');
     this.place('pot', 10, 2, 'm-plant').setTint(0x8a7a6a);
     // Bottom of the dome.
@@ -409,6 +410,10 @@ export class FarmScene extends Phaser.Scene {
         return;
       case 'radio':
         bus.emit('ui:open', 'board');
+        return;
+      case 'kitchen':
+        if (s.phase !== 'day') return this.hint('Start the day first!');
+        bus.emit('ui:open', 'kitchen');
         return;
       case 'console':
         return this.say([{ who: 'priya', text: `Today's power: ${s.split.growLights} grow lights, ${s.split.heater} heater, ${s.split.shelter} shelter, ${s.split.rover} rover. The split is locked until tomorrow morning.` }]);
