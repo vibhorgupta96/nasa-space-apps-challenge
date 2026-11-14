@@ -64,7 +64,6 @@ export class UIScene extends Phaser.Scene {
     hotbar: Phaser.GameObjects.Container;
     hotSel: Phaser.GameObjects.Graphics;
     toolName: Phaser.GameObjects.Text;
-    hop: Phaser.GameObjects.Container;
     dust: Phaser.GameObjects.Text;
   };
   private toasts: Phaser.GameObjects.Text[] = [];
@@ -257,10 +256,8 @@ export class UIScene extends Phaser.Scene {
     const rover = text(this, W - 20, 186, '', 18, C.teal, { align: 'right', backgroundColor: '#1d2333cc', padding: { x: 10, y: 5 } }).setOrigin(1, 0);
     this.interactionHint = text(this, W - 20, H - 18, '', 16, C.dim).setOrigin(1, 1);
     this.interactionHint.setAlpha(0.8);
-    const hop = button(this, W - 94, 232, '⇧ Hop', () => bus.emit('ui:hop'), 130, 48, C.frame);
-    this.add.existing(hop).setDepth(100);
     const dust = text(this, 32, 184, '', 15, C.warn, { backgroundColor: '#141927cc', padding: { x: 7, y: 3 } });
-    this.hud = { sol, clock, weather, dayBar, bars, air, food, cells, inv, alert, rover, hotbar: this.add.container(0, 0), hotSel: this.add.graphics(), toolName: text(this, 0, 0, ''), hop, dust };
+    this.hud = { sol, clock, weather, dayBar, bars, air, food, cells, inv, alert, rover, hotbar: this.add.container(0, 0), hotSel: this.add.graphics(), toolName: text(this, 0, 0, ''), dust };
     // Clicks on the HUD stop here instead of reaching the farm underneath (lower depth so the
     // HUD's own buttons still win).
     for (const [bx, by, bw, bh] of [[12, 12, 364, 174], [W - 352, 12, 344, 124]]) this.add.zone(bx, by, bw, bh).setOrigin(0).setDepth(-5).setInteractive();
@@ -327,7 +324,6 @@ export class UIScene extends Phaser.Scene {
       ? `${store.isDaylight() ? 'Sunlit' : 'Dark'} side · simulated ${Math.round(w.minC)}° to ${Math.round(w.maxC)}°C\nGravity ${store.world.gravityMs2} m/s² · hop motion is simulated`
       : `Mars low ${Math.round(w.minC)}°C · high ${Math.round(w.maxC)}°C (InSight)\nGravity ${store.world.gravityMs2} m/s²`);
     h.dust.setVisible(store.worldId === 'moon').setText(`Airlock dust ${s.dustLevel}/2 · tomorrow ${store.nextDayCells()} power cells`);
-    h.hop.setVisible(store.world.hopEnabled && this.scene.isActive('Farm'));
 
     h.bars.clear();
     const bar = (x: number, v: number, color: number) => {
