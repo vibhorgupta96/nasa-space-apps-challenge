@@ -1,5 +1,6 @@
 import { store } from '../core/store';
 import { getData } from '../data/loaders';
+import { fillScienceTokens } from '../data/science';
 import type { ItemId } from '../core/types';
 import { INTRO, TUTORIAL, SOL_BEATS, RADIO_LETTERS, REACT, RESCUE, VICTORY, EGGS, type Line } from './script';
 
@@ -21,8 +22,9 @@ export class Director {
   }
 
   fill(t: string, items = '') {
-    const d = getData().delay;
-    return t
+    const data = getData();
+    const d = data.delay;
+    return fillScienceTokens(t, data)
       .replace(/\{delay\}/g, String(Math.round(d.oneWayMinutes)))
       .replace(/\{mkm\}/g, String(Math.round(d.distanceKm / 1e6)))
       .replace(/\{items\}/g, items);

@@ -49,6 +49,9 @@ test('crops retain the existing game IDs, colors, and balance values', () => {
     { id: 'chile', color: '#e0512b', growSols: 5, food: 32 },
     { id: 'zinnia', color: '#f0a630', growSols: 3, food: 0 },
   ]);
+  const chile = crops.find((crop) => crop.id === 'chile');
+  assert.equal(chile.factSource, 'https://www.nasa.gov/missions/station/nasas-second-pepper-harvest-sets-record-on-space-station/');
+  assert.match(chile.fact, /harvested 26 chile peppers from four Space Station plants and sampled some/i);
 });
 
 test('rejects DONKI rows outside the sourced dates and malformed response types', () => {
@@ -154,6 +157,37 @@ test('does not replace crop data when a NASA fact page no longer confirms its wo
     }), /no longer confirms/);
     assert.equal(requests, 2);
     assert.equal(await readFile(cropsPath, 'utf8'), original);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('fetches crops when NASA source pages confirm the curated claims', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'sol-sprouts-crops-success-'));
+  const pages = new Map([
+    ['/exploration-research-and-technology/growing-plants-in-space/', 'Veggie is NASA\'s space garden. Zinnia flowers grow in Veggie.'],
+    ['/image-article/mizuna-mustard-greens-are-growing-aboard-international-space-station-2/', 'Mizuna mustard greens were harvested aboard the station.'],
+    ['/missions/station/astronauts-harvest-radish-crop-on-international-space-station/', 'Radish plants grew in the Advanced Plant Habitat.'],
+    ['/missions/station/iss-research/chile-peppers-start-spicing-up-the-space-station/', 'Hatch chile peppers grew in the Advanced Plant Habitat.'],
+    ['/missions/station/nasas-second-pepper-harvest-sets-record-on-space-station/', 'The crew harvested and with other members of the crew sampled some of the 26 chile peppers from four plants.'],
+    ['/gallery/plants/', 'Red romaine and radish plants.'],
+  ]);
+  const fetchImpl = async (request) => {
+    const url = new URL(request);
+    if (url.pathname === '/osdr/data/search') return jsonResponse({ hits: { total: 12, hits: [{}] } });
+    const content = pages.get(url.pathname);
+    return content
+      ? new Response(`<html><body><article><p>${content}</p></article></body></html>`, { status: 200 })
+      : new Response('Not found', { status: 404 });
+  };
+  try {
+    const output = await run({ date: fetched, outputDir: directory, only: ['crops'] }, {
+      fetchImpl, now: () => new Date('2026-11-14T12:00:00Z'), logger: { log() {} },
+    });
+    assert.equal(output.crops.mock, false);
+    const chile = output.crops.crops.find((crop) => crop.id === 'chile');
+    assert.equal(chile.fact, 'Astronauts harvested 26 chile peppers from four Space Station plants and sampled some of them.');
+    assert.deepEqual(JSON.parse(await readFile(path.join(directory, 'crops.json'), 'utf8')), output.crops);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

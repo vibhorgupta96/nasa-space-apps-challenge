@@ -63,6 +63,13 @@ export interface Trivia {
   sourceTitle?: string;
 }
 
+export interface ScienceFact {
+  id: string;
+  activity: 'sol' | 'plant' | 'water' | 'dialogue';
+  text: string;
+  source: string;
+}
+
 export interface Find {
   id: string;
   item: ItemId;
@@ -92,10 +99,11 @@ export interface GameData {
   delay: Sourced & { date: string; distanceKm: number; oneWayMinutes: number };
   photos: Sourced & { photos: Photo[] };
   trivia: Sourced & { trivia: Trivia[] };
+  science: Sourced & { facts: ScienceFact[] };
   terrain: Terrain;
 }
 
-export const DATA_FILES = ['storms', 'weather', 'crops', 'delay', 'photos', 'trivia', 'terrain'] as const;
+export const DATA_FILES = ['storms', 'weather', 'crops', 'delay', 'photos', 'trivia', 'terrain', 'science'] as const;
 
 export function queueDataFiles(scene: Phaser.Scene) {
   for (const name of DATA_FILES) scene.load.json(`data:${name}`, `data/${name}.json`);

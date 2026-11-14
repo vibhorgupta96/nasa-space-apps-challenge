@@ -1,6 +1,6 @@
 # Sol Sprouts
 
-A cozy pixel-art farming game for kids aged 7–12 where you keep a greenhouse dome on Mars alive for 10 sols. It's powered by real NASA data. Built for **NASA Space Apps 2026: Build a Junior Astronaut Mission Trainer**.
+A cozy pixel-art farming game for kids aged 7–12. Keep a greenhouse dome alive through a 10-sol Mars mission by choosing how to spend power, caring for crops, and helping a rover explore. NASA data supplies the historical science context; storm strength, effects, crop yields, and game time are simulations. Built for **NASA Space Apps 2026: Build a Junior Astronaut Mission Trainer**.
 
 The team plan is in [PLAN.md](PLAN.md).
 
@@ -20,9 +20,11 @@ npm run fetch-data       # DONKI storms, InSight weather, Horizons delay, NASA i
 npm run build-terrain    # Mars Trek map tiles (macOS: uses the built-in `sips`)
 ```
 
-Every file in `public/data/` records `source`, `fetched` and `mock`. While any file is `"mock": true`, the game shows a yellow **MOCK DATA** badge.
+Every file in `public/data/` records `source`, `fetched` and `mock`. While any loaded file is `"mock": true`, the game shows a yellow **MOCK DATA** badge.
 
-> **Current status:** `storms.json` and `weather.json` are still **mock**. The shared `DEMO_KEY` hit NASA's rate limit while we were building. Run `npm run fetch-data` with a personal key to replace them. All other data files are real.
+> **Current data status:** Check each data file's own `mock` field before describing it as fetched. The game displays a **MOCK DATA** badge if any loaded dataset still has `mock: true`.
+
+See [docs/DATA_PIPELINE.md](docs/DATA_PIPELINE.md) for source details, [docs/REFERENCES.md](docs/REFERENCES.md) for the deduplicated reference list, and [docs/SUBMISSION.md](docs/SUBMISSION.md) for the project-page draft and demo materials. The [Space Force team page](https://www.spaceappschallenge.org/2026/find-a-team/space-force4/) lists the Universal Event. Other project fields were empty when checked; the game has not been submitted. See [submission status](docs/SUBMISSION_STATUS.json) before sharing links.
 
 ## How to play
 
@@ -42,7 +44,7 @@ Every file in `public/data/` records `source`, `fetched` and `mock`. While any f
 | Radio delay | JPL Horizons Earth–Mars distance → light-minutes | **Real**, with time compressed (1 radio min = 1 game s) |
 | Rover map | NASA Mars Trek Viking mosaic around InSight's landing site | **Real** imagery |
 | Rough-ground driving cost | MOLA shaded relief brightness | Game abstraction |
-| Crop facts | NASA Image Library records (Veggie, Advanced Plant Habitat) | **Real** facts. Growth times and food values are balance |
+| Crop facts | Linked NASA Veggie, Advanced Plant Habitat, and crop articles | Source-backed summaries. Growth times and food values are game balance |
 | Fun-fact cards, photo album | NASA/JPL Photojournal, Image Library | **Real** |
 
 ## Code map
@@ -61,6 +63,8 @@ Scenes never import each other. They read `store.state`, call store commands, an
 
 ## Credits
 
-- NASA data as listed above. This project is not affiliated with or endorsed by NASA.
-- Phaser 3 (MIT), Vite, TypeScript. Font: Pixelify Sans (SIL OFL), loaded from Google Fonts.
-- AI use: see [docs/AI_USAGE.md](docs/AI_USAGE.md).
+Open the in-game **NASA data we used** screen for the sources included in the game. Additional asset and license notes are in [docs/ASSETS.md](docs/ASSETS.md). This project is not affiliated with or endorsed by NASA. AI use is documented in [docs/AI_USAGE.md](docs/AI_USAGE.md); team verification remains pending.
+
+## Deployment
+
+The GitHub Pages workflow publishes the production build from `main` and `codex/person-c-completion`. A published URL is not recorded until the deployment has succeeded; check [docs/SUBMISSION_STATUS.json](docs/SUBMISSION_STATUS.json) before sharing a final-project link.

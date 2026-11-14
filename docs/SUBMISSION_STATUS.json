@@ -1,0 +1,40 @@
+{
+  "status": "not_submitted",
+  "checkedAt": "2026-11-14",
+  "teamPage": {
+    "url": "https://www.spaceappschallenge.org/2026/find-a-team/space-force4/",
+    "recordTitle": "Space Force",
+    "teamLeadUsername": "vibhorgupta96",
+    "listedMembers": ["Muskan Bararia", "Vibhor Gupta", "Shresth Sahai"],
+    "challenge": "Build a Junior Astronaut Mission Trainer",
+    "registeredEvent": "Universal Event",
+    "rosterAndEligibilityConfirmed": false
+  },
+  "submissionPage": {
+    "savedProjectName": "Project Space Force",
+    "proposedProjectName": "Sol Sprouts",
+    "otherRequiredProjectFieldsPopulated": false,
+    "isSubmitted": false,
+    "savedAt": null,
+    "submittedAt": null,
+    "confirmation": null
+  },
+  "demo": {
+    "artifacts": ["public/demo.pdf", "public/demo.pptx"],
+    "type": "illustrated_ai_assisted_deck_not_gameplay_footage",
+    "slides": 7,
+    "url": null,
+    "expectedUrls": [
+      "https://vibhorgupta96.github.io/nasa-space-apps-challenge/demo.pdf",
+      "https://vibhorgupta96.github.io/nasa-space-apps-challenge/demo.pptx"
+    ],
+    "videoLimitSeconds": 30,
+    "publicUrlsVerified": false
+  },
+  "deployment": {
+    "workflow": "configured",
+    "publicationVerified": false,
+    "url": null
+  },
+  "submittedRevision": null
+}

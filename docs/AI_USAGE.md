@@ -1,6 +1,6 @@
 # AI use disclosure (working draft)
 
-This working draft combines the existing main-branch disclosure with the later data pipeline work. Confirm the history and all affected files with the team before submission.
+This working draft combines the earlier team AI disclosure with the subsequent data pipeline and Person C completion work. The earlier disclosure reports that Claude suggested game concepts and the team chose and shaped the direction. Confirm this history and all affected files with the team before submission; the public team record's AI references are currently blank.
 
 | What | Tool | Role | Human review |
 |---|---|---|---|
@@ -9,11 +9,12 @@ This working draft combines the existing main-branch disclosure with the later d
 | Base game code (`src/`, `scripts/`) | Claude | Wrote the initial game code, data download scripts, and pixel art grids drawn in code. | Pending team review and tests |
 | Storyline and dialogue (`src/story/script.ts`) | Claude | Wrote characters, story beats and jokes to the team's requested tone. | Pending team review |
 | Earlier science facts | Claude, checked against NASA records | Summarized linked records in the earlier crops and trivia data; the prior script checked NASA IDs. | Team should re-read each source |
+| Current data pipeline and sourced snapshots | OpenAI Codex (GPT-6.1 Sol and GPT-6 Luna) | Orchestration; Luna wrote the Node fetch script, tests, initial fixtures, and data summaries after checking NASA pages. | Regression tests and independent code review passed; team review and SI form answers remain pending |
+| Game integration | OpenAI Codex (GPT-6.1 Terra) | Adapted the Person C data pipeline and output fields to the later game scaffold. | Regression tests, production build, and independent code review passed; human team review remains pending |
+| Person C science, UI, and submission fixes | OpenAI Codex (GPT-6 Luna), directed by Sol | Added sourced activity facts and revised science-card logic, help and credits UI, submission copy, deployment workflow, and disclosure documentation. | Regression tests, production build, and independent code review passed; browser verification, event eligibility and hosted-link checks, and human team review remain pending |
 
-- **Tool:** OpenAI Codex, GPT-6.1 Sol (task orchestration), GPT-6 Luna (fixtures, pipeline, tests and documentation), and GPT-6.1 Terra (integration with the existing game scaffold).
-- **Role:** generated synthetic JSON fixture values, a Node NASA data-fetch script and tests, and draft data-pipeline/disclosure documentation for `scripts/fetch-nasa-data*.mjs`, `public/data/{storms,weather,crops,delay,photos}.json`, and `docs/{INITIAL_DATA,DATA_PIPELINE,AI_USAGE}.md` / `.json`.
-- **Human edits/review:** not known at the time this draft was written. Update this entry to describe actual edits and review before submission.
-- **Generated media:** no generated images, video, or audio.
-- **Disclosure location:** this file and `docs/AI_USAGE.json`. No generated image or video is included.
+- **Other OpenAI Codex work:** GPT-6 Luna drafted the project-page and optional video storyboard text and created the seven-slide illustrated deck (`public/demo.pptx`, rendered as `public/demo.pdf`). The deck is AI-assisted and visibly watermarked; it is not game footage.
+- **Generated media:** The deck uses NASA rover photographs with slide credits and an AI-assisted layout/illustration. No AI-generated standalone images, audio, or gameplay video are included. The game art is drawn in project code; NASA image assets keep their original credits. Team review remains pending.
+- **Disclosure location:** this file, `docs/AI_USAGE.json`, and the in-game NASA credits screen.
 
-The first data fixtures were synthetic and marked `mock: true`; AI did not generate the NASA observations. The fetched snapshots contain NASA source records. Crop facts are short AI-curated summaries checked against the linked NASA pages. Update this disclosure as the project uses more tools or creates more assets.
+The first data fixtures were synthetic and marked `mock: true`; AI did not generate the NASA observations. The fetched snapshots contain NASA source records. Crop and activity facts are short AI-curated summaries with linked references; the team should check each fact against its cited page. Regression tests, production build, independent code review, and local deck-render checks passed; browser verification, event eligibility and hosted-link checks, and human team review remain pending. Update this disclosure as the project uses more tools or creates more assets.

@@ -1,6 +1,6 @@
 {
   "status": "working-draft",
-  "solutionIdeaOrigin": "Main branch disclosure reports Claude suggested concepts and team chose and shaped direction; confirm with team before submission",
+  "solutionIdeaOrigin": "Earlier team AI disclosure reports Claude suggested concepts and team chose and shaped direction; confirm with team before submission. The public team record's AI references are blank.",
   "tools": [
     {
       "name": "OpenAI Codex",
@@ -16,12 +16,29 @@
         "public/data/crops.json",
         "public/data/delay.json",
         "public/data/photos.json",
+        "public/data/science.json",
         "scripts/fetch-nasa-data.mjs",
         "scripts/fetch-nasa-data.test.mjs",
+        "scripts/science.test.mjs",
+        "src/core/store.ts",
+        "src/data/loaders.ts",
+        "src/data/science.ts",
+        "src/story/script.ts",
+        "src/ui/UIScene.ts",
+        "src/ui/credits.ts",
+        "src/ui/help-pages.mjs",
+        "src/ui/source-list.mjs",
         "docs/INITIAL_DATA.md",
         "docs/DATA_PIPELINE.md",
+        "docs/SUBMISSION.md",
+        "docs/SUBMISSION_STATUS.json",
+        "docs/DEMO.md",
+        "public/demo.pptx",
+        "public/demo.pdf",
         "docs/AI_USAGE.md",
-        "docs/AI_USAGE.json"
+        "docs/AI_USAGE.json",
+        "README.md",
+        ".github/workflows/deploy.yml"
       ],
       "mediaType": [
         "code",
@@ -38,7 +55,9 @@
   "generatedImagesOrVideo": [],
   "notes": [
     "The initial fixture values were synthetic and marked mock; AI did not generate NASA observations.",
-    "Fetched snapshots contain NASA source records; crop facts are AI-curated summaries checked against the linked NASA pages."
+    "Fetched snapshots contain NASA source records; crop and activity facts are AI-curated summaries checked against linked NASA pages.",
+    "An AI-assisted seven-slide illustrated demo deck exists; it is not gameplay footage and has not been submitted.",
+    "Regression tests, production build, independent code review, and local deck-render checks passed; browser verification, event eligibility and hosted-link checks, human team review, and SI responses remain pending."
   ],
   "priorProjectDisclosure": {
     "tools": [

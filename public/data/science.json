@@ -1,0 +1,55 @@
+{
+  "source": [
+    "https://www.nasa.gov/missions/station/ways-the-international-space-station-helps-us-study-plant-growth-in-space/",
+    "https://science.nasa.gov/resource/curiositys-three-frame-mosaic-of-clouds/",
+    "https://www.giss.nasa.gov/tools/mars24/help/notes.html",
+    "https://science.nasa.gov/biological-physical/investigations/apex-9/",
+    "https://www.nasa.gov/exploration-research-and-technology/growing-plants-in-space/"
+  ],
+  "fetched": "2026-11-14",
+  "mock": false,
+  "facts": [
+    {
+      "id": "mars-sol",
+      "activity": "sol",
+      "text": "A sol is one day on Mars. It lasts about 24 hours and 40 minutes.",
+      "source": "https://www.giss.nasa.gov/tools/mars24/help/notes.html"
+    },
+    {
+      "id": "veg-garden",
+      "activity": "plant",
+      "text": "On the Space Station, NASA's Veggie seeds grow in fabric pillows that hold their roots.",
+      "source": "https://www.nasa.gov/missions/station/ways-the-international-space-station-helps-us-study-plant-growth-in-space/"
+    },
+    {
+      "id": "veg-water",
+      "activity": "water",
+      "text": "Astronauts water Veggie plants by hand, much like watering a garden at home.",
+      "source": "https://www.nasa.gov/missions/station/ways-the-international-space-station-helps-us-study-plant-growth-in-space/"
+    },
+    {
+      "id": "mars-clouds",
+      "activity": "sol",
+      "text": "Curiosity photographed drifting clouds in Mars' sky. Scientists think they were made of water ice.",
+      "source": "https://science.nasa.gov/resource/curiositys-three-frame-mosaic-of-clouds/"
+    },
+    {
+      "id": "plant-oxygen",
+      "activity": "dialogue",
+      "text": "Plants use light to turn carbon dioxide and water into sugars, releasing oxygen through photosynthesis.",
+      "source": "https://science.nasa.gov/biological-physical/investigations/apex-9/"
+    },
+    {
+      "id": "veggie-lettuce",
+      "activity": "dialogue",
+      "text": "Astronauts have grown and eaten lettuce aboard the International Space Station using NASA's Veggie garden.",
+      "source": "https://www.nasa.gov/exploration-research-and-technology/growing-plants-in-space/"
+    },
+    {
+      "id": "veggie-zinnia",
+      "activity": "dialogue",
+      "text": "NASA's Veggie garden has grown zinnia flowers aboard the International Space Station.",
+      "source": "https://www.nasa.gov/exploration-research-and-technology/growing-plants-in-space/"
+    }
+  ]
+}
