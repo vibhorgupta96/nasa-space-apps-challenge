@@ -109,8 +109,11 @@ export function makeCharacter(scene: Phaser.Scene, name: string, look: Look) {
   pixelTexture(scene, `${name}-left-0`, SIDE, pal, 2, true);
   pixelTexture(scene, `${name}-left-1`, walkSide, pal, 2, true);
   pixelTexture(scene, `portrait-${name}`, DOWN.slice(0, 13), pal, 4);
+  // Rebuild the walk animations every time: they hold the frames of the textures drawn above,
+  // and redrawing a look (the customiser) deletes the old ones. Stale frames left the player
+  // texture-less and stuck on the spot.
   for (const dir of ['down', 'up', 'left', 'right']) {
-    if (scene.anims.exists(`${name}-walk-${dir}`)) continue;
+    scene.anims.remove(`${name}-walk-${dir}`);
     scene.anims.create({
       key: `${name}-walk-${dir}`,
       frames: [{ key: `${name}-${dir}-1` }, { key: `${name}-${dir}-0` }],
@@ -444,8 +447,7 @@ export function makePets(scene: Phaser.Scene) {
   for (const [kind, p] of Object.entries(PETS)) {
     pixelTexture(scene, `pet-${kind}-0`, p.rows, p.pal);
     pixelTexture(scene, `pet-${kind}-1`, [...p.rows.slice(0, 14), ...p.step], p.pal);
-    if (!scene.anims.exists(`pet-${kind}-walk`)) {
-      scene.anims.create({ key: `pet-${kind}-walk`, frames: [{ key: `pet-${kind}-1` }, { key: `pet-${kind}-0` }], frameRate: 8, repeat: -1 });
-    }
+    scene.anims.remove(`pet-${kind}-walk`);
+    scene.anims.create({ key: `pet-${kind}-walk`, frames: [{ key: `pet-${kind}-1` }, { key: `pet-${kind}-0` }], frameRate: 8, repeat: -1 });
   }
 }
