@@ -349,6 +349,18 @@ const MACHINES: Record<string, { rows: string[]; pal: Palette }> = {
     rows: ['................', '....KKKKKKKK....', '...KWWWWWWWWK...', '...KBBBBBBBBK...', '...KBWBBBBBBK...', '...KBWBBBBBBK...', '...KBBBBBBBBK...', '...KBBBBBBBBK...', '...KBBBBBBBBK...', '...KMMMMMMMMK...', '...KBBBBBBBBK...', '...KBBBBBBBBK...', '...KWWWWWWWWK...', '....KKKKKKKK....'],
     pal: { K, W: '#cfe9f5', B: '#5aa9e6', M: '#8b94a3' },
   },
+  moxie: {
+    rows: ['................', '....KKKKKKKK....', '...KYYYYYYYYK...', '...KYOYYYYOYK...', '...KYYYYYYYYK...', '...KYYKKKKYYK...', '...KYYKBBKYYK...', '...KYYKBBKYYK...', '...KYYKKKKYYK...', '...KYYYYYYYYK...', '.KKKMMMMMMMMKKK.', '.KCKMMMMMMMMKCK.', '.KCKKKKKKKKKKCK.', '.KCK........KCK.', '.KKK........KKK.'],
+    pal: { K, Y: '#e0b44f', O: '#fff3b0', M: '#8b94a3', B: '#8fd3ff', C: '#cfe9f5' },
+  },
+  treadmill: {
+    rows: ['................', '................', '.KKKK...........', '.KGRK...........', '.KKKK...........', '..KMK...........', '..KMK...........', '..KMK...........', '..KMK...........', '..KMKKKKKKKKKKK.', '.KMMDDDDDDDDDDK.', '.KMDBDDBDDBDDDK.', '.KMMDDDDDDDDDDK.', '.KKKKKKKKKKKKKK.', '..KK........KK..'],
+    pal: { K, G: '#7ee081', R: '#e05050', M: '#8b94a3', D: '#3b3a4f', B: '#9aa3b0' },
+  },
+  panel: {
+    rows: ['................', '.KKKKKKKKKKKKKK.', '.KBBLKBBLKBBBLK.', '.KBBBKBBBKBBBBK.', '.KKKKKKKKKKKKKK.', '.KBBLKBBLKBBBLK.', '.KBBBKBBBKBBBBK.', '.KKKKKKKKKKKKKK.', '.KBBLKBBLKBBBLK.', '.KBBBKBBBKBBBBK.', '.KKKKKKKKKKKKKK.', '.......KK.......', '.......KK.......', '.......KK.......', '.....KKKKKK.....', '.....KMMMMK.....'],
+    pal: { K, B: '#2f5fa8', L: '#8fd3ff', M: '#8b94a3' },
+  },
   plant: {
     rows: ['................', '......L.L.......', '.....LLLLL......', '....LLDLLLL.....', '.....LLLDL......', '......LDL.......', '.......L........', '.....KKKKK......', '.....KPPPK......', '.....KPPPK......', '......KKK.......'],
     pal: { K, L: '#6aa84f', D: '#3d7a35', P: '#e07a3a' },
@@ -360,6 +372,9 @@ export function makeMachines(scene: Phaser.Scene) {
     const padded = Array.from({ length: 16 }, (_, y) => m.rows[y] || '');
     pixelTexture(scene, `m-${name}`, padded, m.pal);
   }
+  // The same solar panel with Mars dust on some of its cells.
+  const dusty = MACHINES.panel.rows.map((r, y) => r.replace(/[BL]/g, (c, x: number) => ((x * 7 + y * 3) % 3 === 0 ? 'U' : c)));
+  pixelTexture(scene, 'm-panel-dusty', dusty, { ...MACHINES.panel.pal, U: '#b5793f' });
   // A "suspicious" seed packet (easter egg) and a tiny tree it grows into.
   pixelTexture(scene, 'egg-tree', swap(STAGES.zinnia[0].concat(['', '']).slice(0, 16), {}), { L: '#3d7a35', F: '#6aa84f', C: '#8a4b1f' });
 }
@@ -368,6 +383,15 @@ export function makeFX(scene: Phaser.Scene) {
   canvasTile(scene, 'px', 2, 2, (c) => {
     c.fillStyle = '#ffffff';
     c.fillRect(0, 0, 2, 2);
+  });
+  // A little heart that floats up when you pet your pet.
+  canvasTile(scene, 'heart', 7, 6, (c) => {
+    const rows = ['.RR.RR.', 'RWRRRRR', 'RRRRRRR', '.RRRRR.', '..RRR..', '...R...'];
+    rows.forEach((r, y) => [...r].forEach((ch, x) => {
+      if (ch === '.') return;
+      c.fillStyle = ch === 'W' ? '#ffd6e6' : '#f0507a';
+      c.fillRect(x, y, 1, 1);
+    }));
   });
   canvasTile(scene, 'sparkle', 6, 6, (c) => {
     c.fillStyle = '#fff3b0';

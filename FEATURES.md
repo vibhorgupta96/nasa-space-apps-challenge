@@ -14,6 +14,10 @@ Folder ownership is the same as PLAN.md section 4. **A** = core, farm, `main.ts`
 - Sleeping in a bed ends the sol; four beds (you and the crew).
 - "Make your astronaut": girl or boy, hair style and colour, skin tone, suit, trousers.
 - Pets (cat, dog, Mars alien) that follow you and do one helpful trick per sol. The dog's trick cites the Phoenix lander finding ice in 2008.
+- Kitchen and recipes: harvests go to a pantry; mixed recipes feed the crew more than raw crops.
+- **Person A training layer (Sun):** badge logic (#1, 13 badges), MOXIE oxygen maker (#3), dusty solar panels that the player or pet cleans (#4), daily schedule and treadmill (#8), crew requests on sols 2–9 (#9), `store.shelterProtection()` for the radiation meter (#13), and settings hooks for reduced motion and music/sound volume in `src/core/settings.ts` (#14). The settings screen and badge icons on the HUD are still Person C's.
+- **Training certificate (#2, built by A):** the player types their name on the "Make your astronaut" screen; the debrief opens a certificate with the name, an earned title (Astronaut Cadet, Flight Engineer, Mission Specialist or Mars Mission Commander), the astronaut and pet, badges, lessons, Wiz Cards and the real DONKI date, plus a Save picture button.
+- Teaching spine from WINNING_PLAN.md: once a sol your pet brings a quiz card (today's lesson question); a right answer wins a **Wiz Card** (the lesson's sourced NASA fact) and the pet's reward. Petting also shows hearts and plays a pet sound. Players without a pet get the question after the night report. Also: the mission journal, and the pre/post quiz score in the store (`store.recordQuiz`). The quiz screens are still Person C's.
 
 ## Tier 1: must have (by Sun noon)
 

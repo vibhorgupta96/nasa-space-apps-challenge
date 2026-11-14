@@ -23,4 +23,5 @@ export const UI_EV = {
   TOAST: 'ui:toast', // { text }
   NIGHT_REPORT: 'ui:night', // NightReport
   PHASE_CHANGED: 'ui:phase', // { phase }
+  BADGE: 'ui:badge', // { id }
 } as const;

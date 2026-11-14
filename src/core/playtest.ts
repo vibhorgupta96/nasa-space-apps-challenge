@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { store } from './store';
 import { getData } from '../data/loaders';
 import type { PowerSlot } from './types';
+import { lessonFor } from './training';
 
 // End-to-end playthroughs for development: `await playtest()` in the browser console (dev build).
 // Each strategy plays a whole mission through the real scenes like a player would: it answers
@@ -15,6 +16,8 @@ interface UIPeek extends Phaser.Scene {
   current: Phaser.GameObjects.Container | null;
   queue: unknown[];
   planningOpen: boolean;
+  lessonOpen: boolean;
+  lessonSol: number;
   advance: (() => void) | null;
   selectTool(i: number): void;
 }
@@ -23,6 +26,7 @@ interface FarmPeek extends Phaser.Scene {
   pet: Phaser.GameObjects.Sprite | null;
   facing: string;
   plotTiles: Phaser.GameObjects.Image[];
+  crew: Record<string, Phaser.GameObjects.Sprite>;
   actOn(x: number, y: number): void;
 }
 interface RoverPeek extends Phaser.Scene {
@@ -54,6 +58,8 @@ export interface PlayResult {
   harvests: number;
   meals: number;
   trips: number;
+  badges: number;
+  lessons: number;
   storms: string;
   problems: string[];
   log: string;
@@ -109,6 +115,14 @@ export async function runPlaytests(only?: string[]): Promise<{ ok: boolean; resu
     return sp;
   };
 
+  /** The lesson quiz (pet by day, crew at night): answer it right (a careful kid) or with the first choice. */
+  let answerRight = true;
+  const answerLesson = async () => {
+    const l = lessonFor(ui().lessonSol);
+    const k = String((answerRight && l ? l.answer : 0) + 1);
+    await key(k, `Digit${k}`, 48 + Number(k));
+  };
+
   /** Clear modals like a player: the morning panel gets a split, everything else gets SPACE. */
   const drain = async (plan: (sol: number) => Split) => {
     for (let i = 0; i < 300; i++) {
@@ -131,6 +145,7 @@ export async function runPlaytests(only?: string[]): Promise<{ ok: boolean; resu
         if (u.planningOpen && u.current) u.advance?.(); // confirm unused cells
         continue;
       }
+      if (u.lessonOpen) await answerLesson();
       await key(' ', 'Space', 32);
     }
     note('modals never cleared');
@@ -138,6 +153,7 @@ export async function runPlaytests(only?: string[]): Promise<{ ok: boolean; resu
   const clearDialogs = async () => {
     for (let i = 0; i < 60 && store.paused; i++) {
       const u = ui();
+      if (u.lessonOpen) await answerLesson();
       if (u.current && !u.planningOpen) await key(' ', 'Space', 32);
       else await pump(1);
     }
@@ -265,6 +281,7 @@ export async function runPlaytests(only?: string[]): Promise<{ ok: boolean; resu
     for (let i = 0; i < 2000 && store.state.sol === sol && store.state.phase === 'day'; i++) {
       if (store.paused) {
         const u = ui();
+        if (u.lessonOpen) await answerLesson();
         if (u.current && !u.planningOpen) await key(' ', 'Space', 32);
         else await pump(1);
         continue;
@@ -286,6 +303,15 @@ export async function runPlaytests(only?: string[]): Promise<{ ok: boolean; resu
       c.start();
     } else if (!clickButton(title, 'Continue mission')) note('no Continue mission button on the title');
     await pump(10);
+  };
+  // Junior Astronaut training: MOXIE, the dusty panel, the treadmill and crew requests.
+  const train = async () => {
+    await act(21, 7); // solar panel (cleans it when dusty)
+    await act(21, 2); // MOXIE
+    await act(14, 12); // treadmill
+    for (let i = 0; i < 260 && farm().sys.isActive() && store.pausedBy.has('exercise'); i++) await pump(1);
+    for (const c of Object.values(farm().crew)) await act(Math.floor(c.x / 32), Math.floor(c.y / 32));
+    await act(4, 3); // Bolt
   };
   const monkey = async () => {
     const tiles = plotTiles();
@@ -322,6 +348,10 @@ export async function runPlaytests(only?: string[]): Promise<{ ok: boolean; resu
       day: async () => { await cook(['1', '2', '3', '4']); await machines(); await machines(); await tend(); await plant([3]); await tend(); await tend(); await petIt(); await petIt(); } },
     'random monkey': { fill: true, look: { pet: 'cat' }, day: async () => { await monkey(); await tend(); } },
     'minimal power (heater + shelter only)': { lights: 0, day: async () => { await tend(); await plant([0, 1, 2, 3]); await tend(); await cook(); } },
+    'junior astronaut (lessons, MOXIE, treadmill, requests)': { rover: 1, lights: 3, look: { pet: 'dog' },
+      day: async () => { await tend(); await plant([0, 1, 2, 3]); await tend(); await train(); await petIt(); await rover(2); await machines(); await cook(); } },
+    'guesses every lesson question': { fill: true, look: { pet: 'cat' },
+      day: async () => { await tend(); await plant([0, 1]); await tend(); await train(); await cook(); } },
     'everything at once': { rover: 1, fill: true, reload: 3, look: { kid: 'girl', hairStyle: 'puffs', pet: 'alien' },
       day: async () => { await tend(); await plant([0, 1, 2, 3, 4]); await tend(); await petIt(); await machines(); await rover(2); await cook(); await monkey(); } },
   };
@@ -331,12 +361,13 @@ export async function runPlaytests(only?: string[]): Promise<{ ok: boolean; resu
     if (only && !only.some((n) => name.includes(n))) continue;
     run = name;
     problems = [];
+    answerRight = !name.startsWith('guesses');
     const plan = planFor(o);
     await toTitle();
     scenes.getScene('Title').scene.start('Customize', { fresh: true });
     await pump(5);
     const c = scenes.getScene('Customize') as unknown as { set(a: object): void; start(): void };
-    c.set(o.look ?? { pet: 'none' });
+    c.set({ name: 'Tester', ...(o.look ?? { pet: 'none' }) });
     c.start();
     await pump(10);
     const week = store.state.stormWeekId;
@@ -375,6 +406,7 @@ export async function runPlaytests(only?: string[]): Promise<{ ok: boolean; resu
       name: run, week, outcome: ended() ? store.state.phase : 'stuck', lastSol: store.state.sol,
       air: Math.round(store.state.air), food: Math.round(store.state.food),
       harvests: Object.values(m.harvests).reduce((a, b) => a + b, 0), meals: m.mealsCooked, trips: m.trips,
+      badges: m.badges.length, lessons: store.lessonsCorrect(),
       storms: `${m.stormsSurvived} safe / ${m.stormsTaken} rough`, problems: [...problems], log: log.join(' '),
     });
     console.log(`[playtest] ${run}: ${results[results.length - 1].outcome}, ${problems.length} problem(s)`);

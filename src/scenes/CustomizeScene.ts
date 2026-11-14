@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { makeCharacter } from '../farm/art';
-import { HAIRS, PANTS, SKINS, SUITS, loadAstronaut, saveAstronaut, type Astronaut, type PetKind } from '../farm/look';
+import { HAIRS, NAME_MAX, PANTS, SKINS, SUITS, loadAstronaut, saveAstronaut, type Astronaut, type PetKind } from '../farm/look';
 import { C, H, W, button, panel, text } from '../ui/theme';
 import { startMission } from './TitleScene';
 
@@ -15,6 +15,8 @@ export class CustomizeScene extends Phaser.Scene {
   private preview!: Phaser.GameObjects.Sprite;
   private petPreview!: Phaser.GameObjects.Sprite;
   private rows!: Phaser.GameObjects.Container;
+  private nameText!: Phaser.GameObjects.Text;
+  private nameWarn!: Phaser.GameObjects.Text;
 
   constructor() {
     super('Customize');
@@ -50,12 +52,48 @@ export class CustomizeScene extends Phaser.Scene {
     kb.on('keydown-ESC', () => this.scene.start('Title'));
     kb.on('keydown-LEFT', () => this.turn(-1));
     kb.on('keydown-RIGHT', () => this.turn(1));
+    kb.on('keydown', (e: KeyboardEvent) => this.typeName(e));
+    this.nameWarn = text(this, W - 220, 604, '', 18, C.warn).setOrigin(0.5);
     this.refresh();
   }
 
   private start() {
+    if (!this.astro.name.trim()) {
+      this.nameWarn.setText('Type your astronaut name first!');
+      this.cameras.main.shake(150, 0.003);
+      return;
+    }
+    this.astro.name = this.astro.name.trim();
     saveAstronaut(this.astro);
     startMission(this, this.fresh);
+  }
+
+  /** Letters, digits, spaces and dashes type into the name; Backspace deletes. */
+  private typeName(e: KeyboardEvent) {
+    const a = this.astro;
+    if (e.key === 'Backspace') a.name = a.name.slice(0, -1);
+    else if (e.key.length === 1 && /[\p{L}\p{N} '-]/u.test(e.key) && a.name.length < NAME_MAX) a.name += e.key;
+    else return;
+    this.nameWarn.setText('');
+    this.showName();
+  }
+
+  /** Touch screens have no keyboard here, so tapping the name box asks with the browser. */
+  private askName() {
+    const typed = window.prompt('Your astronaut name', this.astro.name);
+    if (typed === null) return;
+    this.astro.name = typed.replace(/[^\p{L}\p{N} '-]/gu, '').slice(0, NAME_MAX);
+    this.nameWarn.setText('');
+    this.showName();
+  }
+
+  private showName() {
+    const blink = Math.floor(this.time.now / 500) % 2 === 0 ? '_' : ' ';
+    this.nameText?.setText(this.astro.name ? `${this.astro.name}${blink}` : `Type your name${blink}`).setColor(this.astro.name ? C.text : C.dim);
+  }
+
+  update() {
+    this.showName();
   }
 
   private turn(by: number) {
@@ -73,11 +111,11 @@ export class CustomizeScene extends Phaser.Scene {
     this.refreshPreview();
     this.rows.removeAll(true);
     const a = this.astro;
-    let y = 130;
+    let y = 118;
     const row = (label: string) => {
       this.rows.add(text(this, 520, y + 6, label, 20, C.text));
       const at = y;
-      y += 64;
+      y += 58;
       return at;
     };
     const choices = <T>(at: number, options: [T, string][], current: T, pick: (v: T) => void, w = 130) => {
@@ -98,6 +136,13 @@ export class CustomizeScene extends Phaser.Scene {
       });
     };
 
+    const nameAt = row('My name');
+    const box = this.add.rectangle(676 - 21, nameAt + 18, 520, 40, 0x141927).setOrigin(0, 0.5).setStrokeStyle(2, 0xffd166)
+      .setInteractive({ useHandCursor: true });
+    box.on('pointerdown', () => this.askName());
+    this.nameText = text(this, 676 - 9, nameAt + 18, '', 22, C.text).setOrigin(0, 0.5);
+    this.rows.add([box, this.nameText]);
+    this.showName();
     choices<Astronaut['kid']>(row("I'm a"), [['girl', 'Girl'], ['boy', 'Boy']], a.kid, (kid) => this.set({ kid, hairStyle: kid === 'girl' ? 'long' : 'short' }));
     const styles: [Astronaut['hairStyle'], string][] = [['short', 'Short'], ['long', 'Long']];
     if (a.kid === 'girl') styles.push(['puffs', 'Puffs']);
