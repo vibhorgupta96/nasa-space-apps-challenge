@@ -32,6 +32,9 @@ export class RoverScene extends Phaser.Scene {
   private lastAngle = 0;
   private findsKey = '';
   private lastStatus = '';
+  private manualMode = false;
+  private modeLabel!: Phaser.GameObjects.Text;
+  private driveKeys!: Record<string, Phaser.Input.Keyboard.Key>;
 
   constructor() {
     super('Rover');
@@ -39,6 +42,7 @@ export class RoverScene extends Phaser.Scene {
 
   create() {
     this.findIcons = new Map();
+    this.manualMode = store.state.rover.status === 'out' && store.state.rover.driveMode === 'manual';
     const t = store.data.terrain;
     const cell = t.cell;
     const worldW = t.width * cell;
@@ -75,12 +79,14 @@ export class RoverScene extends Phaser.Scene {
       this.hover.setPosition(x * cell + cell / 2, y * cell + cell / 2);
     });
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
-      if (store.paused || p.y > 570) return; // the info panel and its credit line start here
+      if (store.paused || p.y > 548) return; // the info panel and its credit line start here
       if (p.rightButtonDown()) return this.undo();
       this.extendTo(this.cellAt(p));
     });
     this.input.mouse?.disableContextMenu();
     const kb = this.input.keyboard!;
+    this.driveKeys = kb.addKeys('UP,DOWN,LEFT,RIGHT,W,A,S,D') as Record<string, Phaser.Input.Keyboard.Key>;
+    kb.addCapture(['UP', 'DOWN', 'LEFT', 'RIGHT', 'W', 'A', 'S', 'D']);
     kb.on('keydown-BACKSPACE', () => this.undo());
     kb.on('keydown-C', () => {
       this.showCost = !this.showCost;
@@ -213,7 +219,7 @@ export class RoverScene extends Phaser.Scene {
   }
 
   private extendTo(cell: Cell) {
-    if (!this.planning()) return;
+    if (!this.planning() || this.manualMode) return;
     const last = this.route[this.route.length - 1];
     if (last[0] === cell[0] && last[1] === cell[1]) return;
     const leg = this.path(last, cell);
@@ -229,11 +235,12 @@ export class RoverScene extends Phaser.Scene {
   }
 
   private returnHome() {
-    if (!this.planning()) return;
+    if (!this.planning() || this.manualMode) return;
     this.extendTo(store.data.terrain.dome);
   }
 
   private send() {
+    if (this.manualMode || store.paused) return;
     const r = store.launchRover(this.route);
     if (!r.ok) {
       store.log(r.reason);
@@ -268,6 +275,14 @@ export class RoverScene extends Phaser.Scene {
     this.sendBtn = button(this, 1034, 658, 'Send Bolt »', () => this.send(), 150, 50, 0xffd166);
     this.planUi.add(this.sendBtn);
     ui.add(this.planUi);
+    const mode = button(this, 1090, 570, 'Switch driving mode', () => {
+      if (store.paused || store.state.rover.status !== 'home') return;
+      this.manualMode = !this.manualMode;
+      this.resetRoute();
+    }, 270, 34, C.frame);
+    ui.add(mode);
+    this.modeLabel = text(this, 36, 560, '', 16, C.text);
+    ui.add(this.modeLabel);
     ui.add(button(this, 1190, 658, 'Inside', () => this.leave(), 110, 44, C.frame));
     const terrain = store.data.terrain;
     const creditText = store.worldId === 'moon'
@@ -286,6 +301,15 @@ export class RoverScene extends Phaser.Scene {
     const t = store.data.terrain;
     const cell = t.cell;
     const r = s.rover;
+    if (r.status === 'out') this.manualMode = r.driveMode === 'manual';
+    if (this.manualMode && !store.paused && s.phase === 'day' &&
+        (r.status === 'home' || (r.status === 'out' && r.nextRouteIndex >= r.route.length))) {
+      const k = this.driveKeys;
+      const dx = k.LEFT.isDown || k.A.isDown ? -1 : k.RIGHT.isDown || k.D.isDown ? 1 : 0;
+      const dy = dx ? 0 : k.UP.isDown || k.W.isDown ? -1 : k.DOWN.isDown || k.S.isDown ? 1 : 0;
+      if (dx || dy) store.driveRover(dx, dy);
+    }
+    this.modeLabel.setText(this.manualMode ? 'MANUAL · Arrows / WASD · Steer back to the dome to dock' : 'PLAN · Click stops, add Return, then Send Bolt');
     if (this.findsKey !== `${s.stormWeekId}:${this.findsSol()}`) this.refreshFinds();
     // Bolt just got home (or out of repair): clear the finished route so it isn't re-sent.
     if (r.status !== this.lastStatus) {
@@ -311,6 +335,7 @@ export class RoverScene extends Phaser.Scene {
     this.rover.setPosition(visualX * cell + cell / 2, visualY * cell + cell / 2 - bounce);
     this.roverShadow.setPosition(visualX * cell + cell / 2, visualY * cell + cell / 2 + 5)
       .setScale(1 - bounce * 0.04).setVisible(store.worldId === 'moon' && r.status !== 'repairing');
+    if (r.status === 'out' && r.driveMode === 'manual') this.cameras.main.centerOn(visualX * cell + cell / 2, visualY * cell + cell / 2);
     this.rover.setVisible(r.status !== 'repairing');
     if (r.status === 'out' && r.route[r.nextRouteIndex]) {
       const a = r.route[r.nextRouteIndex - 1];
@@ -351,7 +376,7 @@ export class RoverScene extends Phaser.Scene {
     }
 
     // Info text.
-    this.planUi.setVisible(planning);
+    this.planUi.setVisible(planning && !this.manualMode);
     const dayLeft = store.dayEndMs() - s.missionElapsedMs;
     const stormLine = getActiveStormWarnings(s, store.data.storms.weeks)
       .map((st) => `\n⚠ ${store.worldId === 'moon' ? 'Radiation scenario' : 'Storm'} on ${store.world.dayLabel.toLowerCase()} ${st.event.scenario.gameSol} hits in ${fmtMs(st.hitAtMs - s.missionElapsedMs)} of daytime. Be home before it!`)
@@ -361,7 +386,7 @@ export class RoverScene extends Phaser.Scene {
       const cost = evaluateRoute(this.route, t, s.split.rover, store.rules.roverCostPerTile, store.rules.roverRockCostExtra).totalBatteryCost;
       const tiles = this.route.length - 1;
       const home = this.route.length > 1 && this.route[this.route.length - 1][0] === t.dome[0] && this.route[this.route.length - 1][1] === t.dome[1];
-      this.info.setText(
+      this.info.setText(this.manualMode ? (can.ok ? `Manual driving: hold Arrow Keys or WASD to launch and steer.\nBattery: ${s.split.rover} cells · Each tile takes ${store.rules.roverMsPerTile / 1000}s. Return to the dome to unload.${stormLine}` : can.reason) :
         (can.ok ? `Plan a drive: click the map to add stops, then 🏠 Return.  Battery: ${s.split.rover} cell(s)\n` : `${can.reason}\n`) +
           `Route: ${tiles} squares · needs ${cost.toFixed(1)} cells · takes ${fmtMs(tiles * store.rules.roverMsPerTile)} (day left ${fmtMs(dayLeft)})` +
           (tiles && !home ? ' · must end at the dome' : '') +
@@ -372,7 +397,7 @@ export class RoverScene extends Phaser.Scene {
     } else if (r.status === 'out') {
       const left = (r.route.length - r.nextRouteIndex) * store.rules.roverMsPerTile;
       const cargo = Object.entries(r.cargo).filter(([, n]) => n > 0).map(([k, n]) => `${n} ${k}`).join(', ') || 'empty';
-      this.info.setText(`Bolt is driving! Battery ${r.batteryCells.toFixed(1)} · home in about ${fmtMs(left)}\nCargo: ${cargo}${stormLine}`);
+      this.info.setText(`${r.driveMode === 'manual' ? 'Manual: Arrow Keys / WASD · Steer home to dock.' : 'Bolt is driving!'} Battery ${r.batteryCells.toFixed(1)} ${r.driveMode === 'manual' ? '' : `· home in about ${fmtMs(left)}`}\nCargo: ${cargo}${stormLine}`);
       this.info.setColor(C.teal);
     } else if (r.status === 'stranded') {
       this.info.setText('Bolt is stuck out here. The crew will tow the rover home tonight. Cargo will be lost.');

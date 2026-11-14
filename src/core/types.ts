@@ -67,6 +67,7 @@ export interface Plot {
 }
 
 export interface RoverState {
+  driveMode?: 'plan' | 'manual'; // older saves default to planned trips
   status: 'home' | 'out' | 'stranded' | 'repairing';
   batteryCells: number; // fractional cells, rounded to one decimal after a tile
   expeditionId: string | null;

@@ -23,7 +23,7 @@ export function createHelpPages(cellsPerSol, heaterNeededBelowC, worldId = 'mars
         lines: [
           'Press TAB for the lunar hazard board. Radiation timing and effects in the game are simulated.',
           'Shelter cells plus shield layers must reach a hazard’s simulated strength.',
-          'Use the rover map to find ice and samples, and plan a route back to the dome.',
+          'On the rover map, Switch driving mode enables manual driving. Hold Arrow Keys or WASD to launch and steer one tile at a time; steer back onto the dome to unload. You can also plan a route and press Send Bolt.',
         ],
       },
     ];
