@@ -1,0 +1,10 @@
+{
+  "tools": [{ "name": "Claude (Anthropic) via Claude Code", "type": "LLM coding assistant" }],
+  "entries": [
+    { "files": ["PLAN.md"], "media": "text", "role": "first draft", "humanEdits": "major rewrite by team" },
+    { "files": ["src/**", "scripts/**", "index.html"], "media": "code", "role": "initial implementation", "humanEdits": "pending team review", "disclosure": "README.md, docs/AI_USAGE.md, in-game credits screen" },
+    { "files": ["src/story/script.ts"], "media": "text", "role": "dialogue and storyline", "humanEdits": "pending team review", "disclosure": "in-game credits screen" },
+    { "files": ["public/data/crops.json", "public/data/trivia.json"], "media": "data", "role": "fact summaries of linked NASA records", "humanEdits": "pending team verification", "disclosure": "each fact links its NASA source" }
+  ],
+  "generatedImagesVideoAudio": []
+}

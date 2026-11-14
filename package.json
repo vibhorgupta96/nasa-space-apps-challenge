@@ -1,0 +1,20 @@
+{
+  "name": "sol-sprouts",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "fetch-data": "node scripts/fetch-nasa-data.mjs",
+    "build-terrain": "node scripts/build-terrain.mjs"
+  },
+  "dependencies": {
+    "phaser": "3.80.1"
+  },
+  "devDependencies": {
+    "typescript": "5.6.3",
+    "vite": "5.4.10"
+  }
+}

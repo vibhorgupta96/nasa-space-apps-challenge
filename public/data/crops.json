@@ -1,0 +1,74 @@
+{
+ "source": [
+  "https://images.nasa.gov/details/KSC-2013-3563",
+  "https://images.nasa.gov/details/iss060e006116",
+  "https://images.nasa.gov/details/KSC-20201214-PH-KLS01_0017",
+  "https://images.nasa.gov/details/iss066e023179",
+  "https://images.nasa.gov/details/KSC-20181127-PH_JBS01_0069"
+ ],
+ "fetched": "2026-11-14",
+ "mock": false,
+ "note": "Facts are short summaries of the linked NASA records. growSols and food are game-balance values; zinnia has food 0.",
+ "crops": [
+  {
+   "id": "red-romaine",
+   "name": "Red Romaine Lettuce",
+   "growSols": 3,
+   "food": 18,
+   "color": "#b8344a",
+   "nasaId": "KSC-2013-3563",
+   "fact": "NASA grew \"Outredgeous\" red romaine lettuce in Veggie, a plant box built for the Space Station.",
+   "factSource": "https://images.nasa.gov/details/KSC-2013-3563",
+   "sourceTitle": "KSC-2013-3563",
+   "sourceDate": "2012-09-25"
+  },
+  {
+   "id": "mizuna",
+   "name": "Mizuna Greens",
+   "growSols": 3,
+   "food": 15,
+   "color": "#5fae4a",
+   "nasaId": "iss060e006116",
+   "fact": "Mizuna mustard greens grew on the Space Station in 2019 to test how light colour changes plants.",
+   "factSource": "https://images.nasa.gov/details/iss060e006116",
+   "sourceTitle": "Veg-04 A On-Orbit",
+   "sourceDate": "2019-07-09"
+  },
+  {
+   "id": "radish",
+   "name": "Radish",
+   "growSols": 4,
+   "food": 24,
+   "color": "#d4486a",
+   "nasaId": "KSC-20201214-PH-KLS01_0017",
+   "fact": "Radishes grew in NASA's Advanced Plant Habitat for the PH-02 experiment. This batch grew on Earth to compare with space.",
+   "factSource": "https://images.nasa.gov/details/KSC-20201214-PH-KLS01_0017",
+   "sourceTitle": "PH-02: Radish Ground Harvest",
+   "sourceDate": "2020-12-14"
+  },
+  {
+   "id": "chile",
+   "name": "Chile Pepper",
+   "growSols": 5,
+   "food": 32,
+   "color": "#e0512b",
+   "nasaId": "iss066e023179",
+   "fact": "In October 2021 an astronaut tasted a red chile pepper grown on the Space Station. The seeds were planted that July.",
+   "factSource": "https://images.nasa.gov/details/iss066e023179",
+   "sourceTitle": "Expedition 66 astronauts sample chile peppers grown on the International Space Station",
+   "sourceDate": "2021-10-29"
+  },
+  {
+   "id": "zinnia",
+   "name": "Zinnia",
+   "growSols": 3,
+   "food": 0,
+   "color": "#f0a630",
+   "nasaId": "KSC-20181127-PH_JBS01_0069",
+   "fact": "Zinnia seeds grown on the Space Station came back to Earth and were planted again in 2018.",
+   "factSource": "https://images.nasa.gov/details/KSC-20181127-PH_JBS01_0069",
+   "sourceTitle": "Space Zinnias: Growing Seeds from Space",
+   "sourceDate": "2018-11-27"
+  }
+ ]
+}
