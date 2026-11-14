@@ -35,6 +35,13 @@ export class RoverScene extends Phaser.Scene {
   private manualMode = false;
   private modeLabel!: Phaser.GameObjects.Text;
   private driveKeys!: Record<string, Phaser.Input.Keyboard.Key>;
+  private driveUi!: Phaser.GameObjects.Container;
+  private homeBtn!: Phaser.GameObjects.Container;
+  /** A tapped on-screen arrow, used as soon as Bolt finishes the current square. */
+  private tapped: Cell | null = null;
+  /** Squares still to drive on "Drive home" (manual mode autopilot). */
+  private autoHome: Cell[] = [];
+  private homeCostFor: { key: string; cost: number } | null = null;
 
   constructor() {
     super('Rover');
@@ -249,6 +256,37 @@ export class RoverScene extends Phaser.Scene {
     this.legs = [];
   }
 
+  /** The square Bolt is on, or about to finish, in manual mode. */
+  private manualTile(): Cell {
+    const r = store.state.rover;
+    const at = r.status === 'out' ? r.route[r.nextRouteIndex - 1] : undefined;
+    return at ? [at[0], at[1]] : [...store.data.terrain.dome];
+  }
+
+  private tapArrow(dx: number, dy: number) {
+    if (!this.manualMode || store.paused) return;
+    this.autoHome = [];
+    this.tapped = [dx, dy];
+  }
+
+  private driveHome() {
+    const r = store.state.rover;
+    if (!this.manualMode || r.status !== 'out' || store.paused) return;
+    this.tapped = null;
+    this.autoHome = this.path(this.manualTile(), store.data.terrain.dome);
+  }
+
+  /** Battery needed to get back to the dome from Bolt's square by the cheapest path. */
+  private homeCost() {
+    const at = this.manualTile();
+    const key = `${at[0]},${at[1]}`;
+    if (this.homeCostFor?.key !== key) {
+      const cost = this.path(at, store.data.terrain.dome).reduce((n, [x, y]) => n + store.tileCost(x, y), 0);
+      this.homeCostFor = { key, cost: Math.round(cost * 10) / 10 };
+    }
+    return this.homeCostFor.cost;
+  }
+
   private leave() {
     if (store.paused) return;
     this.cameras.main.fadeOut(200);
@@ -275,6 +313,13 @@ export class RoverScene extends Phaser.Scene {
     this.sendBtn = button(this, 1034, 658, 'Send Bolt »', () => this.send(), 150, 50, 0xffd166);
     this.planUi.add(this.sendBtn);
     ui.add(this.planUi);
+    // Manual driving for touch and mouse (the keyboard uses the arrows or WASD).
+    this.driveUi = this.add.container(0, 0);
+    const arrows: [string, number, number, number][] = [['◀', -1, 0, 720], ['▲', 0, -1, 780], ['▼', 0, 1, 840], ['▶', 1, 0, 900]];
+    for (const [label, dx, dy, x] of arrows) this.driveUi.add(button(this, x, 658, label, () => this.tapArrow(dx, dy), 54, 54, 0x7fd6cf));
+    this.homeBtn = button(this, 1034, 658, '🏠 Drive home', () => this.driveHome(), 180, 50, 0xffd166);
+    this.driveUi.add(this.homeBtn);
+    ui.add(this.driveUi);
     const mode = button(this, 1090, 570, 'Switch driving mode', () => {
       if (store.paused || store.state.rover.status !== 'home') return;
       this.manualMode = !this.manualMode;
@@ -307,8 +352,21 @@ export class RoverScene extends Phaser.Scene {
       const k = this.driveKeys;
       const dx = k.LEFT.isDown || k.A.isDown ? -1 : k.RIGHT.isDown || k.D.isDown ? 1 : 0;
       const dy = dx ? 0 : k.UP.isDown || k.W.isDown ? -1 : k.DOWN.isDown || k.S.isDown ? 1 : 0;
-      if (dx || dy) store.driveRover(dx, dy);
+      if (dx || dy) {
+        this.autoHome = [];
+        this.tapped = null;
+        store.driveRover(dx, dy);
+      } else if (this.tapped) {
+        store.driveRover(...this.tapped);
+        this.tapped = null;
+      } else if (this.autoHome.length && r.status === 'out') {
+        const [ax, ay] = this.manualTile();
+        const [nx, ny] = this.autoHome[0];
+        if (store.driveRover(nx - ax, ny - ay).ok) this.autoHome.shift();
+        else this.autoHome = [];
+      }
     }
+    if (!this.manualMode || r.status !== 'out') this.autoHome = [];
     this.modeLabel.setText(this.manualMode ? 'MANUAL · Arrows / WASD · Steer back to the dome to dock' : 'PLAN · Click stops, add Return, then Send Bolt');
     if (this.findsKey !== `${s.stormWeekId}:${this.findsSol()}`) this.refreshFinds();
     // Bolt just got home (or out of repair): clear the finished route so it isn't re-sent.
@@ -363,6 +421,15 @@ export class RoverScene extends Phaser.Scene {
       }
     });
 
+    if (this.autoHome.length) {
+      g.lineStyle(3, 0x7fd6cf, 0.8);
+      let [px, py] = this.manualTile();
+      for (const [x, y] of this.autoHome) {
+        g.lineBetween(px * cell + cell / 2, py * cell + cell / 2, x * cell + cell / 2, y * cell + cell / 2);
+        [px, py] = [x, y];
+      }
+    }
+
     // Wheel tracks behind Bolt, stamped in a dot-dash pattern (a nod to Curiosity's wheels).
     const tg = this.trailGfx.clear();
     if (r.status === 'out' || r.status === 'stranded') {
@@ -377,6 +444,8 @@ export class RoverScene extends Phaser.Scene {
 
     // Info text.
     this.planUi.setVisible(planning && !this.manualMode);
+    this.driveUi.setVisible(this.manualMode && (r.status === 'out' || (planning && store.roverCanLaunch().ok)));
+    this.homeBtn.setVisible(r.status === 'out');
     const dayLeft = store.dayEndMs() - s.missionElapsedMs;
     const stormLine = getActiveStormWarnings(s, store.data.storms.weeks)
       .map((st) => `\n⚠ ${store.worldId === 'moon' ? 'Radiation scenario' : 'Storm'} on ${store.world.dayLabel.toLowerCase()} ${st.event.scenario.gameSol} hits in ${fmtMs(st.hitAtMs - s.missionElapsedMs)} of daytime. Be home before it!`)
@@ -386,7 +455,7 @@ export class RoverScene extends Phaser.Scene {
       const cost = evaluateRoute(this.route, t, s.split.rover, store.rules.roverCostPerTile, store.rules.roverRockCostExtra).totalBatteryCost;
       const tiles = this.route.length - 1;
       const home = this.route.length > 1 && this.route[this.route.length - 1][0] === t.dome[0] && this.route[this.route.length - 1][1] === t.dome[1];
-      this.info.setText(this.manualMode ? (can.ok ? `Manual driving: hold Arrow Keys or WASD to launch and steer.\nBattery: ${s.split.rover} cells · Each tile takes ${store.rules.roverMsPerTile / 1000}s. Return to the dome to unload.${stormLine}` : can.reason) :
+      this.info.setText(this.manualMode ? (can.ok ? `Manual driving: hold Arrow Keys or WASD, or tap the arrows, to launch and steer.\nBattery: ${s.split.rover} cells · Each tile takes ${store.rules.roverMsPerTile / 1000}s. Return to the dome to unload.${stormLine}` : can.reason) :
         (can.ok ? `Plan a drive: click the map to add stops, then 🏠 Return.  Battery: ${s.split.rover} cell(s)\n` : `${can.reason}\n`) +
           `Route: ${tiles} squares · needs ${cost.toFixed(1)} cells · takes ${fmtMs(tiles * store.rules.roverMsPerTile)} (day left ${fmtMs(dayLeft)})` +
           (tiles && !home ? ' · must end at the dome' : '') +
@@ -397,8 +466,15 @@ export class RoverScene extends Phaser.Scene {
     } else if (r.status === 'out') {
       const left = (r.route.length - r.nextRouteIndex) * store.rules.roverMsPerTile;
       const cargo = Object.entries(r.cargo).filter(([, n]) => n > 0).map(([k, n]) => `${n} ${k}`).join(', ') || 'empty';
-      this.info.setText(`${r.driveMode === 'manual' ? 'Manual: Arrow Keys / WASD · Steer home to dock.' : 'Bolt is driving!'} Battery ${r.batteryCells.toFixed(1)} ${r.driveMode === 'manual' ? '' : `· home in about ${fmtMs(left)}`}\nCargo: ${cargo}${stormLine}`);
-      this.info.setColor(C.teal);
+      if (r.driveMode === 'manual') {
+        const home = this.homeCost();
+        const low = r.batteryCells < home + 0.2 - 1e-9;
+        this.info.setText(`Manual: Arrow Keys / WASD or the arrows · Steer home to dock.\nBattery ${r.batteryCells.toFixed(1)} · getting home needs ${home.toFixed(1)}${low ? ' · ⚠️ turn back now!' : ''} · Cargo: ${cargo}${stormLine}`);
+        this.info.setColor(low ? C.warn : C.teal);
+      } else {
+        this.info.setText(`Bolt is driving! Battery ${r.batteryCells.toFixed(1)} · home in about ${fmtMs(left)}\nCargo: ${cargo}${stormLine}`);
+        this.info.setColor(C.teal);
+      }
     } else if (r.status === 'stranded') {
       this.info.setText('Bolt is stuck out here. The crew will tow the rover home tonight. Cargo will be lost.');
       this.info.setColor(C.warn);
