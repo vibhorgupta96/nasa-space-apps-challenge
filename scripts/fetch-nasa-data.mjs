@@ -38,6 +38,7 @@ const NASA_SOURCES = {
     'https://www.nasa.gov/image-article/mizuna-mustard-greens-are-growing-aboard-international-space-station-2/',
     'https://www.nasa.gov/missions/station/astronauts-harvest-radish-crop-on-international-space-station/',
     'https://www.nasa.gov/missions/station/iss-research/chile-peppers-start-spicing-up-the-space-station/',
+    'https://www.nasa.gov/missions/station/nasas-second-pepper-harvest-sets-record-on-space-station/',
     'https://www.nasa.gov/gallery/plants/',
   ],
   delay: 'https://ssd.jpl.nasa.gov/api/horizons.api',
@@ -62,8 +63,8 @@ const CROP_FACTS = [
   },
   {
     id: 'chile', name: 'Chile Pepper', growSols: 5, food: 32, color: '#e0512b',
-    fact: 'The crew grew and ate Hatch chile peppers aboard the space station.',
-    factSource: 'https://www.nasa.gov/missions/station/iss-research/chile-peppers-start-spicing-up-the-space-station/',
+    fact: 'Astronauts harvested 26 chile peppers from four Space Station plants and sampled some of them.',
+    factSource: 'https://www.nasa.gov/missions/station/nasas-second-pepper-harvest-sets-record-on-space-station/',
   },
   {
     id: 'zinnia', name: 'Zinnia', growSols: 3, food: 0, color: '#f0a630',
@@ -355,6 +356,7 @@ async function verifyCropSources(fetchImpl) {
     ['https://www.nasa.gov/image-article/mizuna-mustard-greens-are-growing-aboard-international-space-station-2/', ['mizuna mustard greens', 'harvested']],
     ['https://www.nasa.gov/missions/station/astronauts-harvest-radish-crop-on-international-space-station/', ['radish', 'advanced plant habitat']],
     ['https://www.nasa.gov/missions/station/iss-research/chile-peppers-start-spicing-up-the-space-station/', ['hatch', 'advanced plant habitat']],
+    ['https://www.nasa.gov/missions/station/nasas-second-pepper-harvest-sets-record-on-space-station/', ['harvested', 'sampled', '26 chile peppers', 'four plants']],
     ['https://www.nasa.gov/gallery/plants/', ['red romaine', 'radish plants']],
   ];
   for (const [url, phrases] of checks) {

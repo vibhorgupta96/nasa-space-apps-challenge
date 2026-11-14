@@ -24,19 +24,18 @@ export const INTRO: Line[] = [
   { who: 'radio', text: 'Hello, new Greenhouse Keeper. This message left Earth about {delay} minutes ago, so by now we have probably had a sandwich.' },
   { who: 'radio', text: 'Your job is simple: keep the crew breathing and fed for 10 sols, until the supply ship arrives. Simple jobs on Mars are never simple.' },
   { who: 'bolt', text: 'Hello! I am Bolt. I was built to be helpful, which I am, and cheerful, which I am still working on.' },
-  { who: 'bolt', text: 'A "sol" is one day on Mars. It is about 40 minutes longer than an Earth day. Nobody knows what to do with the extra 40 minutes. Theo naps.' },
+  { who: 'bolt', text: 'A "sol" is one day on Mars. {fact:mars-sol} Nobody knows what to do with the extra minutes. Theo naps.' },
   { who: 'rosa', text: 'Commander Rosa Vey. I have made you a list. Item one: read the list. Item two: water the plants. Item three: do not lick the regolith.' },
-  { who: 'theo', text: 'Dr. Theo Marsh, botanist. Plants make the oxygen we breathe. I thank them every morning so they feel appreciated. They have not said anything back. Yet.' },
+  { who: 'theo', text: 'Dr. Theo Marsh, botanist. {fact:plant-oxygen} I thank the plants every morning so they feel appreciated. They have not said anything back. Yet.' },
   { who: 'priya', text: 'Priya Rao, engineer. Every morning you get 6 power cells. Split them wisely. Electricity, unlike my patience, does not grow back.' },
   { who: 'bolt', text: 'Grow lights make plants grow. The heater keeps them warm. The shelter protects us from solar storms. My rover battery lets me go outside and get lost efficiently.' },
   { who: 'bolt', text: 'You will never have enough power for everything. This is called a trade-off. Engineers love them. Nobody knows why.', mood: 'happy' },
 ];
 
 export const TUTORIAL: Line[] = [
-  { who: 'bolt', text: 'Quick tour! Walk with the ARROW keys or WASD. Choose a seed with keys 1–5, then stand by a plot and press SPACE to plant.' },
-  { who: 'bolt', text: 'Key 6 is the watering can. Every planted crop needs water each sol. Key 7 is your hand, for harvesting and clearing wilted plants.' },
-  { who: 'bolt', text: 'Press SPACE next to the machines too: the ice melter, the shield bench, the radio, and the airlock door at the top, which leads to my rover.' },
-  { who: 'bolt', text: 'Press TAB anytime to see the storm board. Press H for help. And if you get stuck, talk to people. That is what people are for.', mood: 'happy' },
+  { who: 'bolt', text: 'Quick tour! Walk with the ARROW keys or WASD. Choose a seed with keys 1–5, stand by an empty plot and press SPACE to plant. Key 6 waters a plant; key 7 harvests a ripe crop or clears a wilted one.' },
+  { who: 'bolt', text: 'Press SPACE beside a machine to use it. Try the ice melter, shield bench, radio and airlock. The top airlock leads to my rover.' },
+  { who: 'bolt', text: 'Press TAB for the storm board. Press H for these tips. If you get stuck, talk to the crew. That is what people are for.', mood: 'happy' },
 ];
 
 /** Story beats played on the morning of each sol, before power planning. */
@@ -75,15 +74,15 @@ export const RADIO_LETTERS: Record<number, string> = {
 /** Things crew say when you talk to them. Cycles through in order. */
 export const CHAT: Record<'rosa' | 'theo' | 'priya' | 'bolt', Line[]> = {
   rosa: [
-    { who: 'rosa', text: 'Mars has no ponds, no clouds and no pizza places. It does have an excellent selection of rocks.' },
+    { who: 'rosa', text: 'Mars has no pizza places. It does have an excellent selection of rocks.' },
     { who: 'rosa', text: 'A good commander has a plan. A great commander has a plan for when the plan eats itself.' },
     { who: 'rosa', text: 'This dome is mostly glass and partly optimism. Please do not throw anything at either.' },
     { who: 'rosa', text: 'I do not worry about solar storms. I worry about Theo\'s singing. The storms, at least, stop.' },
   ],
   theo: [
-    { who: 'theo', text: 'Plants breathe in carbon dioxide and breathe out oxygen. We do the opposite. It is the oldest friendship in the solar system.' },
-    { who: 'theo', text: 'Astronauts grew real lettuce in a plant box called Veggie. Sensible name. Much better than my suggestion, "Leafy McOrbitface."' },
-    { who: 'theo', text: 'Zinnias do not feed us. They just make us happy. Some sols, that is the more important crop.' },
+    { who: 'theo', text: '{fact:plant-oxygen} We use the oxygen; plants use the carbon dioxide. It is a nice exchange.' },
+    { who: 'theo', text: '{fact:veggie-lettuce} Sensible name. Much better than my suggestion, "Leafy McOrbitface."' },
+    { who: 'theo', text: '{fact:veggie-zinnia} Some sols, flowers make the whole station feel more like home.' },
     { who: 'theo', text: 'I sang to the radishes and they grew. Science says that is probably a coincidence. I say science is being rude.' },
   ],
   priya: [

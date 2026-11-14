@@ -1,6 +1,6 @@
 {
   "status": "working-draft",
-  "solutionIdeaOrigin": "Main branch disclosure reports Claude suggested concepts and team chose and shaped direction; confirm with team before submission",
+  "solutionIdeaOrigin": "Earlier team AI disclosure reports Claude suggested concepts and team chose and shaped direction; confirm with team before submission. The public team record's AI references are blank.",
   "tools": [
     {
       "name": "OpenAI Codex",
@@ -16,12 +16,39 @@
         "public/data/crops.json",
         "public/data/delay.json",
         "public/data/photos.json",
+        "public/data/science.json",
         "scripts/fetch-nasa-data.mjs",
         "scripts/fetch-nasa-data.test.mjs",
+        "scripts/science.test.mjs",
+        "src/core/store.ts",
+        "src/core/selftest.ts",
+        "src/data/loaders.ts",
+        "src/data/science.ts",
+        "src/story/director.ts",
+        "src/story/script.ts",
+        "src/ui/UIScene.ts",
+        "src/ui/credits.ts",
+        "src/ui/help-pages.d.mts",
+        "src/ui/help-pages.mjs",
+        "src/ui/help-pages.test.mjs",
+        "src/ui/source-list.d.mts",
+        "src/ui/source-list.mjs",
+        "src/ui/source-list.test.mjs",
         "docs/INITIAL_DATA.md",
         "docs/DATA_PIPELINE.md",
+        "docs/ASSETS.md",
+        "docs/SUBMISSION.md",
+        "docs/SUBMISSION_STATUS.json",
+        "docs/DEMO.md",
+        "docs/REFERENCES.md",
+        "docs/VALIDATION.md",
+        "public/demo.pptx",
+        "public/demo.pdf",
         "docs/AI_USAGE.md",
-        "docs/AI_USAGE.json"
+        "docs/AI_USAGE.json",
+        "README.md",
+        ".github/workflows/deploy.yml",
+        ".gitattributes"
       ],
       "mediaType": [
         "code",
@@ -38,7 +65,9 @@
   "generatedImagesOrVideo": [],
   "notes": [
     "The initial fixture values were synthetic and marked mock; AI did not generate NASA observations.",
-    "Fetched snapshots contain NASA source records; crop facts are AI-curated summaries checked against the linked NASA pages."
+    "Fetched snapshots contain NASA source records; crop and activity facts are AI-curated summaries checked against linked NASA pages.",
+    "An AI-assisted seven-slide illustrated demo deck exists; it is not gameplay footage and has not been submitted.",
+    "Regression tests, production build, independent code review, local deck-render checks, and hosted-link checks passed; interactive gameplay, event eligibility, human team review, and SI responses remain pending."
   ],
   "priorProjectDisclosure": {
     "tools": [

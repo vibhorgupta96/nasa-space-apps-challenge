@@ -267,6 +267,82 @@ export async function runSelfTest() {
       expect(t.state.phase === 'rescue', `ended in ${t.state.phase}`);
       return `rescue after sol ${t.lastNight?.sol} (air ${t.state.air}, food ${t.state.food})`;
     });
+
+    check('Science: planting, watering and harvest context survive reload', () => {
+      const planting = fresh();
+      start(planting, { heater: 1, growLights: 1 });
+      expect(planting.plant(0, 'red-romaine').ok, 'plant failed');
+      const planted = new Store(false);
+      planted.save = () => {};
+      expect(planted.restore(planting.serialize()), 'plant save did not restore');
+      finishDay(planted);
+      const plantFact = getData().science.facts.find((fact) => fact.id === 'veg-garden');
+      expect(planted.lastNight?.card?.text === plantFact?.text, 'plant fact was lost after reload');
+
+      const watering = fresh();
+      Object.assign(watering.state.plots[0], { cropId: 'red-romaine', growthSols: 0, condition: 'healthy', wateredToday: false });
+      start(watering, { heater: 1, growLights: 1 });
+      expect(watering.water(0).ok, 'water failed');
+      const watered = new Store(false);
+      watered.save = () => {};
+      expect(watered.restore(watering.serialize()), 'water save did not restore');
+      finishDay(watered);
+      const waterFact = getData().science.facts.find((fact) => fact.id === 'veg-water');
+      expect(watered.lastNight?.card?.text === waterFact?.text, 'water fact was lost after reload');
+
+      const harvest = fresh();
+      Object.assign(harvest.state.plots[0], { cropId: 'red-romaine', growthSols: 3, condition: 'healthy', wateredToday: false });
+      start(harvest, { heater: 1, growLights: 1 });
+      expect(harvest.harvest(0).ok, 'harvest failed');
+      const harvested = new Store(false);
+      harvested.save = () => {};
+      expect(harvested.restore(harvest.serialize()), 'harvest save did not restore');
+      finishDay(harvested);
+      const harvestFact = getData().crops.crops.find((crop) => crop.id === 'red-romaine');
+      expect(harvested.lastNight?.card?.text === harvestFact?.fact, 'harvest fact was lost after reload');
+      return 'plant, water and harvest cards restored';
+    });
+
+    check('Science: valid storms restore; invalid and legacy context is ignored', () => {
+      const source = fresh();
+      start(source, { heater: 1 });
+      const event = source.storms()[0].event;
+      const parsed = JSON.parse(source.serialize());
+      parsed.scienceContext.stormId = event.id;
+      const restored = new Store(false);
+      restored.save = () => {};
+      expect(restored.restore(JSON.stringify(parsed)), 'storm save did not restore');
+      finishDay(restored);
+      expect(restored.lastNight?.card?.source === event.link, 'storm event was not restored by ID');
+
+      const invalidContext = JSON.parse(source.serialize());
+      invalidContext.scienceContext.harvested = ['not-a-crop'];
+      const invalid = new Store(false);
+      invalid.save = () => {};
+      expect(invalid.restore(JSON.stringify(invalidContext)), 'invalid science context rejected the save');
+      invalid.tick(1);
+
+      const legacy = JSON.parse(source.serialize());
+      delete legacy.scienceContext;
+      const oldSave = new Store(false);
+      oldSave.save = () => {};
+      expect(oldSave.restore(JSON.stringify(legacy)), 'legacy save did not restore');
+      finishDay(oldSave);
+      expect(!!oldSave.lastNight?.card?.source, 'legacy save did not produce a sourced fallback card');
+      return 'storm ID checked; malformed and pre-context saves remain loadable';
+    });
+
+    check('Science: night transition stores an empty context for the next sol', () => {
+      const t = fresh();
+      start(t, { heater: 1, growLights: 1 });
+      expect(t.plant(0, 'red-romaine').ok, 'plant failed');
+      finishDay(t);
+      const parsed = JSON.parse(t.serialize());
+      expect(parsed.state.phase === 'planning' && parsed.scienceContext.sol === parsed.state.sol, 'next-sol context guard mismatch');
+      expect(parsed.scienceContext.phase === parsed.state.phase, 'next-sol phase context mismatch');
+      expect(!parsed.scienceContext.planted && !parsed.scienceContext.watered && parsed.scienceContext.harvested.length === 0, 'prior-sol activity carried forward');
+      return `clean context for sol ${parsed.state.sol}`;
+    });
   } finally {
     bus.emit = realEmit;
     finds.splice(finds.indexOf(TEST_FIND), 1);

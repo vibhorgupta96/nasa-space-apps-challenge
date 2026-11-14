@@ -8,6 +8,7 @@ import { C, H, W, button, fmtMs, hourLabel, panel, text } from './theme';
 import { SPEAKERS, type Line } from '../story/script';
 import { Director } from '../story/director';
 import { addPowerCells } from '../farm/PowerPanel';
+import { createHelpPages } from './help-pages.mjs';
 
 // The always-on overlay: HUD, hotbar, toasts, and every modal (dialogue, morning plan,
 // night report, storm board, help, photos). Modals pause the simulation while open.
@@ -536,23 +537,49 @@ export class UIScene extends Phaser.Scene {
     c.add(this.add.rectangle(0, 0, W, H, 0x000000, 0.5).setOrigin(0).setInteractive().on('pointerdown', () => this.close()));
     c.add(panel(this, x, y, w, h));
     c.add(text(this, x + 32, y + 22, 'How to play', 30, C.goldText, { fontStyle: 'bold' }));
-    const body = [
-      'MOVE: arrow keys or WASD.   ACT: SPACE (or click a nearby square).',
-      'TOOLS: 1–5 seeds · 6 watering can · 7 hand (harvest / clear wilted plants).',
-      '',
-      'Every morning, split 6 power cells between grow lights, heater, shelter and rover.',
-      'Plants need water every sol, light, and warmth to grow. Growing plants make AIR.',
-      'Harvest ripe crops for FOOD. The crew uses air and food every night.',
-      'Storms: shelter cells + shield layers must be at least the storm strength.',
-      'Rover: walk to the airlock (top door). Plan a route that starts and ends at the dome.',
-      'Ice → water at the melter. 3 regolith → 1 shield layer at the workbench.',
-      '',
-      'Keep air and food above zero for 10 sols until the supply ship arrives!',
-      'TAB storm board · P photo album · H this help · ESC closes panels.',
-    ].join('\n');
-    c.add(text(this, x + 32, y + 80, body, 20, C.text, { lineSpacing: 8, wordWrap: { width: w - 64 } }));
-    c.add(button(this, W / 2, y + h - 48, 'Got it', () => this.close(), 200, 50, 0xffd166));
-    this.advance = () => this.close();
+    const pages = createHelpPages(RULES.cellsPerSol, RULES.heaterNeededBelowC);
+    let page = 0;
+    let title: Phaser.GameObjects.Text | undefined;
+    let body: Phaser.GameObjects.Text | undefined;
+    let pageLabel: Phaser.GameObjects.Text | undefined;
+    let previous: Phaser.GameObjects.Container | undefined;
+    let next: Phaser.GameObjects.Container | undefined;
+    const render = () => {
+      title?.destroy();
+      body?.destroy();
+      pageLabel?.destroy();
+      previous?.destroy(true);
+      next?.destroy(true);
+      title = text(this, x + 32, y + 92, pages[page].title, 25, C.teal, { fontStyle: 'bold' });
+      body = text(this, x + 32, y + 158, pages[page].lines.join('\n\n'), 21, C.text, {
+        lineSpacing: 12,
+        wordWrap: { width: w - 64 },
+      });
+      pageLabel = text(this, W / 2, y + h - 100, `Screen ${page + 1} of ${pages.length}`, 17, C.dim).setOrigin(0.5, 0.5);
+      if (page > 0) {
+        previous = button(this, x + 145, y + h - 48, '◀ Back', () => {
+          page -= 1;
+          render();
+        }, 180, 48, C.frame);
+        c.add(previous);
+      }
+      next = button(this, x + w - 145, y + h - 48, page === pages.length - 1 ? 'Got it' : 'Next ▶', () => {
+        if (page === pages.length - 1) this.close();
+        else {
+          page += 1;
+          render();
+        }
+      }, 180, 48, 0xffd166);
+      c.add([title, body, pageLabel, next]);
+    };
+    render();
+    this.advance = () => {
+      if (page === pages.length - 1) this.close();
+      else {
+        page += 1;
+        render();
+      }
+    };
     return c;
   }
 

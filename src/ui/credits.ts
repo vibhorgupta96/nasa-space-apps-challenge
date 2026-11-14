@@ -1,38 +1,67 @@
 import Phaser from 'phaser';
-import { getData } from '../data/loaders';
+import { getData, mockFiles } from '../data/loaders';
 import { C, H, W, button, panel, text } from './theme';
+import { collectSourceLinks, sourceLabel } from './source-list.mjs';
 
-// "NASA Data We Used" — every source the game shows, with what is real and what is simulated.
+const SOURCES_PER_PAGE = 8;
+
+// “NASA Data We Used” lists every unique source URL attached to the loaded data.
 export function showCredits(scene: Phaser.Scene) {
   const d = getData();
   const c = scene.add.container(0, 0).setDepth(500);
   c.add(scene.add.rectangle(0, 0, W, H, 0x000000, 0.7).setOrigin(0).setInteractive());
   c.add(panel(scene, 70, 30, W - 140, H - 60));
   c.add(text(scene, 100, 50, 'NASA data we used', 32, C.goldText, { fontStyle: 'bold' }));
-  const first = (s: string | string[]) => (Array.isArray(s) ? s[0] : s);
-  const rows: [string, string, string][] = [
-    ['Solar storms', `NASA DONKI space weather records (CME/SEP/GST). Real dates & records; game strength, timing and Mars effects are SIMULATED.${d.storms.mock ? ' [MOCK until fetched]' : ''}`, 'https://kauai.ccmc.gsfc.nasa.gov/DONKI/'],
-    ['Mars weather', `NASA InSight Mars Weather Service, archived 2020 temperatures and wind at Elysium Planitia.${d.weather.mock ? ' [MOCK until fetched]' : ''}`, 'https://api.nasa.gov/'],
-    ['Radio delay', `JPL Horizons: Earth–Mars distance on ${d.delay.date} = ${(d.delay.distanceKm / 1e6).toFixed(0)} million km → ${d.delay.oneWayMinutes} light-minutes one way.`, 'https://ssd.jpl.nasa.gov/horizons/'],
-    ['Rover map', `NASA Mars Trek: Viking MDIM 2.1 colour mosaic + MOLA shaded relief around InSight's landing site. Driving costs are a game abstraction.`, 'https://trek.nasa.gov/mars/'],
-    ['Space crops', 'NASA Image and Video Library records of Veggie and Advanced Plant Habitat experiments (lettuce, mizuna, radish, chile pepper, zinnia). Growth times & food values are game balance.', first(d.crops.source)],
-    ['Fun facts', 'NASA/JPL Photojournal records (Ingenuity, Curiosity, InSight, Opportunity, dust devils, Perseverance).', first(d.trivia.source)],
-    ['Photo album', `${d.photos.photos.length} Mars rover photos from the NASA Image and Video Library, credited on each card.`, 'https://images.nasa.gov/'],
-  ];
-  let y = 104;
-  for (const [title, body, url] of rows) {
-    c.add(text(scene, 100, y, title, 20, C.teal, { fontStyle: 'bold' }));
-    c.add(text(scene, 280, y, body, 16, C.text, { wordWrap: { width: W - 420 } }));
-    const link = text(scene, W - 110, y, '↗', 22, C.goldText).setOrigin(1, 0).setInteractive({ useHandCursor: true });
-    link.on('pointerdown', () => window.open(url, '_blank', 'noopener'));
-    c.add(link);
-    y += 62;
-  }
-  c.add(text(scene, 100, y + 4,
-    'Made for NASA Space Apps 2026. Not affiliated with or endorsed by NASA. All pixel art, characters and story are original.\n' +
-      'Built with Phaser 3 (MIT), Vite and TypeScript. Font: Pixelify Sans (SIL Open Font License).\n' +
-      'AI use: code and dialogue were drafted with an AI coding assistant (Claude) and reviewed by the team. See docs/AI_USAGE.md.',
-    14, C.dim, { wordWrap: { width: W - 200 }, lineSpacing: 4 }));
-  c.add(button(scene, W / 2, H - 70, 'Close', () => c.destroy(), 180, 48, 0xffd166));
+  c.add(text(scene, 100, 89,
+    'Every linked source in the loaded game data. Storm timing, strength, and outpost effects are simulated.',
+    16, C.dim, { wordWrap: { width: W - 220 } }));
+
+  const links = collectSourceLinks(d);
+  const pageCount = Math.max(1, Math.ceil(links.length / SOURCES_PER_PAGE));
+  let page = 0;
+  let rows: Phaser.GameObjects.Container | null = null;
+  let pageLabel: Phaser.GameObjects.Text | null = null;
+
+  const renderPage = () => {
+    rows?.destroy(true);
+    rows = scene.add.container(0, 0);
+    c.add(rows);
+    const start = page * SOURCES_PER_PAGE;
+    const visible = links.slice(start, start + SOURCES_PER_PAGE);
+    if (!visible.length) {
+      rows.add(text(scene, 100, 140, 'No linked data sources were loaded.', 18, C.dim));
+    }
+    visible.forEach((url, index) => {
+      const y = 139 + index * 45;
+      const title = text(scene, 104, y, sourceLabel(url), 17, C.teal, {
+        wordWrap: { width: W - 250 },
+      }).setInteractive({ useHandCursor: true });
+      title.on('pointerdown', () => window.open(url, '_blank', 'noopener'));
+      rows!.add(title);
+      rows!.add(text(scene, W - 108, y, 'Open ↗', 15, C.goldText).setOrigin(1, 0));
+    });
+    pageLabel?.destroy();
+    pageLabel = text(scene, W / 2, 515, `Sources ${links.length ? start + 1 : 0}–${start + visible.length} of ${links.length}`, 16, C.dim).setOrigin(0.5, 0);
+    c.add(pageLabel);
+  };
+
+  renderPage();
+  c.add(button(scene, 170, 525, '◀ Previous', () => {
+    page = (page + pageCount - 1) % pageCount;
+    renderPage();
+  }, 170, 42, C.frame));
+  c.add(button(scene, W - 170, 525, 'Next ▶', () => {
+    page = (page + 1) % pageCount;
+    renderPage();
+  }, 170, 42, C.frame));
+
+  const mockNames = mockFiles(d);
+  const mockNote = mockNames.length ? ` MOCK DATA: ${mockNames.join(', ')}.` : '';
+  c.add(text(scene, 100, 570,
+    `NASA facts link to their sources. Storm effects and game balance are simulations.${mockNote}\n` +
+      'AI use: Claude and OpenAI Codex helped with code and source summaries; team review is pending. See docs/AI_USAGE.md.\n' +
+      'Built with Phaser 3 (MIT), Vite (MIT), and TypeScript (Apache 2.0). Pixelify Sans font: SIL Open Font License.',
+    14, C.dim, { wordWrap: { width: W - 200 }, lineSpacing: 3 }));
+  c.add(button(scene, W / 2, H - 43, 'Close', () => c.destroy(), 180, 42, 0xffd166));
   return c;
 }

@@ -2,6 +2,7 @@ import { RULES } from './rules';
 import { bus, EV, UI_EV } from './events';
 import type { GameState, ItemId, Plot, PowerSlot } from './types';
 import { cropById, getData, type StormEvent, type WeatherSol } from '../data/loaders';
+import { selectScienceCard } from '../data/science';
 import { getActiveFindsForSol } from '../rover/findsManager';
 
 // The single owner of GameState. Scenes read `store.state` and call commands; only the store
@@ -47,10 +48,22 @@ export interface Meta {
 
 interface Today {
   harvested: string[];
+  planted: boolean;
+  watered: boolean;
   roverTrip: boolean;
   storm: StormEvent | null;
   stormSafe: boolean;
   sample: boolean;
+}
+
+interface SavedScienceContext {
+  sol: number;
+  phase: 'planning' | 'day';
+  harvested: string[];
+  planted: boolean;
+  watered: boolean;
+  roverTrip: boolean;
+  stormId: string | null;
 }
 
 const SAVE_KEY = 'sol-sprouts-save-v1';
@@ -84,7 +97,7 @@ export class Store {
   pausedBy = new Set<string>();
   hidden = false;
   lastNight: NightReport | null = null;
-  private today: Today = { harvested: [], roverTrip: false, storm: null, stormSafe: true, sample: false };
+  private today: Today = { harvested: [], planted: false, watered: false, roverTrip: false, storm: null, stormSafe: true, sample: false };
 
   private lastAutosaveMs = 0;
 
@@ -161,7 +174,16 @@ export class Store {
   }
 
   serialize(): string {
-    return JSON.stringify({ v: 1, state: this.state, meta: this.meta });
+    const scienceContext: SavedScienceContext = {
+      sol: this.state.sol,
+      phase: this.state.phase === 'day' ? 'day' : 'planning',
+      harvested: [...this.today.harvested],
+      planted: this.today.planted,
+      watered: this.today.watered,
+      roverTrip: this.today.roverTrip,
+      stormId: this.today.storm?.id ?? null,
+    };
+    return JSON.stringify({ v: 1, state: this.state, meta: this.meta, scienceContext });
   }
 
   /** Adopt a serialized mission; refuses finished (rescue/debrief) ones. */
@@ -174,6 +196,7 @@ export class Store {
       this.lastAutosaveMs = parsed.state.missionElapsedMs;
       this.meta = { ...freshMeta(), ...(parsed.meta || {}) };
       this.resetToday();
+      this.restoreScienceContext(parsed.scienceContext, parsed.state);
       return true;
     } catch {
       return false;
@@ -342,6 +365,7 @@ export class Store {
     s.inventory.seed -= 1;
     s.inventory.water -= RULES.waterPerPlant;
     Object.assign(p, { cropId, growthSols: 0, condition: 'healthy', wateredToday: true });
+    this.today.planted = true;
     return OK;
   }
 
@@ -356,6 +380,7 @@ export class Store {
     if (s.inventory.water < RULES.waterPerPlotPerSol) return fail('Out of water! Melt some ice.');
     s.inventory.water -= RULES.waterPerPlotPerSol;
     p.wateredToday = true;
+    this.today.watered = true;
     return OK;
   }
 
@@ -661,38 +686,64 @@ export class Store {
     } else {
       s.phase = outcome;
     }
+    this.resetToday();
     this.save();
     bus.emit(UI_EV.NIGHT_REPORT, this.lastNight);
     if (card) bus.emit(EV.SCIENCE_CARD, card);
     bus.emit(UI_EV.PHASE_CHANGED, { phase: s.phase });
-    this.resetToday();
     if (outcome === 'next') bus.emit(EV.SOL_START, { sol: s.sol });
   }
 
   private pickScienceCard(): { text: string; source: string } | null {
     const d = getData();
     const t = this.today;
-    if (t.storm) {
-      const e = t.storm;
-      const when = new Date(e.realTime).toUTCString().slice(5, 16);
-      const kind = e.type === 'CME' ? 'a burst of gas and magnetic field from the Sun (a "CME")' : 'a rush of fast solar particles (an "SEP")';
-      return {
-        text: `Today's storm was a game scenario based on ${kind} recorded by NASA's space weather team on ${when}. Real astronauts hide in the best-shielded part of their ship during solar storms.`,
-        source: e.link,
-      };
-    }
-    if (t.harvested.length) {
-      const crop = d.crops.crops.find((c) => c.id === t.harvested[t.harvested.length - 1]);
-      if (crop) return { text: crop.fact, source: crop.factSource };
-    }
-    const pool = d.trivia.trivia;
-    if (!pool.length) return null;
-    const pick = t.roverTrip ? pool.find((x) => x.id === 'morse') || pool[0] : pool[(this.state.sol - 1) % pool.length];
-    return { text: pick.fact, source: pick.source };
+    const harvested = t.harvested.length
+      ? d.crops.crops.find((crop) => crop.id === t.harvested[t.harvested.length - 1]) ?? null
+      : null;
+    return selectScienceCard(d, {
+      planted: t.planted,
+      watered: t.watered,
+      harvested,
+      roverTrip: t.roverTrip,
+      storm: t.storm,
+      sol: this.state.sol,
+    });
   }
 
   private resetToday() {
-    this.today = { harvested: [], roverTrip: false, storm: null, stormSafe: true, sample: false };
+    this.today = { harvested: [], planted: false, watered: false, roverTrip: false, storm: null, stormSafe: true, sample: false };
+  }
+
+  private restoreScienceContext(saved: unknown, state: GameState) {
+    if (!saved || typeof saved !== 'object') return;
+    const context = saved as Partial<SavedScienceContext>;
+    if (context.sol !== state.sol || context.phase !== state.phase) return;
+    if (!Array.isArray(context.harvested) || typeof context.planted !== 'boolean'
+      || typeof context.watered !== 'boolean' || typeof context.roverTrip !== 'boolean'
+      || !(context.stormId === null || typeof context.stormId === 'string')) return;
+
+    let data;
+    try {
+      data = getData();
+    } catch {
+      return;
+    }
+    const cropIds = new Set(data.crops.crops.map((crop) => crop.id));
+    if (!context.harvested.every((id): id is string => typeof id === 'string' && cropIds.has(id))) return;
+    const storm = context.stormId === null
+      ? null
+      : data.storms.weeks.flatMap((week) => week.events).find((event) => event.id === context.stormId) ?? null;
+    if (context.stormId !== null && !storm) return;
+
+    this.today = {
+      harvested: [...context.harvested],
+      planted: context.planted,
+      watered: context.watered,
+      roverTrip: context.roverTrip,
+      storm,
+      stormSafe: true,
+      sample: false,
+    };
   }
 
   log(text: string) {
