@@ -1,4 +1,4 @@
-// Sol Sprouts storyline and dialogue. Original writing.
+// Faraway Garden storyline and dialogue. Original writing.
 //
 // Tone rule: jokes are welcome, but any SCIENCE claim in a line must also be backed by a file in
 // public/data (crops.json, trivia.json, delay.json...). Game rules can be described as game rules.

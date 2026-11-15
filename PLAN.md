@@ -1,4 +1,4 @@
-# Sol Sprouts — Team Build Plan
+# Faraway Garden — Team Build Plan
 
 > NASA Space Apps 2026 · Challenge: **Build a Junior Astronaut Mission Trainer**
 > https://www.spaceappschallenge.org/2026/challenges/junior-astronaut-mission-trainer/
@@ -352,7 +352,7 @@ Style: 32×32 pixel art, warm cozy palette with dusty Mars reds and soft greenho
 ## 10. Submission checklist (from the official guides)
 
 - [ ] Confirm eligibility and roster: teammates are registered for the same event and listed on the Members tab; for a Local Event, all are confirmed and not waitlisted. Check the guide's team-size rules for the selected Local or Universal Event.
-- [ ] **Project Name:** Sol Sprouts
+- [ ] **Project Name:** Faraway Garden
 - [ ] **High-Level Summary**
 - [ ] **Demo link:** public video ≤ **30 s** or slide deck ≤ **7 slides including title/intro**; no login. English content; spoken non-English video has English subtitles. Demo introduces team/challenge, shows the working project, and explains how NASA/open data matters. **Exceeding limits means ineligible for Global Judging.**
 - [ ] **Final Project link:** the GitHub Pages game URL + the GitHub repo. Test in a private window.

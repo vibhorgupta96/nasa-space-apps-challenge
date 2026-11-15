@@ -1,4 +1,4 @@
-# Plan: tune Sol Sprouts towards a Global Award (teaching first)
+# Plan: tune Faraway Garden towards a Global Award (teaching first)
 
 Plan only, no implementation. It sharpens FEATURES.md; where they disagree, this file wins.
 

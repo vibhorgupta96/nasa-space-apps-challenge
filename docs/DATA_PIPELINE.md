@@ -6,7 +6,7 @@ Run the Node-only fetcher from the repository root:
 NASA_API_KEY='your key' rtk node scripts/fetch-nasa-data.mjs --date 2026-11-14
 ```
 
-Omit `--date` to use the current UTC date for the Horizons snapshot. `--only storms,weather` fetches a subset; `--output-dir /tmp/sol-sprouts-data` writes review copies outside `public/data/`. `--help` lists the options. The shared NASA `DEMO_KEY` is used if `NASA_API_KEY` is absent and is rate limited.
+Omit `--date` to use the current UTC date for the Horizons snapshot. `--only storms,weather` fetches a subset; `--output-dir /tmp/faraway-garden-data` writes review copies outside `public/data/`. `--help` lists the options. The shared NASA `DEMO_KEY` is used if `NASA_API_KEY` is absent and is rate limited.
 
 `.env` is ignored by the repository. Set `NASA_API_KEY` in the shell environment or an existing `.env`; the fetcher never creates, prints, or writes the key. Check that keys are absent from diffs before committing.
 

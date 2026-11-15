@@ -20,3 +20,7 @@ This working draft combines the earlier team AI disclosure with the subsequent d
 - **Disclosure location:** this file, `docs/AI_USAGE.json`, and the in-game NASA credits screen.
 
 The first data fixtures were synthetic and marked `mock: true`; AI did not generate the NASA observations. The fetched snapshots contain NASA source records. Crop and activity facts are short AI-curated summaries with linked references; the team should check each fact against its cited page. Regression tests, production build, independent code review, local deck-render checks, and hosted-link checks passed; interactive gameplay, event eligibility, and human team review remain pending. Update this disclosure as the project uses more tools or creates more assets.
+
+## Presentation refresh, 15 November 2026
+
+OpenAI Codex rewrote and redesigned `public/demo.pptx` and its `public/demo.pdf` export against the current source and official 2026 guides, and updated demo documentation and local artifact status. It captured staged screens from the running local game, authored editable slide text and speaker notes, and used an independent code review to remove claims about unexposed pre/post quizzes and settings controls. The new deck includes visible AI-assistance disclosure. Captures do not establish completed missions or learning outcomes. No new image generation or audio generation was used. Human team review remains pending.

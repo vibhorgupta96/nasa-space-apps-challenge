@@ -67,7 +67,8 @@
     "The initial fixture values were synthetic and marked mock; AI did not generate NASA observations.",
     "Fetched snapshots contain NASA source records; crop and activity facts are AI-curated summaries checked against linked NASA pages.",
     "An AI-assisted seven-slide illustrated demo deck exists; it is not gameplay footage and has not been submitted.",
-    "Regression tests, production build, independent code review, local deck-render checks, and hosted-link checks passed; interactive gameplay, event eligibility, human team review, and SI responses remain pending."
+    "Regression tests, production build, independent code review, local deck-render checks, and hosted-link checks passed; interactive gameplay, event eligibility, human team review, and SI responses remain pending.",
+    "15 November 2026: OpenAI Codex refreshed the seven-slide PPTX/PDF with a game-matched theme, current staged local screenshots, rewritten narrative and sourced notes. Independent code review removed unexposed quiz/settings claims. No new image/audio generation. Local render/package checks passed; refreshed hosted bytes and team review remain unverified."
   ],
   "priorProjectDisclosure": {
     "tools": [

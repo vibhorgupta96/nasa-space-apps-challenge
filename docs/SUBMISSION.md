@@ -1,10 +1,10 @@
-# Sol Sprouts submission draft
+# Faraway Garden submission draft
 
-**Status: draft, not submitted.** A public team record reports the team as **Space Force**, the challenge as **Build a Junior Astronaut Mission Trainer**, and the registered event as the Universal Event. It lists three members. Check the latest roster and each participant’s registration status in the Members tab before submission. The record's existing project name is **Project Space Force**; **Sol Sprouts** is the proposed project name for team review.
+**Status: draft, not submitted.** A public team record reports the team as **Space Force**, the challenge as **Build a Junior Astronaut Mission Trainer**, and the registered event as the Universal Event. It lists three members. Check the latest roster and each participant’s registration status in the Members tab before submission. The record's existing project name is **Project Space Force**; **Faraway Garden** is the proposed project name for team review.
 
 ## Project name
 
-Sol Sprouts
+Faraway Garden
 
 ## High-level summary
 
@@ -12,7 +12,7 @@ Help a small Mars greenhouse crew survive a ten-sol mission. Plant and water cro
 
 ## Detailed description
 
-Sol Sprouts is a cozy, top-down pixel-art mission trainer for ages 7–12. Each sol, players choose how to divide six power cells among grow lights, a heater, a storm shelter, and a rover battery. They plant and water crops, then see how those choices affect air, food, and the crew. They can plan Bolt's route to find supplies and samples. If resources run out, the crew is rescued and players can try a new plan.
+Faraway Garden is a cozy, top-down pixel-art mission trainer for ages 7–12. Each sol, players choose how to divide six power cells among grow lights, a heater, a storm shelter, and a rover battery. They plant and water crops, then see how those choices affect air, food, and the crew. They can plan Bolt's route to find supplies and samples. If resources run out, the crew is rescued and players can try a new plan.
 
 The game uses historical NASA DONKI CME, SEP, and GST records from May 8–14, 2024 (with three selected events dated May 8–10); archived InSight weather from October 19–25, 2020; NASA plant-research pages for crop descriptions; JPL Horizons for an Earth–Mars light-time estimate at the saved November 14, 2026 epoch; NASA Image and Video Library photos; and NASA Mars Trek map tiles. The records describe observations in their original context. Game strength, timing, Mars-outpost effects, crop growth, yields, and driving cost are adaptations for play, not NASA measurements. InSight and image records are historical, not live updates. After the data files load, gameplay does not call NASA APIs.
 
@@ -42,13 +42,13 @@ See [`docs/AI_USAGE.md`](AI_USAGE.md) and [`docs/AI_USAGE.json`](AI_USAGE.json).
 
 ## Demo deck and optional video storyboard
 
-The current demo alternative is a seven-slide illustrated presentation, not gameplay footage: [`public/demo.pdf`](../public/demo.pdf) and [`public/demo.pptx`](../public/demo.pptx). It uses NASA rover images with slide credits and is visibly marked as AI-assisted. The PDF page count and links were checked, and its fresh render was visually inspected. The deployed PDF and PPTX URLs both returned HTTP 200 and matched the reviewed local files by SHA-256. The URLs are [PDF](https://vibhorgupta96.github.io/nasa-space-apps-challenge/demo.pdf) and [PPTX](https://vibhorgupta96.github.io/nasa-space-apps-challenge/demo.pptx). Official submission eligibility remains unverified. See [Demo deck notes](DEMO.md). Browser gameplay recording remains unavailable in this environment.
+The demo alternative is a refreshed seven-slide presentation with staged screenshots of the running local game: [`public/demo.pdf`](../public/demo.pdf) and [`public/demo.pptx`](../public/demo.pptx). It now covers the Mars–Moon campaign, greenhouse and crew decisions, manual 3D rover driving, daily lessons, pet quizzes, Wiz Cards, badges and the training certificate. Speaker notes include sources and simulation limits. The deck is visibly AI-assisted, and the certificate is labeled as an example. Screenshots are not evidence of an end-to-end playthrough or measured educational impact. The refreshed files are local and await publication; older hosted-file checks do not verify these bytes. See [Demo deck notes](DEMO.md).
 
 Optional video target, if the team later records one: 30 seconds or less, with English captions. Record only after the team has verified controls and a storm warning. Use game capture and original project audio; include no minors.
 
 | Time | Screen action | Caption or narration |
 |---|---|---|
-| 0–3 s | Title, then greenhouse morning. | “Sol Sprouts — a Mars mission trainer for young explorers.” |
+| 0–3 s | Title, then greenhouse morning. | “Faraway Garden — a Mars mission trainer for young explorers.” |
 | 3–8 s | Plant and water one crop. | “Plants need water, light, and warmth.” |
 | 8–13 s | Show the power plan and allocate cells. | “Every sol, choose where six power cells go.” |
 | 13–21 s | Open the storm board and show a sourced May 2024 event beside the simulated countdown/strength. | “This is a historical NASA event. Its effect on our Mars outpost is simulated.” |
@@ -61,10 +61,10 @@ This storyboard remains a proposal, not a recording or tested gameplay capture. 
 
 - Registered event: the public team record names the Universal Event. The project schedule, team-lead timezone, and actual submission cutoff still need confirmation in the official event account.
 - Roster and eligibility: the public team record lists Muskan Bararia, Vibhor Gupta, and Shresth Sahai. Confirm the Members tab and each person's registration/eligibility before submission.
-- Team page: [Space Force](https://www.spaceappschallenge.org/2026/find-a-team/space-force4/). Its public project record currently says **Project Space Force**; this draft proposes **Sol Sprouts**. The other required project fields are empty.
-- Demo deck: the seven-slide PDF/PPTX artifacts are deployed and their hosted bytes match the reviewed local files. Confirm that the event accepts a deck in place of gameplay footage.
+- Team page: [Space Force](https://www.spaceappschallenge.org/2026/find-a-team/space-force4/). Its public project record currently says **Project Space Force**; this draft proposes **Faraway Garden**. The other required project fields are empty.
+- Demo deck: refreshed seven-slide PDF/PPTX artifacts are local and await deployment and public-link verification. The official guide permits a deck of up to seven slides.
 - Public gameplay video: not recorded.
-- Deployed final-project URL: [Sol Sprouts](https://vibhorgupta96.github.io/nasa-space-apps-challenge/) returned HTTP 200; the production JavaScript asset also returned HTTP 200. This does not establish interactive browser behavior.
+- Deployed final-project URL: [project site](https://vibhorgupta96.github.io/nasa-space-apps-challenge/) returned HTTP 200; the production JavaScript asset also returned HTTP 200. This does not establish interactive browser behavior.
 - Human-reviewed AI/SI answers, references, team originality and terms confirmations: not complete.
 - Submitted version, submission time, and confirmation: none recorded; submit and verify in the event form after all edits.
 

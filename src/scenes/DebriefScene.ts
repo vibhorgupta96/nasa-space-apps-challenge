@@ -126,7 +126,7 @@ export class DebriefScene extends Phaser.Scene {
     c.add(g);
     const ink = '#2a2440';
     const worldName = s.worldId === 'moon' ? 'MOON BASE' : 'MARS BASE';
-    c.add(text(this, W / 2, y + 48, `SOL SPROUTS ${worldName}`, 18, '#3fa7a0', { fontStyle: 'bold' }).setOrigin(0.5, 0));
+    c.add(text(this, W / 2, y + 48, `FARAWAY GARDEN ${worldName}`, 18, '#3fa7a0', { fontStyle: 'bold' }).setOrigin(0.5, 0));
     c.add(text(this, W / 2, y + 74, 'Certificate of Astronaut Training', 38, ink, { fontStyle: 'bold' }).setOrigin(0.5, 0));
     c.add(text(this, W / 2, y + 132, 'This certifies that', 20, '#6b6480').setOrigin(0.5, 0));
     c.add(text(this, W / 2, y + 160, name, 48, '#b0442c', { fontStyle: 'bold' }).setOrigin(0.5, 0));
@@ -173,7 +173,7 @@ export class DebriefScene extends Phaser.Scene {
       if (!(img instanceof HTMLImageElement)) return;
       const a = document.createElement('a');
       a.href = img.src;
-      a.download = 'sol-sprouts-certificate.png';
+      a.download = 'faraway-garden-certificate.png';
       a.click();
     });
   }
