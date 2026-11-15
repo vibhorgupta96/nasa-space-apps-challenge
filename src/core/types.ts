@@ -66,7 +66,17 @@ export interface Plot {
   wateredToday: boolean;
 }
 
+export interface ManualExpedition {
+  vehicle: import('../rover/vehicle').VehiclePose;
+  checkpoints: [number, number][];
+  nextCheckpoint: number;
+  bonusEligible: boolean;
+  departed: boolean;
+  nextPhysicsAtMs: number;
+}
+
 export interface RoverState {
+  manual?: ManualExpedition;
   driveMode?: 'plan' | 'manual'; // older saves default to planned trips
   status: 'home' | 'out' | 'stranded' | 'repairing';
   batteryCells: number; // fractional cells, rounded to one decimal after a tile

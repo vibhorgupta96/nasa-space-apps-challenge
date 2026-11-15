@@ -31,7 +31,8 @@ See [docs/DATA_PIPELINE.md](docs/DATA_PIPELINE.md) for source details, [docs/REF
 - **Move:** arrows or WASD. **Act:** SPACE, or click a nearby square.
 - **Tools:** 1–5 seeds · 6 watering can · 7 hand (harvest, or clear a wilted plant).
 - **Each morning:** split power cells between grow lights, thermal control, storm shelter and rover battery. Mars has 6 cells; Moon has 8 in light and 6 in darkness, less any dust.
-- **Rover:** go through the airlock (the door at the top). Click the map to plan a route, press 🏠 Return, then Send Bolt.
+- **Rover:** go through the airlock (the door at the top). Click stops on the map, add 🏠 Return, then choose **Auto-drive** or **Drive yourself · 2× cargo**.
+- **Drive yourself:** W/Up accelerates, S/Down brakes then reverses, A/D or Left/Right steers, and SPACE brakes. Follow the third-person view, minimap, and ordered checkpoints, then dock slowly on the habitat pad. Completing the whole route manually doubles resources; unique discoveries and photos keep their usual awards. **Let Bolt drive** hands over the remaining route for standard cargo. Docking early also delivers standard cargo.
 - **Kitchen:** harvests go to the pantry; cook recipes for the current world or eat crops raw.
 - **Shortcuts:** TAB storm board · H help · P photo album · ESC closes panels.
 - **Moon:** hold SHIFT for a short low-gravity hop. Clean rover dust at the airlock to restore tomorrow’s power budget. Moon crops are greenhouse experiments; the lunar terrain and discoveries are illustrated game simulations.
@@ -65,6 +66,10 @@ Choose the order of the two missions at the start of a new campaign. Mars uses a
 All art is drawn in code at startup, so the repo has no image assets of its own apart from the NASA map tiles.
 
 Scenes never import each other. They read `store.state`, call store commands, and listen on the event bus. The UI scene runs the clock (`store.tick`), so time keeps passing while you're on the rover map.
+
+Manual driving uses a lazily loaded Three.js renderer with deterministic, illustrated terrain and a fixed-step vehicle simulation owned by the store. Mars has rolling red hills and firmer traction; the Moon has cratered gray ground, lower traction, and longer airborne arcs. Driving distances are compressed game units, not the map's kilometer scale. Battery use follows actual travel distance and roughness. Saving preserves the vehicle, cargo, and checkpoint progress. Leaving the driving screen brakes the rover while mission time continues; help and hidden tabs pause the simulation. A WebGL-capable browser is required for manual driving; auto-drive remains available otherwise.
+
+Run the automated checks with `node --test scripts/*.test.mjs src/ui/*.test.mjs src/story/*.test.mjs`. Driving coverage includes both worlds, physics, checkpoint order, delivery bonuses, handoff, pauses, saves, failures, and storm timing.
 
 ## Credits
 

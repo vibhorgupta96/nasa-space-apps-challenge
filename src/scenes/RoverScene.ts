@@ -5,7 +5,8 @@ import { C, button, fmtMs, text } from '../ui/theme';
 import { ITEM_ICON } from '../ui/icons';
 import { getActiveFindsForSol } from '../rover/findsManager';
 import { getActiveStormWarnings } from '../rover/stormMonitor';
-import { evaluateRoute } from '../rover/routePlanner';
+import { evaluateRoute, findRoute } from '../rover/routePlanner';
+import { STOP_INPUT } from '../rover/vehicle';
 import { lunarDrivePose } from '../rover/drivingFeel';
 import { setScrollFactorTree } from '../ui/screen-space';
 
@@ -34,6 +35,17 @@ export class RoverScene extends Phaser.Scene {
   private lastStatus = '';
   private manualMode = false;
   private modeLabel!: Phaser.GameObjects.Text;
+  private credit!: Phaser.GameObjects.Text;
+  private mapCredit = '';
+  private minimapLabel?: Phaser.GameObjects.Text;
+  private drivingView?: import('../rover/DrivingView').DrivingView;
+  private drivingImage?: Phaser.GameObjects.Image;
+  private drivingTexture?: Phaser.Textures.CanvasTexture;
+  private minimap?: Phaser.GameObjects.Graphics;
+  private driveButton!: Phaser.GameObjects.Container;
+  private handoffButton!: Phaser.GameObjects.Container;
+  private loadingDrive = false;
+  private viewGeneration = 0;
   private driveKeys!: Record<string, Phaser.Input.Keyboard.Key>;
 
   constructor() {
@@ -85,8 +97,8 @@ export class RoverScene extends Phaser.Scene {
     });
     this.input.mouse?.disableContextMenu();
     const kb = this.input.keyboard!;
-    this.driveKeys = kb.addKeys('UP,DOWN,LEFT,RIGHT,W,A,S,D') as Record<string, Phaser.Input.Keyboard.Key>;
-    kb.addCapture(['UP', 'DOWN', 'LEFT', 'RIGHT', 'W', 'A', 'S', 'D']);
+    this.driveKeys = kb.addKeys('UP,DOWN,LEFT,RIGHT,W,A,S,D,SPACE') as Record<string, Phaser.Input.Keyboard.Key>;
+    kb.addCapture(['UP', 'DOWN', 'LEFT', 'RIGHT', 'W', 'A', 'S', 'D', 'SPACE']);
     kb.on('keydown-BACKSPACE', () => this.undo());
     kb.on('keydown-C', () => {
       this.showCost = !this.showCost;
@@ -97,9 +109,13 @@ export class RoverScene extends Phaser.Scene {
     const onWake = () => {
       this.cameras.main.fadeIn(250);
       this.resetRoute();
+      if (store.state.rover.manual) void this.openDriving();
     };
     this.events.on('wake', onWake);
-    this.events.once('shutdown', () => this.events.off('wake', onWake));
+    const onSleep = () => this.closeDriving();
+    this.events.on('sleep', onSleep);
+    this.events.once('shutdown', () => { this.events.off('wake', onWake); this.events.off('sleep', onSleep); this.closeDriving(); });
+    if (store.state.rover.manual) void this.openDriving();
     this.lastStatus = store.state.rover.status;
   }
 
@@ -185,33 +201,7 @@ export class RoverScene extends Phaser.Scene {
 
   /** Cheapest path (by terrain cost) between two cells. */
   private path(from: Cell, to: Cell): Cell[] {
-    const t = store.data.terrain;
-    const key = (x: number, y: number) => y * t.width + x;
-    const dist = new Map<number, number>([[key(...from), 0]]);
-    const prev = new Map<number, number>();
-    const open: [number, number, number][] = [[0, from[0], from[1]]];
-    while (open.length) {
-      open.sort((a, b) => a[0] - b[0]);
-      const [d, x, y] = open.shift()!;
-      if (x === to[0] && y === to[1]) break;
-      if (d > (dist.get(key(x, y)) ?? Infinity)) continue;
-      for (const [nx, ny] of [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]]) {
-        if (nx < 0 || ny < 0 || nx >= t.width || ny >= t.height) continue;
-        const nd = d + store.tileCost(nx, ny);
-        if (nd < (dist.get(key(nx, ny)) ?? Infinity)) {
-          dist.set(key(nx, ny), nd);
-          prev.set(key(nx, ny), key(x, y));
-          open.push([nd, nx, ny]);
-        }
-      }
-    }
-    const out: Cell[] = [];
-    let k: number | undefined = key(...to);
-    while (k !== undefined && k !== key(...from)) {
-      out.unshift([k % t.width, Math.floor(k / t.width)]);
-      k = prev.get(k);
-    }
-    return out;
+    return findRoute(from, to, store.data.terrain, (x, y) => store.tileCost(x, y));
   }
 
   private planning() {
@@ -219,7 +209,7 @@ export class RoverScene extends Phaser.Scene {
   }
 
   private extendTo(cell: Cell) {
-    if (!this.planning() || this.manualMode) return;
+    if (!this.planning() || this.manualMode || this.loadingDrive) return;
     const last = this.route[this.route.length - 1];
     if (last[0] === cell[0] && last[1] === cell[1]) return;
     const leg = this.path(last, cell);
@@ -229,18 +219,18 @@ export class RoverScene extends Phaser.Scene {
   }
 
   private undo() {
-    if (!this.planning() || !this.legs.length) return;
+    if (!this.planning() || this.loadingDrive || !this.legs.length) return;
     const n = this.legs.pop()!;
     this.route.splice(this.route.length - n, n);
   }
 
   private returnHome() {
-    if (!this.planning() || this.manualMode) return;
+    if (!this.planning() || this.manualMode || this.loadingDrive) return;
     this.extendTo(store.data.terrain.dome);
   }
 
   private send() {
-    if (this.manualMode || store.paused) return;
+    if (this.manualMode || this.loadingDrive || store.paused) return;
     const r = store.launchRover(this.route);
     if (!r.ok) {
       store.log(r.reason);
@@ -251,6 +241,7 @@ export class RoverScene extends Phaser.Scene {
 
   private leave() {
     if (store.paused) return;
+    store.setDriveInput(STOP_INPUT);
     this.cameras.main.fadeOut(200);
     this.time.delayedCall(220, () => {
       this.scene.sleep();
@@ -259,11 +250,68 @@ export class RoverScene extends Phaser.Scene {
     });
   }
 
+  private async openDriving(route?: Cell[], checkpoints?: Cell[]) {
+    if (this.loadingDrive || this.drivingView) return;
+    this.loadingDrive = true;
+    const generation = ++this.viewGeneration;
+    try {
+      const { DrivingView } = await import('../rover/DrivingView');
+      if (generation !== this.viewGeneration || !this.scene.isActive()) return;
+      const r = store.state.rover, t = store.data.terrain;
+      if (route && (store.paused || r.status !== 'home')) return;
+      const stops = checkpoints ?? r.manual?.checkpoints;
+      if (!stops) return;
+      const view = new DrivingView(store.worldId, t, route ?? r.route, stops, [...t.finds, ...getActiveFindsForSol(t, store.state.stormWeekId, route ? store.state.sol : r.lastLaunchSol)]);
+      this.drivingView = view;
+      // CanvasTexture requires a 2D context; copy the WebGL output into its own canvas.
+      this.drivingTexture = this.textures.createCanvas('manual-driving', 1280, 548)!;
+      this.drivingImage = this.add.image(0, 0, 'manual-driving').setOrigin(0).setScrollFactor(0).setDepth(10);
+      this.minimap = this.add.graphics().setScrollFactor(0).setDepth(11);
+      this.minimapLabel = text(this, 28, 274, 'ROUTE · NEXT STOP', 13, C.teal).setScrollFactor(0).setDepth(12);
+      if (route) {
+        const result = store.launchManualRover(route, stops);
+        if (!result.ok) { this.closeDriving(); store.log(result.reason); return; }
+      }
+      this.cameras.main.centerOn(t.dome[0] * t.cell, t.dome[1] * t.cell);
+    } catch (error) {
+      this.closeDriving();
+      console.error('Manual driving could not initialize', error);
+      store.log('3D driving is unavailable on this device. Choose Auto-drive or Let Bolt drive.');
+    } finally { if (generation === this.viewGeneration) this.loadingDrive = false; }
+  }
+
+  private closeDriving() {
+    this.viewGeneration++;
+    this.loadingDrive = false;
+    store.setDriveInput(STOP_INPUT);
+    this.drivingImage?.destroy(); this.drivingImage = undefined;
+    this.minimap?.destroy(); this.minimap = undefined;
+    this.minimapLabel?.destroy(); this.minimapLabel = undefined;
+    if (this.drivingTexture) this.textures.remove('manual-driving');
+    this.drivingTexture = undefined;
+    this.drivingView?.dispose(); this.drivingView = undefined;
+  }
+
+  private drawMinimap() {
+    const g = this.minimap, r = store.state.rover, m = r.manual, t = store.data.terrain;
+    if (!g || !m) return;
+    const x = 28, y = 300, scale = 4.8;
+    g.clear().fillStyle(0x101827, 0.88).fillRoundedRect(x - 10, y - 10, t.width * scale + 20, t.height * scale + 20, 8);
+    g.lineStyle(1, 0xb4a271, 0.6);
+    r.route.forEach((p, i) => { if (i) { const q = r.route[i - 1]; g.lineBetween(x + q[0] * scale, y + q[1] * scale, x + p[0] * scale, y + p[1] * scale); } });
+    m.checkpoints.forEach((p, i) => { g.fillStyle(i < m.nextCheckpoint ? 0x53606d : i === m.nextCheckpoint ? 0x78ffe3 : 0xffd166); g.fillCircle(x + p[0] * scale, y + p[1] * scale, 3); });
+    g.fillStyle(0xa5d9db).fillRect(x + t.dome[0] * scale - 3, y + t.dome[1] * scale - 3, 6, 6);
+    const p = m.vehicle, px = x + p.x * scale, py = y + p.y * scale;
+    g.fillStyle(0xffffff).fillCircle(px, py, 3);
+    g.lineStyle(2, 0xffffff).lineBetween(px, py, px + Math.cos(p.heading) * 9, py + Math.sin(p.heading) * 9);
+  }
+
   // ---------- UI ----------
 
   private buildPanel() {
     const ui = this.add.container(0, 0).setScrollFactor(0).setDepth(20);
     const g = this.add.graphics();
+    g.fillStyle(0x141927, 1).fillRect(0, 548, 1280, 62);
     g.fillStyle(0x141927, 0.92).fillRoundedRect(16, 610, 1248, 98, 12);
     g.lineStyle(3, C.frame).strokeRoundedRect(16, 610, 1248, 98, 12);
     ui.add(g);
@@ -272,15 +320,24 @@ export class RoverScene extends Phaser.Scene {
     this.planUi = this.add.container(0, 0);
     this.planUi.add(button(this, 760, 658, '« Undo', () => this.undo(), 110, 44, 0x9aa3b0));
     this.planUi.add(button(this, 884, 658, '🏠 Return', () => this.returnHome(), 130, 44, 0x9aa3b0));
-    this.sendBtn = button(this, 1034, 658, 'Send Bolt »', () => this.send(), 150, 50, 0xffd166);
+    this.sendBtn = button(this, 1034, 658, 'Auto-drive »', () => this.send(), 150, 50, 0xffd166);
     this.planUi.add(this.sendBtn);
     ui.add(this.planUi);
-    const mode = button(this, 1090, 570, 'Switch driving mode', () => {
-      if (store.paused || store.state.rover.status !== 'home') return;
-      this.manualMode = !this.manualMode;
-      this.resetRoute();
-    }, 270, 34, C.frame);
-    ui.add(mode);
+    this.driveButton = button(this, 1050, 558, 'Drive yourself · 2× cargo', () => {
+      if (store.paused || this.loadingDrive || !this.planning()) return;
+      const stops: Cell[] = [];
+      let i = 0;
+      for (const leg of this.legs) { i += leg; stops.push([...this.route[i]]); }
+      const plan = evaluateRoute(this.route, store.data.terrain, store.state.split.rover, store.rules.roverCostPerTile, store.rules.roverRockCostExtra);
+      const can = store.roverCanLaunch();
+      if (!can.ok || !plan.returnsHome || !plan.canAfford || !stops.length) { store.log(!can.ok ? can.reason : 'Choose stops, add Return, and check your battery first.'); return; }
+      void this.openDriving(this.route.map(p => [...p]), stops);
+    }, 350, 34, 0xffd166);
+    this.handoffButton = button(this, 1050, 558, 'Let Bolt drive · lose 2× bonus', () => {
+      const result = store.handoffRover();
+      if (!result.ok) store.log(result.reason);
+    }, 370, 34, C.frame);
+    ui.add([this.driveButton, this.handoffButton]);
     this.modeLabel = text(this, 36, 560, '', 16, C.text);
     ui.add(this.modeLabel);
     ui.add(button(this, 1190, 658, 'Inside', () => this.leave(), 110, 44, C.frame));
@@ -289,6 +346,8 @@ export class RoverScene extends Phaser.Scene {
       ? `Illustrated Moon terrain · ${terrain.site.name} · 1 square ≈ ${terrain.kmPerCell} km · 5s/tile · battery 0.1 / 0.2 / 0.4 · C: rough ground`
       : `NASA Mars Trek · Viking colour mosaic · ${terrain.site.name} · 1 square ≈ ${terrain.kmPerCell} km · C: toggle rough ground`;
     const credit = text(this, 1252, 600, creditText, 14, C.dim, { backgroundColor: '#141927cc', padding: { x: 8, y: 4 } }).setOrigin(1, 1);
+    this.credit = credit;
+    this.mapCredit = creditText;
     ui.add(credit);
     // Pin each interactive child as well as the panel. Phaser's hit testing uses
     // the leaf Zone's scroll factor, even when a parent Container is fixed to the screen.
@@ -301,15 +360,28 @@ export class RoverScene extends Phaser.Scene {
     const t = store.data.terrain;
     const cell = t.cell;
     const r = s.rover;
+    this.credit.setText(r.manual ? `Illustrated ${store.world.name} terrain · compressed driving scale · gravity ${store.world.gravityMs2} m/s² · ${store.worldId === 'moon' ? 'longer jumps, lower traction' : 'firmer traction'}` : this.mapCredit);
     if (r.status === 'out') this.manualMode = r.driveMode === 'manual';
-    if (this.manualMode && !store.paused && s.phase === 'day' &&
+    this.driveButton.setVisible(this.planning());
+    this.handoffButton.setVisible(r.status === 'out' && !!r.manual);
+    if (r.manual) {
+      const k = this.driveKeys;
+      const throttle = k.UP.isDown || k.W.isDown ? 1 : k.DOWN.isDown || k.S.isDown ? -1 : 0;
+      store.setDriveInput(this.drivingView && !store.paused ? { throttle, steer: (k.RIGHT.isDown || k.D.isDown ? 1 : 0) - (k.LEFT.isDown || k.A.isDown ? 1 : 0), brake: k.SPACE.isDown || (!throttle && !this.scene.isActive()) } : STOP_INPUT);
+      if (this.drivingView && this.drivingTexture) {
+        this.drivingView.render(r.manual, r.collectedFindIds);
+        this.drivingTexture.context.drawImage(this.drivingView.renderer.domElement, 0, 0);
+        this.drivingTexture.refresh(); this.drawMinimap();
+      }
+    } else if (this.drivingView) this.closeDriving();
+    if (!r.manual && this.manualMode && !store.paused && s.phase === 'day' &&
         (r.status === 'home' || (r.status === 'out' && r.nextRouteIndex >= r.route.length))) {
       const k = this.driveKeys;
       const dx = k.LEFT.isDown || k.A.isDown ? -1 : k.RIGHT.isDown || k.D.isDown ? 1 : 0;
       const dy = dx ? 0 : k.UP.isDown || k.W.isDown ? -1 : k.DOWN.isDown || k.S.isDown ? 1 : 0;
       if (dx || dy) store.driveRover(dx, dy);
     }
-    this.modeLabel.setText(this.manualMode ? 'MANUAL · Arrows / WASD · Steer back to the dome to dock' : 'PLAN · Click stops, add Return, then Send Bolt');
+    this.modeLabel.setText(r.manual ? (this.loadingDrive ? 'Loading terrain…' : 'WASD / Arrows · Space: brake · Dock slowly · H: help') : this.manualMode ? 'MANUAL · Arrows / WASD · Steer back to the dome to dock' : 'PLAN · Click stops, add Return, then choose who drives');
     if (this.findsKey !== `${s.stormWeekId}:${this.findsSol()}`) this.refreshFinds();
     // Bolt just got home (or out of repair): clear the finished route so it isn't re-sent.
     if (r.status !== this.lastStatus) {
@@ -325,7 +397,7 @@ export class RoverScene extends Phaser.Scene {
     let bounce = 0;
     const from = r.route[r.nextRouteIndex - 1];
     const to = r.route[r.nextRouteIndex];
-    if (store.worldId === 'moon' && r.status === 'out' && from && to && pos.moving) {
+    if (!r.manual && store.worldId === 'moon' && r.status === 'out' && from && to && pos.moving) {
       const progress = Math.abs(pos.x - from[0]) + Math.abs(pos.y - from[1]);
       const pose = lunarDrivePose(progress, t.cost[to[1]]?.[to[0]] ?? 1);
       visualX = from[0] + (to[0] - from[0]) * pose.progress;
@@ -335,7 +407,7 @@ export class RoverScene extends Phaser.Scene {
     this.rover.setPosition(visualX * cell + cell / 2, visualY * cell + cell / 2 - bounce);
     this.roverShadow.setPosition(visualX * cell + cell / 2, visualY * cell + cell / 2 + 5)
       .setScale(1 - bounce * 0.04).setVisible(store.worldId === 'moon' && r.status !== 'repairing');
-    if (r.status === 'out' && r.driveMode === 'manual') this.cameras.main.centerOn(visualX * cell + cell / 2, visualY * cell + cell / 2);
+    if (!r.manual && r.status === 'out' && r.driveMode === 'manual') this.cameras.main.centerOn(visualX * cell + cell / 2, visualY * cell + cell / 2);
     this.rover.setVisible(r.status !== 'repairing');
     if (r.status === 'out' && r.route[r.nextRouteIndex]) {
       const a = r.route[r.nextRouteIndex - 1];
@@ -376,7 +448,9 @@ export class RoverScene extends Phaser.Scene {
     }
 
     // Info text.
-    this.planUi.setVisible(planning && !this.manualMode);
+    this.info.setFontSize(18);
+    this.planUi.setVisible(planning);
+    if (planning) this.manualMode = false;
     const dayLeft = store.dayEndMs() - s.missionElapsedMs;
     const stormLine = getActiveStormWarnings(s, store.data.storms.weeks)
       .map((st) => `\n⚠ ${store.worldId === 'moon' ? 'Radiation scenario' : 'Storm'} on ${store.world.dayLabel.toLowerCase()} ${st.event.scenario.gameSol} hits in ${fmtMs(st.hitAtMs - s.missionElapsedMs)} of daytime. Be home before it!`)
@@ -399,6 +473,14 @@ export class RoverScene extends Phaser.Scene {
       const cargo = Object.entries(r.cargo).filter(([, n]) => n > 0).map(([k, n]) => `${n} ${k}`).join(', ') || 'empty';
       this.info.setText(`${r.driveMode === 'manual' ? 'Manual: Arrow Keys / WASD · Steer home to dock.' : 'Bolt is driving!'} Battery ${r.batteryCells.toFixed(1)} ${r.driveMode === 'manual' ? '' : `· home in about ${fmtMs(left)}`}\nCargo: ${cargo}${stormLine}`);
       this.info.setColor(C.teal);
+      if (r.manual) {
+        const m = r.manual, p = m.vehicle, next = m.checkpoints[m.nextCheckpoint];
+        const direction = next ? Math.atan2(next[1] - p.y, next[0] - p.x) - p.heading : 0;
+        const relative = Math.atan2(Math.sin(direction), Math.cos(direction));
+        const nav = !next ? 'Route complete · return to dome' : `Checkpoint ${m.nextCheckpoint + 1}/${m.checkpoints.length} · ${Math.hypot(next[0] - p.x, next[1] - p.y).toFixed(1)} squares · ${Math.abs(relative) < 0.3 ? 'ahead' : relative > 0 ? 'turn right' : 'turn left'}`;
+        this.info.setText(`${nav}\nSpeed ${Math.hypot(p.vx, p.vy).toFixed(1)} m/s · Battery ${r.batteryCells.toFixed(2)} · 2× on full return\nCargo: ${cargo}${stormLine}`);
+        this.info.setFontSize(16);
+      } else this.info.setFontSize(18);
     } else if (r.status === 'stranded') {
       this.info.setText('Bolt is stuck out here. The crew will tow the rover home tonight. Cargo will be lost.');
       this.info.setColor(C.warn);

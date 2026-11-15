@@ -11,7 +11,7 @@ export const EV = {
   STORM_HIT: 'storm:hit', // { stormId, strength }
   ROVER_DEPART: 'rover:depart', // { expeditionId, batteryCells }
   ROVER_ITEM_FOUND: 'rover:item', // { expeditionId, findId, item, amount }
-  ROVER_RETURN: 'rover:return', // { expeditionId, deliveredItems }
+  ROVER_RETURN: 'rover:return', // { expeditionId, deliveredItems, manualBonus? }
   ROVER_DAMAGED: 'rover:damaged', // { expeditionId, availableSol }
   RADIO_MESSAGE: 'radio:message', // { messageId, text, arrivesAtMs, delayMinutes }
   SCIENCE_CARD: 'science:card', // { text, source }

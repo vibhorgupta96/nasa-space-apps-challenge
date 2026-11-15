@@ -1,4 +1,6 @@
-import { drivingTileCost } from '../rover/routePlanner';
+import { drivingTileCost, findRoute } from '../rover/routePlanner';
+import { CHECKPOINT_RADIUS, terrainHeight, terrainRocks } from '../rover/terrain3d';
+import { PHYSICS_MS, STOP_INPUT, stepVehicle, type DriveInput } from '../rover/vehicle';
 import { RULES } from './rules';
 import { bus, EV, UI_EV } from './events';
 import type { Campaign, GameState, ItemId, MissionResult, Plot, PowerSlot, TrainingSnapshot, WorldId } from './types';
@@ -169,6 +171,7 @@ export class Store {
   meta: Meta = freshMeta();
   /** Dialogs, help and other modal UI pause the whole simulation. */
   pausedBy = new Set<string>();
+  private driveInput: DriveInput = { ...STOP_INPUT };
   hidden = false;
   lastNight: NightReport | null = null;
   private today: Today = emptyToday();
@@ -335,6 +338,13 @@ export class Store {
       if (state.processedWarnings.some((id: unknown) => typeof id !== 'string' || !eventIds.has(id)) || state.processedStormHits.some((id: unknown) => typeof id !== 'string' || !eventIds.has(id)) || state.log.some((x: unknown) => typeof x !== 'string') || state.radioQueue.some((m: any) => !m || typeof m.messageId !== 'string' || typeof m.text !== 'string' || !Number.isFinite(m.arrivesAtMs) || !Number.isFinite(m.delayMinutes))) return null;
       const r = state.rover;
       if (!r || (r.driveMode !== undefined && r.driveMode !== 'plan' && r.driveMode !== 'manual') || !['home','out','stranded','repairing'].includes(r.status) || !Number.isFinite(r.batteryCells) || !Array.isArray(r.route) || !Array.isArray(r.collectedFindIds) || !r.cargo || ITEMS.some(k => !Number.isFinite(r.cargo[k]) || r.cargo[k] < 0) || !Number.isInteger(r.nextRouteIndex) || r.nextRouteIndex < 0 || r.nextRouteIndex > r.route.length || r.route.some((xy: unknown) => !Array.isArray(xy) || xy.length !== 2 || !xy.every(Number.isInteger) || xy[0] < 0 || xy[0] >= data.terrain.width || xy[1] < 0 || xy[1] >= data.terrain.height) || !Number.isInteger(r.lastLaunchSol) || !Number.isInteger(r.availableSol) || !(r.routeStartedAtMs === null || Number.isFinite(r.routeStartedAtMs)) || !(r.expeditionId === null || typeof r.expeditionId === 'string') || r.collectedFindIds.some((id: unknown) => typeof id !== 'string') || (r.status === 'out' && (!r.expeditionId || r.routeStartedAtMs === null || r.nextRouteIndex < 1 || (r.nextRouteIndex >= r.route.length && !(r.driveMode === 'manual' && r.nextRouteIndex === r.route.length))))) return null;
+      if (r.manual !== undefined) {
+        const m = r.manual, p = m?.vehicle;
+        const cellValid = (xy: any) => Array.isArray(xy) && xy.length === 2 && xy.every(Number.isInteger) && xy[0] >= 0 && xy[0] < data.terrain.width && xy[1] >= 0 && xy[1] < data.terrain.height;
+        if (!m || r.driveMode !== 'manual' || !['out', 'stranded'].includes(r.status) || !p || !['x','y','z','vx','vy','vz','heading'].every(k => Number.isFinite(p[k])) || p.x < 0 || p.x > data.terrain.width - 1 || p.y < 0 || p.y > data.terrain.height - 1 || p.z < -5 || p.z > 30 || Math.hypot(p.vx, p.vy) > 20 || Math.abs(p.vz) > 30 || !Array.isArray(m.checkpoints) || !m.checkpoints.length || !m.checkpoints.every(cellValid) || !Number.isInteger(m.nextCheckpoint) || m.nextCheckpoint < 0 || m.nextCheckpoint > m.checkpoints.length || typeof m.bonusEligible !== 'boolean' || typeof m.departed !== 'boolean' || !Number.isFinite(m.nextPhysicsAtMs) || (r.status === 'out' && (m.nextPhysicsAtMs < state.missionElapsedMs - 0.001 || m.nextPhysicsAtMs > state.missionElapsedMs + PHYSICS_MS + 0.001))) return null;
+        const last = m.checkpoints[m.checkpoints.length - 1];
+        if (last[0] !== data.terrain.dome[0] || last[1] !== data.terrain.dome[1]) return null;
+      }
       const rawMeta = parsed.meta && typeof parsed.meta === 'object' ? parsed.meta : {};
       if (rawMeta.quiz !== undefined && (!rawMeta.quiz || typeof rawMeta.quiz !== 'object' || Array.isArray(rawMeta.quiz))) return null;
       const defaults = freshMeta();
@@ -370,6 +380,7 @@ export class Store {
     const parsed = this.readSave(raw);
     if (!parsed) return false;
     this.state = parsed.state;
+    this.driveInput = { ...STOP_INPUT };
     this.campaign = parsed.campaign;
     this.meta = parsed.meta;
     this.lastAutosaveMs = this.state.missionElapsedMs;
@@ -522,6 +533,10 @@ export class Store {
   /** Where the rover is right now, in map cells (fractional while moving). */
   roverPosition(): { x: number; y: number; moving: boolean } {
     const r = this.state.rover;
+    if (r.manual && (r.status === 'out' || r.status === 'stranded')) {
+      const p = r.manual.vehicle;
+      return { x: p.x, y: p.y, moving: r.status === 'out' && Math.hypot(p.vx, p.vy) > 0.05 };
+    }
     const dome = this.data.terrain.dome;
     if (r.status !== 'out' || r.route.length === 0) {
       if (r.status === 'stranded' && r.route.length) {
@@ -749,6 +764,7 @@ export class Store {
       if (bx < 0 || by < 0 || bx >= t.width || by >= t.height) return fail('That route leaves the map.');
     }
     const r = s.rover;
+    delete r.manual;
     r.status = 'out';
     r.driveMode = driveMode;
     r.batteryCells = s.split.rover;
@@ -765,6 +781,77 @@ export class Store {
     return OK;
   }
 
+  /** New manual trips retain the selected stops separately from the map's path tiles. */
+  launchManualRover(route: [number, number][], checkpoints: [number, number][]): Result {
+    const t = this.data.terrain;
+    const last = checkpoints[checkpoints.length - 1];
+    if (route.length < 3 || !last || last[0] !== t.dome[0] || last[1] !== t.dome[1] || checkpoints.some(p => !Array.isArray(p) || p.length !== 2 || !p.every(Number.isInteger) || p[0] < 0 || p[0] >= t.width || p[1] < 0 || p[1] >= t.height || !route.some(q => q[0] === p[0] && q[1] === p[1]))) return fail('Choose stops and a return route first.');
+    const end = route[route.length - 1];
+    if (end[0] !== t.dome[0] || end[1] !== t.dome[1]) return fail('Add a return to the dome.');
+    const result = this.launchRover(route, 'manual');
+    if (!result.ok) return result;
+    const [x, y] = t.dome;
+    const first = checkpoints[0];
+    this.state.rover.manual = {
+      vehicle: { x, y, z: terrainHeight(this.worldId, t, x, y), vx: 0, vy: 0, vz: 0, heading: Math.atan2(first[1] - y, first[0] - x) },
+      checkpoints: checkpoints.map(p => [...p]), nextCheckpoint: 0, bonusEligible: true, departed: false,
+      nextPhysicsAtMs: this.state.missionElapsedMs + PHYSICS_MS,
+    };
+    this.driveInput = { ...STOP_INPUT };
+    this.log('You are driving! Visit each checkpoint and dock for 2× cargo.');
+    return OK;
+  }
+
+  setDriveInput(input: DriveInput) {
+    this.driveInput = { throttle: Number.isFinite(input.throttle) ? Math.max(-1, Math.min(1, input.throttle)) : 0,
+      steer: Number.isFinite(input.steer) ? Math.max(-1, Math.min(1, input.steer)) : 0, brake: !!input.brake };
+  }
+
+  handoffRover(): Result {
+    const g = this.dayCommand();
+    if (!g.ok) return g;
+    const r = this.state.rover, m = r.manual;
+    if (r.status !== 'out' || !m) return fail('No manual trip is active.');
+    const from: [number, number] = [Math.round(m.vehicle.x), Math.round(m.vehicle.y)];
+    const route: [number, number][] = [from];
+    const stops = [...m.checkpoints.slice(m.nextCheckpoint), this.data.terrain.dome];
+    for (const stop of stops) route.push(...findRoute(route[route.length - 1], stop, this.data.terrain, (x, y) => this.tileCost(x, y)));
+    // Charge the final fractional connection instead of granting free travel at handoff.
+    const connectionCost = Math.hypot(from[0] - m.vehicle.x, from[1] - m.vehicle.y) * this.tileCost(...from);
+    if (r.batteryCells + 1e-9 < connectionCost) { this.disableRover('battery'); return OK; }
+    r.batteryCells = Math.max(0, r.batteryCells - connectionCost);
+    delete r.manual;
+    r.driveMode = 'plan'; r.route = route; r.nextRouteIndex = 1; r.routeStartedAtMs = this.state.missionElapsedMs;
+    this.driveInput = { ...STOP_INPUT };
+    this.log('Bolt takes over. This trip will deliver standard cargo.');
+    if (route.length === 1) this.returnRover();
+    return OK;
+  }
+
+  private manualRoverStep() {
+    const r = this.state.rover, m = r.manual;
+    if (!m || r.status !== 'out') return;
+    m.nextPhysicsAtMs += PHYSICS_MS;
+    const before = m.vehicle;
+    const next = stepVehicle(before, this.driveInput, this.worldId, this.data.terrain, terrainRocks(this.data.terrain), PHYSICS_MS / 1000);
+    const distance = Math.hypot(next.x - before.x, next.y - before.y);
+    const cost = distance * this.tileCost(Math.round(next.x), Math.round(next.y));
+    if (r.batteryCells + 1e-9 < cost) { this.disableRover('battery'); return; }
+    r.batteryCells = Math.max(0, r.batteryCells - cost);
+    m.vehicle = next;
+    const t = this.data.terrain, homeDistance = Math.hypot(next.x - t.dome[0], next.y - t.dome[1]);
+    if (homeDistance > CHECKPOINT_RADIUS + 0.05) m.departed = true;
+    const onGround = next.z <= terrainHeight(this.worldId, t, next.x, next.y) + 0.3;
+    const checkpoint = m.checkpoints[m.nextCheckpoint];
+    if (onGround && checkpoint && Math.hypot(next.x - checkpoint[0], next.y - checkpoint[1]) <= CHECKPOINT_RADIUS) m.nextCheckpoint++;
+    if (onGround) {
+      for (const f of [...t.finds, ...getActiveFindsForSol(t, this.state.stormWeekId, r.lastLaunchSol)]) {
+        if (Math.hypot(next.x - f.x, next.y - f.y) <= CHECKPOINT_RADIUS) this.collectRoverFind(f.x, f.y);
+      }
+    }
+    if (m.departed && onGround && homeDistance <= CHECKPOINT_RADIUS && Math.hypot(next.vx, next.vy) < 1) this.returnRover();
+  }
+
   /** Accept one cardinal move only after the previous tile has completed. */
   driveRover(dx: number, dy: number): Result {
     if (this.paused) return fail('The game is paused.');
@@ -772,6 +859,7 @@ export class Store {
     if (!g.ok) return g;
     if (!Number.isInteger(dx) || !Number.isInteger(dy) || Math.abs(dx) + Math.abs(dy) !== 1) return fail('Choose one direction.');
     const r = this.state.rover;
+    if (r.manual) return fail('Use the continuous driving controls.');
     const from = r.status === 'home' ? this.data.terrain.dome : r.route[r.nextRouteIndex - 1];
     if (!from) return fail('Bolt cannot drive right now.');
     const next: [number, number] = [from[0] + dx, from[1] + dy];
@@ -802,17 +890,21 @@ export class Store {
     const r = this.state.rover;
     const [dx, dy] = this.data.terrain.dome;
     const last = r.route[r.nextRouteIndex - 1];
-    if (r.status !== 'out' || !r.expeditionId || !last || last[0] !== dx || last[1] !== dy) return fail('Bolt is not at the dome.');
+    const manualDock = r.manual && r.manual.departed && Math.hypot(r.manual.vehicle.x - dx, r.manual.vehicle.y - dy) <= CHECKPOINT_RADIUS;
+    if (r.status !== 'out' || !r.expeditionId || (!manualDock && (!last || last[0] !== dx || last[1] !== dy))) return fail('Bolt is not at the dome.');
     const delivered = { ...r.cargo };
-    for (const k of ITEMS) this.state.inventory[k] += r.cargo[k];
+    const bonus = !!r.manual?.bonusEligible && r.manual.nextCheckpoint === r.manual.checkpoints.length;
+    for (const k of ITEMS) { delivered[k] *= bonus ? 2 : 1; this.state.inventory[k] += delivered[k]; }
+    const baseSamples = r.cargo.sample;
     const expeditionId = r.expeditionId;
     Object.assign(r, { status: 'home', expeditionId: null, route: [], nextRouteIndex: 0, routeStartedAtMs: null, cargo: zeroItems() });
+    delete r.manual;
     if (this.worldId === 'moon') this.state.dustLevel = Math.min(2, this.state.dustLevel + 1);
-    if (delivered.sample > 0) this.awardPhotos(delivered.sample);
+    if (baseSamples > 0) this.awardPhotos(baseSamples);
     this.today.roverHome = true;
-    this.log('Bolt is home and unloads the cargo.');
+    this.log(bonus ? `Manual route complete! Base cargo: ${ITEMS.filter(k => delivered[k]).map(k => `${delivered[k] / 2} ${k}`).join(', ') || 'empty'}. Manual bonus: +100%.` : 'Bolt is home and unloads the cargo.');
     this.award('rover-pilot');
-    bus.emit(EV.ROVER_RETURN, { expeditionId, deliveredItems: delivered });
+    bus.emit(EV.ROVER_RETURN, { expeditionId, deliveredItems: delivered, manualBonus: bonus });
     return OK;
   }
 
@@ -1186,7 +1278,8 @@ export class Store {
       if (!s.processedWarnings.includes(st.event.id) && st.warnAtMs <= target) due.push({ at: st.warnAtMs, prio: 2, run: () => this.stormWarning(st) });
     }
     const r = s.rover;
-    if (r.status === 'out' && r.routeStartedAtMs !== null && r.nextRouteIndex < r.route.length) {
+    if (r.status === 'out' && r.manual && r.manual.nextPhysicsAtMs <= target) due.push({ at: r.manual.nextPhysicsAtMs, prio: 1, run: () => this.manualRoverStep() });
+    if (r.status === 'out' && !r.manual && r.routeStartedAtMs !== null && r.nextRouteIndex < r.route.length) {
       const at = r.routeStartedAtMs + r.nextRouteIndex * this.rules.roverMsPerTile;
       if (at <= target) due.push({ at, prio: 1, run: () => this.roverStep() });
     }
@@ -1265,6 +1358,7 @@ export class Store {
     const r = s.rover;
     let roverRecovered = false;
     if (r.status === 'stranded') {
+      delete r.manual;
       Object.assign(r, { status: 'repairing', expeditionId: null, route: [], nextRouteIndex: 0, routeStartedAtMs: null, cargo: zeroItems(), batteryCells: 0 });
       roverRecovered = true;
     }
@@ -1308,6 +1402,7 @@ export class Store {
     // The mission is over: don't leave Bolt (or the cargo) out on the plain.
     let roverCalledHome = false;
     if (outcome !== 'next' && r.status === 'out') {
+      delete r.manual;
       for (const k of ITEMS) s.inventory[k] += r.cargo[k];
       Object.assign(r, { status: 'home', expeditionId: null, route: [], nextRouteIndex: 0, routeStartedAtMs: null, cargo: zeroItems() });
       roverCalledHome = true;

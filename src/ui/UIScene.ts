@@ -119,7 +119,8 @@ export class UIScene extends Phaser.Scene {
       this.director.stormHit(p.safe);
     });
     this.on(EV.ROVER_DAMAGED, (p: { reason: string }) => this.director.roverDamaged(p.reason));
-    this.on(EV.ROVER_RETURN, (p: { deliveredItems: Record<ItemId, number> }) => {
+    this.on(EV.ROVER_RETURN, (p: { deliveredItems: Record<ItemId, number>; manualBonus?: boolean }) => {
+      if (p.manualBonus) this.toast('Manual route complete! Cargo doubled: base resources + 100% bonus.', C.goldText);
       this.director.roverHome(p.deliveredItems);
       if (p.deliveredItems.sample > 0) this.queueNewPhotos();
     });
@@ -363,7 +364,7 @@ export class UIScene extends Phaser.Scene {
 
     const r = s.rover;
     const roverText =
-      r.status === 'out' ? `Bolt is driving · battery ${r.batteryCells.toFixed(1)}` :
+      r.status === 'out' ? `${r.manual ? 'You are driving' : 'Bolt is driving'} · battery ${r.batteryCells.toFixed(1)}` :
       r.status === 'stranded' ? 'Bolt is stuck outside (towed home tonight)' :
       r.status === 'repairing' ? `Rover in repair until ${store.world.dayLabel.toLowerCase()} ${r.availableSol}` :
       s.split.rover > 0 && r.lastLaunchSol !== s.sol ? `Rover ready · ${s.split.rover} cell${s.split.rover > 1 ? 's' : ''}` : 'Bolt is home';

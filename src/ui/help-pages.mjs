@@ -23,7 +23,7 @@ export function createHelpPages(cellsPerSol, heaterNeededBelowC, worldId = 'mars
         lines: [
           'Press TAB for the lunar hazard board. Radiation timing and effects in the game are simulated.',
           'Shelter cells plus shield layers must reach a hazard’s simulated strength.',
-          'On the rover map, Switch driving mode enables manual driving. Hold Arrow Keys or WASD to launch and steer one tile at a time; steer back onto the dome to unload. You can also plan a route and press Send Bolt.',
+          'Plan stops and Return on the rover map. Choose Auto-drive or Drive yourself: WASD / arrows steer; SPACE brakes. Visit every checkpoint and dock slowly for 2× cargo. Let Bolt drive forfeits the bonus. Lunar jumps last longer.',
         ],
       },
     ];
@@ -50,7 +50,7 @@ export function createHelpPages(cellsPerSol, heaterNeededBelowC, worldId = 'mars
       lines: [
         'Press TAB for the storm board (M mutes sound). Strength and effects at the dome are game simulations.',
         'Shelter cells plus shield layers must reach the storm’s simulated strength.',
-        'Use the top airlock to plan a route that returns to the dome. Bring ice home to make water.',
+        'Use the top airlock to plan stops and a route that returns to the dome. Choose Auto-drive or Drive yourself: WASD / arrows steer; SPACE brakes. Visit all checkpoints and dock slowly for 2× cargo. Let Bolt drive forfeits the bonus.',
       ],
     },
   ];
