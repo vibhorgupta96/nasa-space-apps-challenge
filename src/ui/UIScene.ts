@@ -97,7 +97,7 @@ export class UIScene extends Phaser.Scene {
     this.director = new Director((lines) => this.say(lines));
 
     const kb = this.input.keyboard!;
-    kb.addCapture('TAB,SPACE');
+    kb.addCapture('SPACE');
     kb.on('keydown', (e: KeyboardEvent) => this.onKey(e));
 
     this.on(UI_EV.TOAST, (p: { text: string }) => this.toast(p.text));
@@ -175,7 +175,7 @@ export class UIScene extends Phaser.Scene {
       const m = this.queue.shift()!;
       const c = m.build();
       if (!c) continue;
-      this.current = c.setDepth(100);
+      this.current = c.setDepth(100).setData('readableModal', true);
       this.currentPauses = m.pause !== false;
       if (this.currentPauses) store.pause('modal');
       return;
@@ -211,12 +211,12 @@ export class UIScene extends Phaser.Scene {
       this.advance();
       return;
     }
-    if (this.current && (k === 'Escape' || (k === 'Tab' && this.boardOpen))) {
+    if (this.current && (k === 'Escape' || (k.toLowerCase() === 'b' && this.boardOpen))) {
       if (!this.planningOpen && !this.lessonOpen) this.close();
       return;
     }
     if (this.current) return;
-    if (k === 'Tab') this.openBoard();
+    if (k.toLowerCase() === 'b') this.openBoard();
     else if (k === 'h' || k === 'H') this.openHelp();
     else if (k === 'p' || k === 'P') this.openAlbum();
     else if ((k === 'c' || k === 'C') && this.scene.isActive('Farm')) this.openWizCards();
@@ -290,6 +290,7 @@ export class UIScene extends Phaser.Scene {
       const img = this.add.image(cx, y - 2, icon).setScale(tool.startsWith('seed:') ? 1.5 : 2.4);
       const num = text(this, cx - size / 2 + 8, y - size / 2 + 2, String(i + 1), 14, C.dim);
       slot.setInteractive({ useHandCursor: true }).on('pointerdown', () => this.selectTool(i));
+      slot.setData('readableAction', { label: tool.startsWith('seed:') ? `Select ${crops[Number(tool.slice(5))]?.name} seeds` : tool === 'can' ? 'Select watering can' : 'Select harvest hand', activate: () => this.selectTool(i) });
       bar.add([slot, img, num]);
     });
     this.hud.hotbar = bar;
@@ -312,8 +313,8 @@ export class UIScene extends Phaser.Scene {
     store.tick(delta);
     const h = this.hud;
     this.interactionHint?.setText(this.scene.isActive('Rover')
-      ? 'TAB environment board · H help · P photo album · C rover map'
-      : 'TAB environment board · H help · P photo album · C Wiz Cards');
+      ? 'B environment board · H help · P photo album · C rover map'
+      : 'B environment board · H help · P photo album · C Wiz Cards');
     const frac = s.phase === 'planning' ? 0 : store.dayFraction();
     const rules = store.rules;
     h.sol.setText(`${store.world.dayLabel} ${s.sol} / ${rules.missionSols}`);
@@ -348,8 +349,10 @@ export class UIScene extends Phaser.Scene {
     for (let k = 0; k < store.moxieToday; k++) h.cells[ci] && h.cells[ci++].setTint(0xcfe9f5).setAlpha(0.35);
     for (; ci < h.cells.length; ci++) h.cells[ci].setTint(0xb5793f).setAlpha(0.7);
 
-    for (const id of ['seed', 'water', 'ice', 'regolith', 'sample'] as ItemId[]) h.inv[id].setText(String(s.inventory[id]));
-    h.inv.shield.setText(`${s.shield}/${RULES.maxShieldLayers}`);
+    for (const id of ['seed', 'water', 'ice', 'regolith', 'sample'] as ItemId[]) {
+      h.inv[id].setText(String(s.inventory[id])).setData('readableText', `${id}: ${s.inventory[id]}`);
+    }
+    h.inv.shield.setText(`${s.shield}/${RULES.maxShieldLayers}`).setData('readableText', `Shield layers: ${s.shield} of ${RULES.maxShieldLayers}`);
 
     const pending = store.pendingStorms();
     if (pending.length) {
@@ -404,7 +407,7 @@ export class UIScene extends Phaser.Scene {
   }
 
   toast(str: string, color = C.text) {
-    const t = text(this, 16, H - 130, str, 18, color, { backgroundColor: '#141927dd', padding: { x: 10, y: 5 }, wordWrap: { width: 400 } }).setDepth(50);
+    const t = text(this, 16, H - 130, str, 18, color, { backgroundColor: '#141927dd', padding: { x: 10, y: 5 }, wordWrap: { width: 400 } }).setDepth(50).setData('readableNotification', true);
     this.toasts.push(t);
     if (this.toasts.length > 4) this.toasts.shift()?.destroy();
     this.tweens.add({ targets: t, alpha: 0, delay: 5000, duration: 800, onComplete: () => {
@@ -434,6 +437,7 @@ export class UIScene extends Phaser.Scene {
     // Long lines (radio letters) shrink to fit inside the box instead of spilling below it.
     body.setText(full);
     for (let size = 24; body.height > h - 76 && size > 16; size -= 2) body.setFontSize(size - 2);
+    body.setData('readableText', full);
     body.setText('');
     let shown = 0;
     const timer = this.time.addEvent({ delay: 18, loop: true, callback: () => {
@@ -451,6 +455,7 @@ export class UIScene extends Phaser.Scene {
       } else this.close();
     };
     c.list[0].on('pointerdown', () => this.advance?.());
+    more.setData('readableAction', { label: 'Continue dialogue', activate: () => { shown = full.length; body.setText(full); timer.remove(); this.close(); } });
     return c;
   }
 
@@ -486,7 +491,7 @@ export class UIScene extends Phaser.Scene {
         : (cold ? `Tonight is colder than ${RULES.heaterNeededBelowC}°C. Without 1 heater cell, plants won't grow.` : 'Warm enough tonight. The heater is optional.'),
       shelter: () => warned.length
         ? `⚠️ STORM TODAY! Strength ${warned[0].event.scenario.strength} (simulated). Shelter cells + ${s.shield} shield layer(s) must reach it.`
-        : 'No storm warning for today. Check the storm board (TAB).',
+        : 'No storm warning for today. Check the storm board (B).',
       rover: () => (s.rover.status === 'home' && s.sol >= s.rover.availableSol ? 'Cells here become Bolt\'s battery for one drive today.' : roverCan.ok ? '' : `Rover can't drive today: ${s.rover.status === 'out' ? 'Bolt is still out.' : 'in repair.'}`),
     };
     let selected = 0;
@@ -511,7 +516,7 @@ export class UIScene extends Phaser.Scene {
         const info = slot === 'heater' && store.worldId === 'moon' ? { ...baseInfo, label: 'Thermal control' } : baseInfo;
         rows.add(this.add.rectangle(x + 40, ry, w - 80, 66, 0x2a3247).setOrigin(0, 0).setStrokeStyle(3, C.gold, i === selected ? 1 : 0));
         rows.add(this.add.image(x + 74, ry + 33, info.icon).setScale(3));
-        rows.add(text(this, x + 108, ry + 8, info.label, 22, C.text, { fontStyle: 'bold' }));
+        rows.add(text(this, x + 108, ry + 8, info.label, 22, C.text, { fontStyle: 'bold' }).setData('readableText', `${info.label}: ${s.split[slot]} cells allocated`));
         rows.add(text(this, x + 108, ry + 38, hints[slot](), 15, slot === 'shelter' && warned.length ? C.warn : C.dim, { wordWrap: { width: 470 } }));
         const minus = button(this, x + w - 160, ry + 33, '–', () => {
           selected = i;
@@ -523,6 +528,8 @@ export class UIScene extends Phaser.Scene {
           adjust(slot, 1);
           render();
         }, 54, 44, total < s.cellsToday ? C.frame : 0x555d70);
+        minus.setData('readableAction', { label: `Remove power from ${info.label}`, activate: () => { selected = i; adjust(slot, -1); render(); } });
+        plus.setData('readableAction', { label: `Add power to ${info.label}`, activate: () => { selected = i; adjust(slot, 1); render(); } });
         rows.add([minus, plus]);
       });
       const left = s.cellsToday - total;
@@ -725,7 +732,7 @@ export class UIScene extends Phaser.Scene {
     const later = () => this.time.delayedCall(0, render);
     const render = () => {
       c.removeAll(true);
-      c.add(this.add.rectangle(0, 0, W, H, 0x000000, 0.5).setOrigin(0).setInteractive().on('pointerdown', () => this.close()));
+      c.add(this.add.rectangle(0, 0, W, H, 0x000000, 0.5).setOrigin(0).setInteractive().setData('readableAction', { label: 'Close panel', activate: () => this.close() }).on('pointerdown', () => this.close()));
       addKitchen(this, c, 140, 60, W - 280, 600, later, warn);
       c.add(text(this, W - 172, 640, 'Esc to close', 16, C.dim).setOrigin(1, 0));
     };
@@ -746,7 +753,7 @@ export class UIScene extends Phaser.Scene {
     const s = store.state;
     const week = store.week();
     const x = 140, y = 50, w = W - 280, h = 620;
-    c.add(this.add.rectangle(0, 0, W, H, 0x000000, 0.5).setOrigin(0).setInteractive().on('pointerdown', () => this.close()));
+    c.add(this.add.rectangle(0, 0, W, H, 0x000000, 0.5).setOrigin(0).setInteractive().setData('readableAction', { label: 'Close panel', activate: () => this.close() }).on('pointerdown', () => this.close()));
     c.add(panel(this, x, y, w, h));
     if (store.worldId === 'moon') {
       c.add(text(this, x + 32, y + 22, '☾ Lunar Environment', 30, C.goldText, { fontStyle: 'bold' }));
@@ -768,7 +775,7 @@ export class UIScene extends Phaser.Scene {
       c.add(text(this, x + 32, y + h - 78,
         'Hazard timing and effects are game scenarios inspired by space radiation research; they are not records of radiation impacts observed on the Moon.',
         15, C.sim, { wordWrap: { width: w - 64 } }));
-      c.add(text(this, x + w - 24, y + 20, '✕ TAB', 18, C.dim).setOrigin(1, 0));
+      c.add(text(this, x + w - 24, y + 20, '✕ B', 18, C.dim).setOrigin(1, 0));
       return c;
     }
     c.add(text(this, x + 32, y + 22, '☀ Space Weather Board', 30, C.goldText, { fontStyle: 'bold' }));
@@ -801,7 +808,7 @@ export class UIScene extends Phaser.Scene {
     c.add(text(this, x + 32, y + h - 76,
       'Strength, timing and effects on our outpost are a game scenario. The dates and records are real NASA DONKI data.\nTimeline compressed. 1 radio minute = 1 second of game time. Shelter cells + shield layers ≥ strength keeps everyone safe.',
       15, C.sim, { wordWrap: { width: w - 64 }, lineSpacing: 4 }));
-    c.add(text(this, x + w - 24, y + 20, 'Close: TAB', 18, C.dim).setOrigin(1, 0));
+    c.add(text(this, x + w - 24, y + 20, 'Close: B', 18, C.dim).setOrigin(1, 0));
     return c;
   }
 
@@ -815,7 +822,7 @@ export class UIScene extends Phaser.Scene {
   private buildHelp() {
     const c = this.add.container(0, 0);
     const x = 180, y = 60, w = W - 360, h = 600;
-    c.add(this.add.rectangle(0, 0, W, H, 0x000000, 0.5).setOrigin(0).setInteractive().on('pointerdown', () => this.close()));
+    c.add(this.add.rectangle(0, 0, W, H, 0x000000, 0.5).setOrigin(0).setInteractive().setData('readableAction', { label: 'Close panel', activate: () => this.close() }).on('pointerdown', () => this.close()));
     c.add(panel(this, x, y, w, h));
     c.add(text(this, x + 32, y + 22, 'How to play', 30, C.goldText, { fontStyle: 'bold' }));
     const pages = createHelpPages(store.rules.cellsPerSol, RULES.heaterNeededBelowC, store.worldId);

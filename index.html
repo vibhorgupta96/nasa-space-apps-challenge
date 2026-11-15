@@ -8,14 +8,32 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet" />
-    <style>
-      html, body { margin: 0; height: 100%; background: #0b1026; overflow: hidden; }
-      #game { width: 100vw; height: 100vh; }
-      canvas { image-rendering: pixelated; }
-    </style>
+    <link rel="stylesheet" href="/src/ui/viewport.css" />
   </head>
   <body>
-    <div id="game"></div>
+    <main id="site">
+      <div id="game-toolbar" class="game-toolbar" aria-label="Game display options">
+        <label for="view-size">View size</label>
+        <select id="view-size" aria-describedby="view-size-help">
+          <option value="fit">Fit screen</option>
+          <option value="readable">Readable text (1280px)</option>
+          <option value="large">Large text (1600px)</option>
+        </select>
+        <span id="view-size-help">Readable and Large keep game text bigger; use the pan buttons to see the full game.</span>
+      </div>
+      <div id="pan-controls" hidden aria-label="Pan enlarged game">
+        <button id="pan-left" type="button" aria-controls="game-viewport">← Pan left</button>
+        <button id="pan-right" type="button" aria-controls="game-viewport">Pan right →</button>
+      </div>
+      <section id="game-viewport" aria-label="Faraway Garden game">
+        <div id="game"></div>
+      </section>
+      <details id="reading-view">
+        <summary>Readable text and controls</summary>
+        <div id="reading-content"></div>
+      </details>
+      <p class="keyboard-hint">Keyboard: use the arrow keys or WASD to move. Press H for help. Touch players can tap the screen.</p>
+    </main>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

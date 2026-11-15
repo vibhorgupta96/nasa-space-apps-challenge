@@ -21,7 +21,7 @@ export function createHelpPages(cellsPerSol, heaterNeededBelowC, worldId = 'mars
       {
         title: '3 · Watch lunar hazards',
         lines: [
-          'Press TAB for the lunar hazard board. Radiation timing and effects in the game are simulated.',
+          'Press B for the lunar hazard board. Radiation timing and effects in the game are simulated.',
           'Shelter cells plus shield layers must reach a hazard’s simulated strength.',
           'Plan stops and Return on the rover map. Choose Auto-drive or Drive yourself: WASD / arrows steer; SPACE brakes. Visit every checkpoint and dock slowly for 2× cargo. Let Bolt drive forfeits the bonus. Lunar jumps last longer.',
         ],
@@ -48,7 +48,7 @@ export function createHelpPages(cellsPerSol, heaterNeededBelowC, worldId = 'mars
     {
       title: '3 · Watch storms and plan rover trips',
       lines: [
-        'Press TAB for the storm board (M mutes sound). Strength and effects at the dome are game simulations.',
+        'Press B for the storm board (M mutes sound). Strength and effects at the dome are game simulations.',
         'Shelter cells plus shield layers must reach the storm’s simulated strength.',
         'Use the top airlock to plan stops and a route that returns to the dome. Choose Auto-drive or Drive yourself: WASD / arrows steer; SPACE brakes. Visit all checkpoints and dock slowly for 2× cargo. Let Bolt drive forfeits the bonus.',
       ],

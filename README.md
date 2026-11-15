@@ -12,6 +12,12 @@ npm run dev        # http://localhost:5173
 npm run build      # type-check + production build in dist/
 ```
 
+## Small screens and readable controls
+
+The game keeps its illustrated 16:9 layout. On phones, **Readable text and controls** opens below it with wrapping browser text and native buttons for menus, dialogue, power planning, tool selection, and appearance choices. The same view is available on desktop. Browser text zoom remains available.
+
+Use **View size** to enlarge the canvas, then **Pan left / Pan right** to reach the rest of it. Tap or focus the canvas before using gameplay keys. **Tab** moves through page controls; **B** opens the environment board. Farm movement and rover route selection still use the illustrated game map; the readable view is not a complete nonvisual alternative to gameplay.
+
 ## Refresh the NASA data
 
 ```bash
@@ -34,7 +40,7 @@ See [docs/DATA_PIPELINE.md](docs/DATA_PIPELINE.md) for source details, [docs/REF
 - **Rover:** go through the airlock (the door at the top). Click stops on the map, add 🏠 Return, then choose **Auto-drive** or **Drive yourself · 2× cargo**.
 - **Drive yourself:** W/Up accelerates, S/Down brakes then reverses, A/D or Left/Right steers, and SPACE brakes. Follow the third-person view, minimap, and ordered checkpoints, then dock slowly on the habitat pad. Completing the whole route manually doubles resources; unique discoveries and photos keep their usual awards. **Let Bolt drive** hands over the remaining route for standard cargo. Docking early also delivers standard cargo.
 - **Kitchen:** harvests go to the pantry; cook recipes for the current world or eat crops raw.
-- **Shortcuts:** TAB storm board · H help · P photo album · ESC closes panels.
+- **Shortcuts:** B storm board · H help · P photo album · ESC closes panels.
 - **Moon:** hold SHIFT for a short low-gravity hop. Clean rover dust at the airlock to restore tomorrow’s power budget. Moon crops are greenhouse experiments; the lunar terrain and discoveries are illustrated game simulations.
 
 Choose the order of the two missions at the start of a new campaign. Mars uses archived InSight weather and real historical solar-event records; the Moon mission compresses long bright and dark stretches into ten short game days and uses simulated radiation scenarios. Completing the first mission opens travel to the other world. A rescue lets you retry the current mission.

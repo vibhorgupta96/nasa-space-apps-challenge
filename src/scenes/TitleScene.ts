@@ -66,7 +66,7 @@ export class TitleScene extends Phaser.Scene {
   }
 
   private showCampaignChooser() {
-    const overlay = this.add.container(0, 0).setDepth(1000);
+    const overlay = this.add.container(0, 0).setDepth(1000).setData('readableModal', true);
     overlay.add(this.add.rectangle(0, 0, W, H, 0x080b16, 0.84).setOrigin(0).setInteractive());
     overlay.add(panel(this, 210, 115, W - 420, H - 230));
     overlay.add(text(this, W / 2, 138, store.hasSave() ? 'Start a new campaign?' : 'Choose your first world', 29, C.goldText, { fontStyle: 'bold' }).setOrigin(0.5, 0));

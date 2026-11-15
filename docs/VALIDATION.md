@@ -1,5 +1,13 @@
 # Validation status
 
+## Mobile readability and keyboard navigation — 2026-11-15
+
+- TypeScript and Vite production build passed. All 78 automated tests passed, including five reader regressions for hidden descendants, action labels/callbacks, full dialogue text, source links versus passive text, and selected appearance choices. `git diff --check` passed.
+- Added an HTML reading view with wrapping text and native controls, mobile-open by default; configurable canvas enlargement with native pan buttons; canvas-only gameplay keys with blur resets; and B in place of Tab for the environment board.
+- Independent diff review found touch panning, missing power allocation counts, hidden modal notifications, and missing selected-state semantics. All four were repaired and independently rechecked with no remaining blocking findings.
+- Browser preview startup was observed on desktop. Browser tooling became unavailable before narrow-screen, zoom, keyboard-flow, or native touch checks could finish. No claim of full screen-reader compatibility or accessibility across all devices is made. Farm/map gameplay remains spatial and canvas-based.
+- Changes have not been published or deployed.
+
 ## Latest main and Moon training integration — 2026-11-14
 
 - Regression suite passed (56/56), including 19 Mars nested self-checks. TypeScript type check, Vite production build, and `git diff --check` passed.

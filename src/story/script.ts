@@ -48,12 +48,12 @@ export const MOON_INTRO: Line[] = [
 export const TUTORIAL: Line[] = [
   { who: 'bolt', text: 'Quick tour! Walk with the ARROW keys or WASD. Choose a seed with keys 1–5, stand by an empty plot and press SPACE to plant. Key 6 waters a plant; key 7 harvests a ripe crop or clears a wilted one.' },
   { who: 'bolt', text: 'Press SPACE beside a machine to use it. Try the ice melter, shield bench, radio and airlock. The top airlock leads to my rover.' },
-  { who: 'bolt', text: 'Press TAB for the storm board. Press H for these tips. If you get stuck, talk to the crew. That is what people are for.', mood: 'happy' },
+  { who: 'bolt', text: 'Press B for the storm board. Press H for these tips. If you get stuck, talk to the crew. That is what people are for.', mood: 'happy' },
 ];
 
 export const MOON_TUTORIAL: Line[] = [
   { who: 'bolt', text: 'Walk with the ARROW keys or WASD. Hold SHIFT for a short Moon-hop. Pick seeds with keys 1–5, SPACE to plant, 6 to water, and 7 to harvest or clear.' },
-  { who: 'bolt', text: 'Press SPACE beside a machine to use it. At the airlock, clean rover dust before planning tomorrow’s power. TAB opens the lunar hazard board; H opens these tips.' },
+  { who: 'bolt', text: 'Press SPACE beside a machine to use it. At the airlock, clean rover dust before planning tomorrow’s power. B opens the lunar hazard board; H opens these tips.' },
   { who: 'bolt', text: 'The light and dark stretches are compressed for the game. Thermal control helps the greenhouse in both. Outside the dome, lunar wind and rain are not on the forecast.' },
 ];
 

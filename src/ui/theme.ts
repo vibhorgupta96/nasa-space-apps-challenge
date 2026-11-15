@@ -64,6 +64,7 @@ export function button(scene: Phaser.Scene, x: number, y: number, label: string,
   });
   c.add([g, t, zone]);
   c.setSize(w, h);
+  c.setData('readableAction', { label, activate: onClick });
   return c;
 }
 

@@ -8,6 +8,8 @@ import { DebriefScene } from './scenes/DebriefScene';
 import { UIScene } from './ui/UIScene';
 import { H, W } from './ui/theme';
 import { store } from './core/store';
+import { initializeViewport } from './ui/viewport';
+import { initializeReadableView } from './ui/readable';
 
 // 1280×720 canvas; the world cameras zoom 2× so the farm shows the same 640×360 view of
 // 32×32 tiles that PLAN.md describes, while UI text renders crisply at full resolution.
@@ -30,6 +32,8 @@ const fitCanvas = () => {
   game.canvas.style.imageRendering = shownPx < game.canvas.width ? 'auto' : 'pixelated';
 };
 game.events.once(Phaser.Core.Events.READY, () => {
+  initializeViewport(game);
+  initializeReadableView(game);
   fitCanvas();
   game.scale.on(Phaser.Scale.Events.RESIZE, fitCanvas);
   window.addEventListener('resize', fitCanvas);

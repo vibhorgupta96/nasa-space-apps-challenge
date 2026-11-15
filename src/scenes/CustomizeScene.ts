@@ -246,7 +246,9 @@ export class CustomizeScene extends Phaser.Scene {
     this.rows.removeAll(true);
     const a = this.astro;
     let y = 118;
+    let rowLabel = '';
     const row = (label: string) => {
+      rowLabel = label;
       this.rows.add(text(this, 520, y + 6, label, 20, C.text));
       const at = y;
       y += 58;
@@ -255,7 +257,7 @@ export class CustomizeScene extends Phaser.Scene {
     const choices = <T>(at: number, options: [T, string][], current: T, pick: (v: T) => void, w = 130) => {
       options.forEach(([value, label], i) => {
         const on = value === current;
-        this.rows.add(button(this, 720 + i * (w + 12), at + 18, label, () => pick(value), w, 40, on ? 0xffd166 : 0x9aa3b0));
+        this.rows.add(button(this, 720 + i * (w + 12), at + 18, label, () => pick(value), w, 40, on ? 0xffd166 : 0x9aa3b0).setData('readableAction', { label: `${rowLabel}: ${label}`, pressed: on, activate: () => pick(value) }));
       });
     };
     const swatches = (at: number, colours: string[], current: string, pick: (c: string) => void) => {
@@ -266,6 +268,7 @@ export class CustomizeScene extends Phaser.Scene {
           .setStrokeStyle(on ? 5 : 2, on ? 0xffd166 : 0x0f1420)
           .setInteractive({ useHandCursor: true });
         sw.on('pointerdown', () => pick(c));
+        sw.setData('readableAction', { label: `${rowLabel}: colour ${i + 1}`, pressed: on, activate: () => pick(c) });
         this.rows.add(sw);
       });
     };
@@ -274,6 +277,7 @@ export class CustomizeScene extends Phaser.Scene {
     const box = this.add.rectangle(676 - 21, nameAt + 18, 520, 40, 0x141927).setOrigin(0, 0.5).setStrokeStyle(2, 0xffd166)
       .setInteractive({ useHandCursor: true });
     box.on('pointerdown', () => this.askName());
+    box.setData('readableAction', { label: 'Edit astronaut name', activate: () => this.askName() });
     this.nameText = text(this, 676 - 9, nameAt + 18, '', 22, C.text).setOrigin(0, 0.5);
     this.rows.add([box, this.nameText]);
     this.showName();

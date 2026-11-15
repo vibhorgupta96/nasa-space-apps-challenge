@@ -9,7 +9,7 @@ const SOURCES_PER_PAGE = 8;
 // “NASA Data We Used” lists every unique source URL attached to the loaded data.
 export function showCredits(scene: Phaser.Scene) {
   const datasets = store.state ? [getData(store.worldId)] : getAllWorldData();
-  const c = scene.add.container(0, 0).setDepth(500);
+  const c = scene.add.container(0, 0).setDepth(500).setData('readableModal', true);
   c.add(scene.add.rectangle(0, 0, W, H, 0x000000, 0.7).setOrigin(0).setInteractive());
   c.add(panel(scene, 70, 30, W - 140, H - 60));
   c.add(text(scene, 100, 50, 'NASA data we used', 32, C.goldText, { fontStyle: 'bold' }));

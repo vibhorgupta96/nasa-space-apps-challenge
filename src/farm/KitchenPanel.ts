@@ -48,6 +48,7 @@ export function addKitchen(
     c.add(text(scene, cx + 64, y + 136, crop.food ? `+${crop.food}` : 'not food', 16, C.dim));
     c.add(text(scene, cx + 69, y + 174, crop.name.split(' ').slice(0, 2).join(' '), 14, have ? C.text : C.dim).setOrigin(0.5, 0.5));
     if (have) {
+      card.setData('readableAction', { label: `Eat ${crop.name} raw`, activate: () => done(store.eatRaw(crop.id), () => sfx('harvest')) });
       card.setInteractive({ useHandCursor: true }).on('pointerdown', () => done(store.eatRaw(crop.id), () => sfx('harvest')));
     }
   });
